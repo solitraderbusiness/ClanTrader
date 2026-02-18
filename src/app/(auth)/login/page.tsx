@@ -19,6 +19,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+const TEST_ACCOUNTS = [
+  { label: "Admin", email: "admin@clantrader.ir", role: "ADMIN" },
+  { label: "Ali (Leader)", email: "trader1@clantrader.ir", role: "TRADER" },
+  { label: "Sara (Co-Leader)", email: "trader2@clantrader.ir", role: "TRADER" },
+  { label: "Reza (Member)", email: "trader3@clantrader.ir", role: "TRADER" },
+  { label: "Spectator", email: "spectator@clantrader.ir", role: "SPECTATOR" },
+];
+
 export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +39,23 @@ export default function LoginPage() {
   } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
   });
+
+  async function quickLogin(email: string) {
+    setLoading(true);
+    setError(null);
+    const result = await signIn("credentials", {
+      email,
+      password: "password123",
+      redirect: false,
+    });
+    setLoading(false);
+    if (result?.error) {
+      setError("Quick login failed — run npm run db:seed first");
+      return;
+    }
+    router.push("/dashboard");
+    router.refresh();
+  }
 
   async function onSubmit(data: LoginInput) {
     setLoading(true);
@@ -114,6 +139,27 @@ export default function LoginPage() {
           </p>
         </CardFooter>
       </form>
+
+      {/* Quick login for testing */}
+      <div className="border-t px-6 py-4">
+        <p className="mb-2 text-center text-xs font-medium text-muted-foreground">
+          Quick Login (Test Accounts)
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          {TEST_ACCOUNTS.map((account) => (
+            <Button
+              key={account.email}
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              disabled={loading}
+              onClick={() => quickLogin(account.email)}
+            >
+              {account.label}
+            </Button>
+          ))}
+        </div>
+      </div>
     </Card>
   );
 }

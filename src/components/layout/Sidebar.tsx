@@ -10,6 +10,7 @@ import {
   Settings,
   FileCheck,
   ShieldCheck,
+  UserCheck,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -67,18 +68,32 @@ export function Sidebar() {
       {/* Bottom section */}
       <div className="space-y-1 px-2 py-3">
         {isAdmin && (
-          <Link
-            href="/admin/statements"
-            className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              pathname.startsWith("/admin")
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-            )}
-          >
-            <ShieldCheck className="h-4 w-4" />
-            Admin
-          </Link>
+          <>
+            <Link
+              href="/admin/statements"
+              className={cn(
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                pathname === "/admin/statements"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+            >
+              <ShieldCheck className="h-4 w-4" />
+              Admin
+            </Link>
+            <Link
+              href="/admin/impersonate"
+              className={cn(
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                pathname === "/admin/impersonate"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+            >
+              <UserCheck className="h-4 w-4" />
+              Switch User
+            </Link>
+          </>
         )}
         <Link
           href="/settings"
