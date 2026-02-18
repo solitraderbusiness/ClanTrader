@@ -9,5 +9,7 @@ export const config = {
     "/profile/:path*",
     "/settings/:path*",
     "/stories/:path*",
+    "/statements/:path*",
+    "/admin/:path*",
   ],
 };

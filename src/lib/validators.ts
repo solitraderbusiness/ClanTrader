@@ -45,3 +45,10 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type ProfileUpdateInput = z.infer<typeof profileUpdateSchema>;
+
+export const statementReviewSchema = z.object({
+  status: z.enum(["VERIFIED", "REJECTED"]),
+  reviewNotes: z.string().max(1000).optional(),
+});
+
+export type StatementReviewInput = z.infer<typeof statementReviewSchema>;

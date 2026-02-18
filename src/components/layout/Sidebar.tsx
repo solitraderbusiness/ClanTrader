@@ -8,12 +8,16 @@ import {
   Compass,
   Trophy,
   Settings,
+  FileCheck,
+  ShieldCheck,
 } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/statements", label: "Statements", icon: FileCheck },
   { href: "/clans", label: "Clans", icon: Shield },
   { href: "/discover", label: "Discover", icon: Compass },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
@@ -21,6 +25,8 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
 
   return (
     <div className="flex h-full flex-col">
@@ -59,7 +65,21 @@ export function Sidebar() {
       <Separator />
 
       {/* Bottom section */}
-      <div className="px-2 py-3">
+      <div className="space-y-1 px-2 py-3">
+        {isAdmin && (
+          <Link
+            href="/admin/statements"
+            className={cn(
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              pathname.startsWith("/admin")
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            )}
+          >
+            <ShieldCheck className="h-4 w-4" />
+            Admin
+          </Link>
+        )}
         <Link
           href="/settings"
           className={cn(

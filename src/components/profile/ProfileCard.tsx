@@ -1,5 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { MetricsDisplay } from "@/components/statements/MetricsDisplay";
+import type { StatementMetrics } from "@/types/statement";
 
 interface ProfileCardProps {
   user: {
@@ -107,13 +109,15 @@ export function ProfileCard({ user }: ProfileCardProps) {
         </div>
       )}
 
-      {/* Verified stats placeholder */}
+      {/* Verified Trading Stats */}
       {isVerified && user.statements?.[0]?.extractedMetrics && (
         <div className="rounded-lg border p-4">
           <h3 className="mb-3 font-medium">Verified Trading Stats</h3>
-          <p className="text-sm text-muted-foreground">
-            Detailed stats will be displayed after Phase 2 (Statement Parser).
-          </p>
+          <MetricsDisplay
+            metrics={user.statements[0].extractedMetrics as unknown as StatementMetrics}
+            compact
+            verificationMethod={user.statements[0].verificationMethod}
+          />
         </div>
       )}
     </div>
