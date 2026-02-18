@@ -1,0 +1,234 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  passwordHash      String
+  name              String?
+  bio               String?
+  avatar            String?
+  role              UserRole  @default(SPECTATOR)
+  tradingStyle      String?
+  sessionPreference String?
+  preferredPairs    String[]
+  emailVerified     DateTime?
+  verifyToken       String?
+  resetToken        String?
+  resetTokenExpiry  DateTime?
+  isPro             Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  statements      TradingStatement[]
+  clanMemberships ClanMember[]
+  createdClans    Clan[]        @relation("ClanCreator")
+  followsGiven    Follow[]      @relation("Follower")
+  stories         Story[]
+  channelPosts    ChannelPost[]
+  messages        Message[]
+
+  @@index([email])
+}
+
+enum UserRole {
+  SPECTATOR
+  TRADER
+  ADMIN
+}
+
+model TradingStatement {
+  id                 String             @id @default(cuid())
+  userId             String
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  filePath           String
+  originalFilename   String
+  verificationStatus VerificationStatus @default(PENDING)
+  verificationMethod VerificationMethod @default(SELF_REPORTED)
+  extractedMetrics   Json?
+  reviewNotes        String?
+  uploadedAt         DateTime           @default(now())
+  verifiedAt         DateTime?
+  expiresAt          DateTime?
+
+  @@index([userId])
+  @@index([verificationStatus])
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  EXPIRED
+}
+
+enum VerificationMethod {
+  SELF_REPORTED
+  BROKER_VERIFIED
+}
+
+model Clan {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  description  String?
+  avatar       String?
+  tradingFocus String?
+  isPublic     Boolean  @default(true)
+  tier         ClanTier @default(FREE)
+  settings     Json?
+  createdById  String
+  createdBy    User     @relation("ClanCreator", fields: [createdById], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  members      ClanMember[]
+  messages     Message[]
+  channelPosts ChannelPost[]
+  inviteLinks  ClanInvite[]
+
+  @@index([name])
+}
+
+enum ClanTier {
+  FREE
+  PRO
+}
+
+model ClanMember {
+  id       String         @id @default(cuid())
+  userId   String
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clanId   String
+  clan     Clan           @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  role     ClanMemberRole @default(MEMBER)
+  joinedAt DateTime       @default(now())
+
+  @@unique([userId, clanId])
+  @@index([clanId])
+}
+
+enum ClanMemberRole {
+  LEADER
+  CO_LEADER
+  MEMBER
+}
+
+model ClanInvite {
+  id        String    @id @default(cuid())
+  clanId    String
+  clan      Clan      @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  code      String    @unique
+  expiresAt DateTime?
+  maxUses   Int?
+  uses      Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  @@index([code])
+}
+
+model Follow {
+  id            String     @id @default(cuid())
+  followerId    String
+  follower      User       @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followingType FollowType
+  followingId   String
+  createdAt     DateTime   @default(now())
+
+  @@unique([followerId, followingType, followingId])
+  @@index([followingType, followingId])
+}
+
+enum FollowType {
+  USER
+  CLAN
+}
+
+model Season {
+  id        String       @id @default(cuid())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  status    SeasonStatus @default(UPCOMING)
+  createdAt DateTime     @default(now())
+
+  leaderboardEntries LeaderboardEntry[]
+
+  @@index([status])
+}
+
+enum SeasonStatus {
+  UPCOMING
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+model LeaderboardEntry {
+  id         String          @id @default(cuid())
+  seasonId   String
+  season     Season          @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  entityType LeaderboardType
+  entityId   String
+  rank       Int?
+  metrics    Json
+  updatedAt  DateTime        @updatedAt
+
+  @@unique([seasonId, entityType, entityId])
+  @@index([seasonId, entityType, rank])
+}
+
+enum LeaderboardType {
+  TRADER
+  CLAN
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  clanId    String
+  clan      Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([clanId, createdAt])
+}
+
+model ChannelPost {
+  id        String   @id @default(cuid())
+  clanId    String
+  clan      Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  title     String?
+  content   String
+  images    String[]
+  isPremium Boolean  @default(false)
+  viewCount Int      @default(0)
+  reactions Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clanId, createdAt])
+  @@index([isPremium])
+}
+
+model Story {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  imageUrl    String
+  textOverlay String?
+  viewCount   Int      @default(0)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+}
