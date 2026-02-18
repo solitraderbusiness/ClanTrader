@@ -1,12 +1,14 @@
 import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
-import { getClan } from "@/services/clan.service";
+import { getClan, getMemberLimit } from "@/services/clan.service";
 import { isFollowing } from "@/services/follow.service";
-import { getMemberLimit } from "@/services/clan.service";
+import { getChannelPosts } from "@/services/channel.service";
 import { db } from "@/lib/db";
 import { ClanProfileHeader } from "@/components/clan/ClanProfileHeader";
+import { ClanProfileTabs } from "@/components/clan/ClanProfileTabs";
 import { JoinClanButton } from "@/components/clan/JoinClanButton";
 import { FollowButton } from "@/components/clan/FollowButton";
+import { ChannelFeed } from "@/components/channel/ChannelFeed";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,7 +47,7 @@ export default async function ClanPage({
     notFound();
   }
 
-  const [following, members, membership] = await Promise.all([
+  const [following, members, membership, channelData] = await Promise.all([
     isFollowing(session.user.id, clanId),
     db.clanMember.findMany({
       where: { clanId },
@@ -64,6 +66,11 @@ export default async function ClanPage({
     db.clanMember.findUnique({
       where: { userId_clanId: { userId: session.user.id, clanId } },
     }),
+    getChannelPosts(clanId, {
+      page: 1,
+      userId: session.user.id,
+      isPro: session.user.isPro ?? false,
+    }),
   ]);
 
   const isMember = !!membership;
@@ -72,6 +79,79 @@ export default async function ClanPage({
     membership?.role === "LEADER" || membership?.role === "CO_LEADER";
   const memberLimit = getMemberLimit(clan.tier as ClanTier);
   const isFull = clan._count.members >= memberLimit;
+
+  // Serialize for client components
+  const serializedPosts = channelData.posts.map((p) => ({
+    id: p.id,
+    title: p.title,
+    content: p.content,
+    images: p.images,
+    isPremium: p.isPremium,
+    locked: p.locked,
+    viewCount: p.viewCount,
+    reactions: (p.reactions as Record<string, string[]>) || null,
+    createdAt:
+      p.createdAt instanceof Date ? p.createdAt.toISOString() : String(p.createdAt),
+    author: p.author,
+  }));
+
+  const membersContent = (
+    <div>
+      <h2 className="mb-3 text-lg font-semibold">
+        Members ({clan._count.members}/{memberLimit})
+      </h2>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {members.map((member) => (
+          <div
+            key={member.id}
+            className="flex items-center gap-3 rounded-lg border p-3"
+          >
+            <Avatar className="h-10 w-10">
+              <AvatarImage
+                src={member.user.avatar || undefined}
+                alt={member.user.name || ""}
+              />
+              <AvatarFallback>
+                {(member.user.name || "?").slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="truncate font-medium">
+                  {member.user.name || "Unknown"}
+                </span>
+                <Badge
+                  variant={
+                    member.role === "LEADER"
+                      ? "default"
+                      : member.role === "CO_LEADER"
+                        ? "secondary"
+                        : "outline"
+                  }
+                >
+                  {member.role}
+                </Badge>
+              </div>
+              {member.user.tradingStyle && (
+                <p className="text-xs text-muted-foreground">
+                  {member.user.tradingStyle}
+                </p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const channelContent = (
+    <ChannelFeed
+      clanId={clanId}
+      initialPosts={serializedPosts}
+      initialPagination={channelData.pagination}
+      currentUserId={session.user.id}
+    />
+  );
 
   return (
     <div className="space-y-6">
@@ -98,52 +178,10 @@ export default async function ClanPage({
         )}
       </ClanProfileHeader>
 
-      <div>
-        <h2 className="mb-3 text-lg font-semibold">
-          Members ({clan._count.members}/{memberLimit})
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {members.map((member) => (
-            <div
-              key={member.id}
-              className="flex items-center gap-3 rounded-lg border p-3"
-            >
-              <Avatar className="h-10 w-10">
-                <AvatarImage
-                  src={member.user.avatar || undefined}
-                  alt={member.user.name || ""}
-                />
-                <AvatarFallback>
-                  {(member.user.name || "?").slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-medium">
-                    {member.user.name || "Unknown"}
-                  </span>
-                  <Badge
-                    variant={
-                      member.role === "LEADER"
-                        ? "default"
-                        : member.role === "CO_LEADER"
-                          ? "secondary"
-                          : "outline"
-                    }
-                  >
-                    {member.role}
-                  </Badge>
-                </div>
-                {member.user.tradingStyle && (
-                  <p className="text-xs text-muted-foreground">
-                    {member.user.tradingStyle}
-                  </p>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <ClanProfileTabs
+        channelContent={channelContent}
+        membersContent={membersContent}
+      />
     </div>
   );
 }

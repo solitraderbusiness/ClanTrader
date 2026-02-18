@@ -15,3 +15,20 @@ export const TRADING_FOCUSES = [
   "Indices",
   "Mixed",
 ] as const;
+
+// Channel post constants
+export const CHANNEL_POST_CONTENT_MAX = 5000;
+export const CHANNEL_POST_TITLE_MAX = 200;
+export const CHANNEL_POST_IMAGES_MAX = 4;
+export const CHANNEL_POSTS_PER_PAGE = 20;
+
+export const REACTION_EMOJIS = [
+  "👍",
+  "❤️",
+  "🔥",
+  "👏",
+  "🚀",
+  "👀",
+  "💯",
+  "🤔",
+] as const;

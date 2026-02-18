@@ -87,3 +87,34 @@ export const updateMemberRoleSchema = z.object({
 });
 
 export type UpdateMemberRoleInput = z.infer<typeof updateMemberRoleSchema>;
+
+// --- Channel Post schemas ---
+
+export const createChannelPostSchema = z.object({
+  title: z
+    .string()
+    .max(200, "Title must be at most 200 characters")
+    .optional(),
+  content: z
+    .string()
+    .min(1, "Content is required")
+    .max(5000, "Content must be at most 5000 characters"),
+  images: z.array(z.string()).max(4).optional(),
+  isPremium: z.boolean().optional(),
+});
+
+export type CreateChannelPostInput = z.infer<typeof createChannelPostSchema>;
+
+export const updateChannelPostSchema = z.object({
+  title: z.string().max(200).optional().nullable(),
+  content: z.string().min(1).max(5000).optional(),
+  isPremium: z.boolean().optional(),
+});
+
+export type UpdateChannelPostInput = z.infer<typeof updateChannelPostSchema>;
+
+export const reactionSchema = z.object({
+  emoji: z.string().min(1).max(8),
+});
+
+export type ReactionInput = z.infer<typeof reactionSchema>;

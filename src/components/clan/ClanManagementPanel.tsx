@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClanSettingsForm } from "./ClanSettingsForm";
 import { MemberList } from "./MemberList";
 import { InviteManager } from "./InviteManager";
+import { ChannelPostManager } from "@/components/channel/ChannelPostManager";
 
 interface Member {
   id: string;
@@ -44,6 +45,7 @@ export function ClanManagementPanel({
         <TabsTrigger value="settings">Settings</TabsTrigger>
         <TabsTrigger value="members">Members</TabsTrigger>
         <TabsTrigger value="invites">Invites</TabsTrigger>
+        <TabsTrigger value="channel">Channel</TabsTrigger>
       </TabsList>
 
       <TabsContent value="settings">
@@ -61,6 +63,10 @@ export function ClanManagementPanel({
 
       <TabsContent value="invites">
         <InviteManager clanId={clan.id} />
+      </TabsContent>
+
+      <TabsContent value="channel">
+        <ChannelPostManager clanId={clan.id} />
       </TabsContent>
     </Tabs>
   );
