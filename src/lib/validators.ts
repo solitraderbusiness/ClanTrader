@@ -118,3 +118,22 @@ export const reactionSchema = z.object({
 });
 
 export type ReactionInput = z.infer<typeof reactionSchema>;
+
+// --- Chat/Message schemas ---
+
+export const sendMessageSchema = z.object({
+  clanId: z.string().min(1),
+  content: z
+    .string()
+    .min(1, "Message cannot be empty")
+    .max(2000, "Message must be at most 2000 characters"),
+});
+
+export type SendMessageInput = z.infer<typeof sendMessageSchema>;
+
+export const pinMessageSchema = z.object({
+  messageId: z.string().min(1),
+  clanId: z.string().min(1),
+});
+
+export type PinMessageInput = z.infer<typeof pinMessageSchema>;

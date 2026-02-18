@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { ChatPanel } from "@/components/chat/ChatPanel";
 import { Settings } from "lucide-react";
 import type { ClanTier } from "@prisma/client";
 
@@ -144,6 +145,14 @@ export default async function ClanPage({
     </div>
   );
 
+  const chatContent = isMember ? (
+    <ChatPanel
+      clanId={clanId}
+      currentUserId={session.user.id}
+      memberRole={membership!.role}
+    />
+  ) : null;
+
   const channelContent = (
     <ChannelFeed
       clanId={clanId}
@@ -181,6 +190,7 @@ export default async function ClanPage({
       <ClanProfileTabs
         channelContent={channelContent}
         membersContent={membersContent}
+        chatContent={chatContent}
       />
     </div>
   );
