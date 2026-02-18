@@ -12,6 +12,8 @@ ClanTrader is a competitive social trading platform. Iranian-first architecture:
 - Never commit .env files or secrets to git
 - Use App Router patterns (not Pages Router)
 - Use Server Components by default, Client Components only when needed (interactivity, hooks, browser APIs)
+- Multilingual support: Persian (fa), English (en), Arabic (ar) — RTL support required
+- Use logical CSS properties (ms/me/ps/pe) not physical (ml/mr/pl/pr) in new code
 
 ## Tech Stack
 - Next.js 16 (App Router, TypeScript, Tailwind CSS)

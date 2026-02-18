@@ -52,3 +52,38 @@ export const statementReviewSchema = z.object({
 });
 
 export type StatementReviewInput = z.infer<typeof statementReviewSchema>;
+
+// --- Clan schemas ---
+
+export const createClanSchema = z.object({
+  name: z
+    .string()
+    .min(3, "Clan name must be at least 3 characters")
+    .max(30, "Clan name must be at most 30 characters")
+    .regex(
+      /^[a-zA-Z0-9][a-zA-Z0-9 -]*[a-zA-Z0-9]$/,
+      "Clan name must start and end with alphanumeric characters and contain only letters, numbers, spaces, and hyphens"
+    ),
+  description: z.string().max(500, "Description must be at most 500 characters").optional(),
+  tradingFocus: z.string().max(50).optional(),
+  isPublic: z.boolean(),
+});
+
+export type CreateClanInput = z.infer<typeof createClanSchema>;
+
+export const updateClanSchema = createClanSchema.partial();
+
+export type UpdateClanInput = z.infer<typeof updateClanSchema>;
+
+export const createInviteSchema = z.object({
+  expiresInHours: z.number().positive().optional(),
+  maxUses: z.number().int().min(1).max(100).optional(),
+});
+
+export type CreateInviteInput = z.infer<typeof createInviteSchema>;
+
+export const updateMemberRoleSchema = z.object({
+  role: z.enum(["CO_LEADER", "MEMBER"]),
+});
+
+export type UpdateMemberRoleInput = z.infer<typeof updateMemberRoleSchema>;
