@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { MESSAGES_PER_PAGE, MAX_PINNED_MESSAGES } from "@/lib/chat-constants";
+import type { MessageType } from "@prisma/client";
 
 export class MessageServiceError extends Error {
   constructor(
@@ -11,6 +12,28 @@ export class MessageServiceError extends Error {
     this.name = "MessageServiceError";
   }
 }
+
+const messageInclude = {
+  user: { select: { id: true, name: true, avatar: true, role: true } },
+  replyTo: {
+    select: {
+      id: true,
+      content: true,
+      user: { select: { id: true, name: true } },
+    },
+  },
+  tradeCard: {
+    include: {
+      trade: {
+        select: {
+          id: true,
+          status: true,
+          userId: true,
+        },
+      },
+    },
+  },
+} as const;
 
 export async function requireClanMembership(userId: string, clanId: string) {
   const membership = await db.clanMember.findUnique({
@@ -29,27 +52,126 @@ export async function requireClanMembership(userId: string, clanId: string) {
 export async function createMessage(
   clanId: string,
   userId: string,
-  content: string
+  content: string,
+  topicId: string,
+  options?: { replyToId?: string; type?: MessageType }
 ) {
   return db.message.create({
-    data: { clanId, userId, content },
-    include: {
-      user: { select: { id: true, name: true, avatar: true } },
+    data: {
+      clanId,
+      userId,
+      content,
+      topicId,
+      type: options?.type || "TEXT",
+      ...(options?.replyToId ? { replyToId: options.replyToId } : {}),
     },
+    include: messageInclude,
+  });
+}
+
+export async function editMessage(
+  messageId: string,
+  clanId: string,
+  userId: string,
+  content: string
+) {
+  const message = await db.message.findUnique({
+    where: { id: messageId },
+  });
+
+  if (!message || message.clanId !== clanId) {
+    throw new MessageServiceError("Message not found", "NOT_FOUND", 404);
+  }
+
+  if (message.userId !== userId) {
+    throw new MessageServiceError(
+      "You can only edit your own messages",
+      "FORBIDDEN",
+      403
+    );
+  }
+
+  return db.message.update({
+    where: { id: messageId },
+    data: { content, isEdited: true },
+    include: messageInclude,
+  });
+}
+
+export async function deleteMessage(
+  messageId: string,
+  clanId: string,
+  userId: string
+) {
+  const message = await db.message.findUnique({
+    where: { id: messageId },
+  });
+
+  if (!message || message.clanId !== clanId) {
+    throw new MessageServiceError("Message not found", "NOT_FOUND", 404);
+  }
+
+  // Author can delete own, LEADER/CO_LEADER can delete any
+  if (message.userId !== userId) {
+    const membership = await requireClanMembership(userId, clanId);
+    if (!["LEADER", "CO_LEADER"].includes(membership.role)) {
+      throw new MessageServiceError(
+        "You can only delete your own messages",
+        "FORBIDDEN",
+        403
+      );
+    }
+  }
+
+  await db.message.delete({ where: { id: messageId } });
+  return message;
+}
+
+export async function toggleReaction(
+  messageId: string,
+  clanId: string,
+  userId: string,
+  emoji: string
+) {
+  const message = await db.message.findUnique({
+    where: { id: messageId },
+  });
+
+  if (!message || message.clanId !== clanId) {
+    throw new MessageServiceError("Message not found", "NOT_FOUND", 404);
+  }
+
+  const reactions = (message.reactions as Record<string, string[]>) || {};
+  const current = reactions[emoji] || [];
+
+  if (current.includes(userId)) {
+    const next = current.filter((id) => id !== userId);
+    if (next.length === 0) {
+      delete reactions[emoji];
+    } else {
+      reactions[emoji] = next;
+    }
+  } else {
+    reactions[emoji] = [...current, userId];
+  }
+
+  return db.message.update({
+    where: { id: messageId },
+    data: { reactions: reactions },
+    include: messageInclude,
   });
 }
 
 export async function getMessages(
   clanId: string,
+  topicId: string,
   options: { cursor?: string; limit?: number } = {}
 ) {
   const limit = Math.min(options.limit || MESSAGES_PER_PAGE, 100);
 
   const messages = await db.message.findMany({
-    where: { clanId },
-    include: {
-      user: { select: { id: true, name: true, avatar: true } },
-    },
+    where: { clanId, topicId },
+    include: messageInclude,
     orderBy: { createdAt: "desc" },
     take: limit + 1,
     ...(options.cursor
@@ -67,12 +189,10 @@ export async function getMessages(
   };
 }
 
-export async function getPinnedMessages(clanId: string) {
+export async function getPinnedMessages(clanId: string, topicId: string) {
   return db.message.findMany({
-    where: { clanId, isPinned: true },
-    include: {
-      user: { select: { id: true, name: true, avatar: true } },
-    },
+    where: { clanId, topicId, isPinned: true },
+    include: messageInclude,
     orderBy: { createdAt: "desc" },
     take: MAX_PINNED_MESSAGES,
   });
@@ -110,7 +230,7 @@ export async function pinMessage(
   }
 
   const pinnedCount = await db.message.count({
-    where: { clanId, isPinned: true },
+    where: { clanId, topicId: message.topicId, isPinned: true },
   });
 
   if (pinnedCount >= MAX_PINNED_MESSAGES) {
@@ -124,9 +244,7 @@ export async function pinMessage(
   return db.message.update({
     where: { id: messageId },
     data: { isPinned: true },
-    include: {
-      user: { select: { id: true, name: true, avatar: true } },
-    },
+    include: messageInclude,
   });
 }
 
@@ -156,8 +274,16 @@ export async function unpinMessage(
   return db.message.update({
     where: { id: messageId },
     data: { isPinned: false },
-    include: {
-      user: { select: { id: true, name: true, avatar: true } },
+    include: messageInclude,
+  });
+}
+
+export async function getClanMembers(clanId: string) {
+  return db.clanMember.findMany({
+    where: { clanId },
+    select: {
+      role: true,
+      user: { select: { id: true, name: true, avatar: true, role: true } },
     },
   });
 }

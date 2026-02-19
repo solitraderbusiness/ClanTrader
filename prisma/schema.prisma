@@ -32,6 +32,9 @@ model User {
   stories         Story[]
   channelPosts    ChannelPost[]
   messages        Message[]
+  createdTopics   ChatTopic[]
+  trades          Trade[]
+  watchlists      Watchlist[]
 
   @@index([email])
 }
@@ -90,6 +93,9 @@ model Clan {
   messages     Message[]
   channelPosts ChannelPost[]
   inviteLinks  ClanInvite[]
+  topics       ChatTopic[]
+  trades       Trade[]
+  watchlists   Watchlist[]
 
   @@index([name])
 }
@@ -187,17 +193,179 @@ enum LeaderboardType {
   CLAN
 }
 
+// --- Chat & Topics ---
+
+enum MessageType {
+  TEXT
+  TRADE_CARD
+  SYSTEM_SUMMARY
+}
+
+enum TradeDirection {
+  LONG
+  SHORT
+}
+
+enum TradeStatus {
+  OPEN
+  TP1_HIT
+  TP2_HIT
+  SL_HIT
+  BE
+  CLOSED
+}
+
+enum TopicStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model ChatTopic {
+  id          String      @id @default(cuid())
+  clanId      String
+  clan        Clan        @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  isDefault   Boolean     @default(false)
+  status      TopicStatus @default(ACTIVE)
+  sortOrder   Int         @default(0)
+  createdById String
+  createdBy   User        @relation(fields: [createdById], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  messages Message[]
+
+  @@unique([clanId, name])
+  @@index([clanId, status])
+}
+
 model Message {
-  id        String   @id @default(cuid())
+  id        String      @id @default(cuid())
   clanId    String
-  clan      Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  clan      Clan        @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  topicId   String?
+  topic     ChatTopic?  @relation(fields: [topicId], references: [id], onDelete: SetNull)
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   content   String
-  isPinned  Boolean  @default(false)
-  createdAt DateTime @default(now())
+  type      MessageType @default(TEXT)
+  isPinned  Boolean     @default(false)
+  isEdited  Boolean     @default(false)
+  reactions Json?
+  replyToId String?
+  replyTo   Message?    @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   Message[]   @relation("MessageReplies")
+  createdAt DateTime    @default(now())
+
+  tradeCard TradeCard?
 
   @@index([clanId, createdAt])
+  @@index([topicId, createdAt])
+}
+
+model TradeCard {
+  id        String         @id @default(cuid())
+  messageId String         @unique
+  message   Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  instrument String
+  direction TradeDirection
+  entry     Float
+  stopLoss  Float
+  targets   Float[]
+  timeframe String
+  riskPct   Float?
+  note      String?
+  tags      String[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  versions TradeCardVersion[]
+  trade    Trade?
+
+  @@index([instrument])
+  @@index([direction])
+}
+
+model TradeCardVersion {
+  id          String         @id @default(cuid())
+  tradeCardId String
+  tradeCard   TradeCard      @relation(fields: [tradeCardId], references: [id], onDelete: Cascade)
+  instrument  String
+  direction   TradeDirection
+  entry       Float
+  stopLoss    Float
+  targets     Float[]
+  timeframe   String
+  riskPct     Float?
+  note        String?
+  tags        String[]
+  editedById  String
+  editedAt    DateTime       @default(now())
+
+  @@index([tradeCardId, editedAt])
+}
+
+model Trade {
+  id          String      @id @default(cuid())
+  tradeCardId String      @unique
+  tradeCard   TradeCard   @relation(fields: [tradeCardId], references: [id], onDelete: Cascade)
+  clanId      String
+  clan        Clan        @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status      TradeStatus @default(OPEN)
+  closedAt    DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  statusHistory TradeStatusHistory[]
+
+  @@index([clanId, status])
+  @@index([clanId, createdAt])
+  @@index([userId])
+}
+
+model TradeStatusHistory {
+  id          String      @id @default(cuid())
+  tradeId     String
+  trade       Trade       @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  fromStatus  TradeStatus
+  toStatus    TradeStatus
+  changedById String
+  note        String?
+  createdAt   DateTime    @default(now())
+
+  @@index([tradeId, createdAt])
+}
+
+model Watchlist {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clanId     String
+  clan       Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  instrument String
+  addedAt    DateTime @default(now())
+
+  @@unique([userId, clanId, instrument])
+  @@index([userId, clanId])
+}
+
+model TradingEvent {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  instrument  String?
+  impact      String?
+  startTime   DateTime
+  endTime     DateTime?
+  source      String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, startTime])
 }
 
 model ChannelPost {

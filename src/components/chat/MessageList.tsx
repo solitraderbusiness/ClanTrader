@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { MessageBubble } from "./MessageBubble";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, MessageCircle } from "lucide-react";
 import type { ChatMessage } from "@/stores/chat-store";
+import { useChatStore } from "@/stores/chat-store";
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -13,6 +14,8 @@ interface MessageListProps {
   onLoadMore: () => void;
   canPin: boolean;
   clanId: string;
+  topicName?: string;
+  highlightMessageId?: string | null;
 }
 
 export function MessageList({
@@ -22,6 +25,8 @@ export function MessageList({
   onLoadMore,
   canPin,
   clanId,
+  topicName,
+  highlightMessageId,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -52,6 +57,22 @@ export function MessageList({
   useEffect(() => {
     bottomRef.current?.scrollIntoView();
   }, []);
+
+  // Scroll to highlighted message
+  useEffect(() => {
+    if (!highlightMessageId) return;
+
+    const el = document.getElementById(`msg-${highlightMessageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("animate-highlight");
+      const timer = setTimeout(() => {
+        el.classList.remove("animate-highlight");
+        useChatStore.getState().setHighlightMessageId(null);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightMessageId]);
 
   function scrollToBottom() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -84,8 +105,13 @@ export function MessageList({
         )}
 
         {messages.length === 0 && (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            No messages yet. Start the conversation!
+          <div className="flex h-full flex-col items-center justify-center text-sm text-muted-foreground">
+            <MessageCircle className="mb-2 h-8 w-8 text-muted-foreground/50" />
+            <p>
+              No messages in{" "}
+              <span className="font-medium">#{topicName || "General"}</span> yet
+            </p>
+            <p className="mt-1 text-xs">Start the conversation!</p>
           </div>
         )}
 
@@ -95,14 +121,16 @@ export function MessageList({
             const showAvatar = !prevMsg || prevMsg.user.id !== msg.user.id;
 
             return (
-              <MessageBubble
-                key={msg.id}
-                message={msg}
-                isOwn={msg.user.id === currentUserId}
-                showAvatar={showAvatar}
-                canPin={canPin}
-                clanId={clanId}
-              />
+              <div key={msg.id} id={`msg-${msg.id}`}>
+                <MessageBubble
+                  message={msg}
+                  isOwn={msg.user.id === currentUserId}
+                  showAvatar={showAvatar}
+                  canPin={canPin}
+                  clanId={clanId}
+                  currentUserId={currentUserId}
+                />
+              </div>
             );
           })}
         </div>

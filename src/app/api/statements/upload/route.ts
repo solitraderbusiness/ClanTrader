@@ -38,20 +38,8 @@ export async function POST(request: Request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const html = buffer.toString("utf-8");
 
-    // Parse the statement
-    let metrics;
-    try {
-      metrics = parseStatement(html);
-    } catch (err) {
-      if (err instanceof StatementParseError) {
-        return NextResponse.json({ error: err.message }, { status: 422 });
-      }
-      throw err;
-    }
-
-    // Save file
+    // Save file first
     const uploadDir = path.join(
       process.cwd(),
       "public",
@@ -66,6 +54,17 @@ export async function POST(request: Request) {
     const filename = `${timestamp}_${safeFilename}`;
     const filepath = path.join(uploadDir, filename);
     await writeFile(filepath, buffer);
+
+    // Parse the statement
+    let metrics;
+    try {
+      metrics = parseStatement(buffer);
+    } catch (err) {
+      if (err instanceof StatementParseError) {
+        return NextResponse.json({ error: err.message }, { status: 422 });
+      }
+      throw err;
+    }
 
     const fileUrl = `/uploads/statements/${session.user.id}/${filename}`;
 

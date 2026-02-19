@@ -28,6 +28,7 @@ export async function POST(request: Request) {
 
     const passwordHash = hashPassword(password);
     const verifyToken = generateToken();
+    const hasSmtp = !!process.env.SMTP_HOST?.trim();
 
     await db.user.create({
       data: {
@@ -35,13 +36,21 @@ export async function POST(request: Request) {
         passwordHash,
         name,
         verifyToken,
+        // Auto-verify when no SMTP is configured (dev mode)
+        ...(!hasSmtp && { emailVerified: new Date() }),
       },
     });
 
-    await sendVerificationEmail(email, verifyToken);
+    if (hasSmtp) {
+      await sendVerificationEmail(email, verifyToken);
+    }
 
     return NextResponse.json(
-      { message: "Account created. Check your email to verify." },
+      {
+        message: hasSmtp
+          ? "Account created. Check your email to verify."
+          : "Account created. You can now log in.",
+      },
       { status: 201 }
     );
   } catch (error) {

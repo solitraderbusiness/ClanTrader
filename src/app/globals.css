@@ -124,3 +124,17 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Chat highlight animation for jump-to-message */
+@keyframes highlight-flash {
+  0% {
+    background-color: oklch(0.828 0.189 84.429 / 40%);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.animate-highlight {
+  animation: highlight-flash 2s ease-out;
+}

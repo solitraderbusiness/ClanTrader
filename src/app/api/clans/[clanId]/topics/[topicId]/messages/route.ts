@@ -3,15 +3,13 @@ import { auth } from "@/lib/auth";
 import {
   getMessages,
   getPinnedMessages,
-  getClanMembers,
   requireClanMembership,
   MessageServiceError,
 } from "@/services/message.service";
-import { getDefaultTopic } from "@/services/topic.service";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ clanId: string }> }
+  { params }: { params: Promise<{ clanId: string; topicId: string }> }
 ) {
   try {
     const session = await auth();
@@ -19,34 +17,19 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { clanId } = await params;
+    const { clanId, topicId } = await params;
     const { searchParams } = new URL(request.url);
     const cursor = searchParams.get("cursor") || undefined;
     const pinned = searchParams.get("pinned") === "true";
-    const members = searchParams.get("members") === "true";
-    const topicId = searchParams.get("topicId") || undefined;
 
     await requireClanMembership(session.user.id, clanId);
 
-    if (members) {
-      const clanMembers = await getClanMembers(clanId);
-      return NextResponse.json({
-        members: clanMembers.map((m) => ({
-          ...m.user,
-          memberRole: m.role,
-        })),
-      });
-    }
-
-    // Resolve topicId: use provided, or fall back to default
-    const resolvedTopicId = topicId || (await getDefaultTopic(clanId)).id;
-
     if (pinned) {
-      const pinnedMessages = await getPinnedMessages(clanId, resolvedTopicId);
+      const pinnedMessages = await getPinnedMessages(clanId, topicId);
       return NextResponse.json({ messages: pinnedMessages });
     }
 
-    const result = await getMessages(clanId, resolvedTopicId, { cursor });
+    const result = await getMessages(clanId, topicId, { cursor });
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof MessageServiceError) {
@@ -55,10 +38,7 @@ export async function GET(
         { status: error.status }
       );
     }
-    console.error("Get messages error:", error);
-    return NextResponse.json(
-      { error: "Something went wrong" },
-      { status: 500 }
-    );
+    console.error("Get topic messages error:", error);
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }

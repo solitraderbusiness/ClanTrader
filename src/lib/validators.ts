@@ -123,13 +123,33 @@ export type ReactionInput = z.infer<typeof reactionSchema>;
 
 export const sendMessageSchema = z.object({
   clanId: z.string().min(1),
+  topicId: z.string().min(1),
+  content: z
+    .string()
+    .min(1, "Message cannot be empty")
+    .max(2000, "Message must be at most 2000 characters"),
+  replyToId: z.string().optional(),
+});
+
+export type SendMessageInput = z.infer<typeof sendMessageSchema>;
+
+export const editMessageSchema = z.object({
+  messageId: z.string().min(1),
+  clanId: z.string().min(1),
   content: z
     .string()
     .min(1, "Message cannot be empty")
     .max(2000, "Message must be at most 2000 characters"),
 });
 
-export type SendMessageInput = z.infer<typeof sendMessageSchema>;
+export type EditMessageInput = z.infer<typeof editMessageSchema>;
+
+export const deleteMessageSchema = z.object({
+  messageId: z.string().min(1),
+  clanId: z.string().min(1),
+});
+
+export type DeleteMessageInput = z.infer<typeof deleteMessageSchema>;
 
 export const pinMessageSchema = z.object({
   messageId: z.string().min(1),
@@ -137,3 +157,94 @@ export const pinMessageSchema = z.object({
 });
 
 export type PinMessageInput = z.infer<typeof pinMessageSchema>;
+
+export const reactMessageSchema = z.object({
+  messageId: z.string().min(1),
+  clanId: z.string().min(1),
+  emoji: z.string().min(1).max(8),
+});
+
+export type ReactMessageInput = z.infer<typeof reactMessageSchema>;
+
+// --- Topic schemas ---
+
+export const createTopicSchema = z.object({
+  name: z
+    .string()
+    .min(2, "Topic name must be at least 2 characters")
+    .max(30, "Topic name must be at most 30 characters"),
+  description: z.string().max(200).optional(),
+});
+
+export type CreateTopicInput = z.infer<typeof createTopicSchema>;
+
+export const updateTopicSchema = z.object({
+  name: z
+    .string()
+    .min(2, "Topic name must be at least 2 characters")
+    .max(30, "Topic name must be at most 30 characters")
+    .optional(),
+  description: z.string().max(200).optional().nullable(),
+});
+
+export type UpdateTopicInput = z.infer<typeof updateTopicSchema>;
+
+// --- Trade Card schemas ---
+
+export const sendTradeCardSchema = z.object({
+  clanId: z.string().min(1),
+  topicId: z.string().min(1),
+  instrument: z.string().min(1).max(20),
+  direction: z.enum(["LONG", "SHORT"]),
+  entry: z.number().positive(),
+  stopLoss: z.number().positive(),
+  targets: z.array(z.number().positive()).min(1).max(5),
+  timeframe: z.string().min(1).max(10),
+  riskPct: z.number().min(0).max(100).optional(),
+  note: z.string().max(500).optional(),
+  tags: z.array(z.string().max(30)).max(5).optional(),
+});
+
+export type SendTradeCardInput = z.infer<typeof sendTradeCardSchema>;
+
+export const editTradeCardSchema = z.object({
+  messageId: z.string().min(1),
+  clanId: z.string().min(1),
+  instrument: z.string().min(1).max(20),
+  direction: z.enum(["LONG", "SHORT"]),
+  entry: z.number().positive(),
+  stopLoss: z.number().positive(),
+  targets: z.array(z.number().positive()).min(1).max(5),
+  timeframe: z.string().min(1).max(10),
+  riskPct: z.number().min(0).max(100).optional(),
+  note: z.string().max(500).optional(),
+  tags: z.array(z.string().max(30)).max(5).optional(),
+});
+
+export type EditTradeCardInput = z.infer<typeof editTradeCardSchema>;
+
+export const updateTradeStatusSchema = z.object({
+  tradeId: z.string().min(1),
+  clanId: z.string().min(1),
+  status: z.enum(["OPEN", "TP1_HIT", "TP2_HIT", "SL_HIT", "BE", "CLOSED"]),
+  note: z.string().max(500).optional(),
+});
+
+export type UpdateTradeStatusInput = z.infer<typeof updateTradeStatusSchema>;
+
+// --- Watchlist schemas ---
+
+export const addWatchlistItemSchema = z.object({
+  instrument: z.string().min(1).max(20),
+});
+
+export type AddWatchlistItemInput = z.infer<typeof addWatchlistItemSchema>;
+
+// --- Summary schemas ---
+
+export const generateSummarySchema = z.object({
+  hours: z.number().int().min(1).max(168).optional(),
+  cardCount: z.number().int().min(1).max(100).optional(),
+});
+
+export type GenerateSummaryInput = z.infer<typeof generateSummarySchema>;

@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import { getClan, getMemberLimit } from "@/services/clan.service";
 import { isFollowing } from "@/services/follow.service";
 import { getChannelPosts } from "@/services/channel.service";
+import { getTopics } from "@/services/topic.service";
 import { db } from "@/lib/db";
 import { ClanProfileHeader } from "@/components/clan/ClanProfileHeader";
 import { ClanProfileTabs } from "@/components/clan/ClanProfileTabs";
@@ -14,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { TraderBadge } from "@/components/shared/TraderBadge";
 import { Settings } from "lucide-react";
 import type { ClanTier } from "@prisma/client";
 
@@ -48,7 +50,7 @@ export default async function ClanPage({
     notFound();
   }
 
-  const [following, members, membership, channelData] = await Promise.all([
+  const [following, members, membership, channelData, topics] = await Promise.all([
     isFollowing(session.user.id, clanId),
     db.clanMember.findMany({
       where: { clanId },
@@ -59,6 +61,7 @@ export default async function ClanPage({
             name: true,
             avatar: true,
             tradingStyle: true,
+            role: true,
           },
         },
       },
@@ -72,6 +75,7 @@ export default async function ClanPage({
       userId: session.user.id,
       isPro: session.user.isPro ?? false,
     }),
+    getTopics(clanId),
   ]);
 
   const isMember = !!membership;
@@ -94,6 +98,16 @@ export default async function ClanPage({
     createdAt:
       p.createdAt instanceof Date ? p.createdAt.toISOString() : String(p.createdAt),
     author: p.author,
+  }));
+
+  const serializedTopics = topics.map((t) => ({
+    id: t.id,
+    clanId: t.clanId,
+    name: t.name,
+    description: t.description,
+    isDefault: t.isDefault,
+    status: t.status,
+    sortOrder: t.sortOrder,
   }));
 
   const membersContent = (
@@ -121,6 +135,7 @@ export default async function ClanPage({
                 <span className="truncate font-medium">
                   {member.user.name || "Unknown"}
                 </span>
+                <TraderBadge role={member.user.role} />
                 <Badge
                   variant={
                     member.role === "LEADER"
@@ -150,6 +165,7 @@ export default async function ClanPage({
       clanId={clanId}
       currentUserId={session.user.id}
       memberRole={membership!.role}
+      initialTopics={serializedTopics}
     />
   ) : null;
 
