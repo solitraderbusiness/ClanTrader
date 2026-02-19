@@ -531,3 +531,52 @@ model AuditLog {
   @@index([action, createdAt])
   @@index([actorId])
 }
+
+// --- Test Runner ---
+
+enum TestSuite {
+  SMOKE
+  FULL_E2E
+  SIMULATOR
+}
+
+enum TestRunMode {
+  HEADLESS
+  HEADED
+}
+
+enum TestRunStatus {
+  QUEUED
+  CLAIMED
+  RUNNING
+  PASSED
+  FAILED
+  CANCELED
+}
+
+model TestRun {
+  id               String        @id @default(cuid())
+  suite            TestSuite
+  requestedWorkers Int           @default(2)
+  effectiveWorkers Int           @default(2)
+  runMode          TestRunMode   @default(HEADLESS)
+  status           TestRunStatus @default(QUEUED)
+  options          Json?
+  queuedById       String
+  claimedAt        DateTime?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  workerHostname   String?
+  totalTests       Int?
+  passedTests      Int?
+  failedTests      Int?
+  skippedTests     Int?
+  durationMs       Int?
+  reportUrl        String?
+  errorMessage     String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([status, createdAt])
+  @@index([queuedById])
+}

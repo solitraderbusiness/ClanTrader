@@ -347,3 +347,33 @@ export const generateSummarySchema = z.object({
 });
 
 export type GenerateSummaryInput = z.infer<typeof generateSummarySchema>;
+
+// --- Test Run schemas ---
+
+export const createTestRunSchema = z.object({
+  suite: z.enum(["SMOKE", "FULL_E2E", "SIMULATOR"]),
+  requestedWorkers: z.number().int().min(1).max(6).default(2),
+  runMode: z.enum(["HEADLESS", "HEADED"]).default("HEADLESS"),
+  options: z
+    .object({
+      slowMo: z.number().int().min(0).max(500).optional(),
+      video: z.boolean().optional(),
+      trace: z.boolean().optional(),
+    })
+    .optional(),
+});
+
+export type CreateTestRunInput = z.infer<typeof createTestRunSchema>;
+
+export const updateTestRunSchema = z.object({
+  status: z.enum(["QUEUED", "CLAIMED", "RUNNING", "PASSED", "FAILED", "CANCELED"]).optional(),
+  workerHostname: z.string().max(200).optional(),
+  totalTests: z.number().int().min(0).optional(),
+  passedTests: z.number().int().min(0).optional(),
+  failedTests: z.number().int().min(0).optional(),
+  skippedTests: z.number().int().min(0).optional(),
+  durationMs: z.number().int().min(0).optional(),
+  errorMessage: z.string().max(5000).optional(),
+});
+
+export type UpdateTestRunInput = z.infer<typeof updateTestRunSchema>;

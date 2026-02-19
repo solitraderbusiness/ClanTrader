@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Flag, Shield, CreditCard, ScrollText, Trophy, MessageSquare, Database } from "lucide-react";
+import { LayoutDashboard, Flag, Shield, CreditCard, ScrollText, Trophy, MessageSquare, Database, FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: "/admin/clans", label: "Clans", icon: MessageSquare },
   { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
   { href: "/admin/demo-data", label: "Demo Data", icon: Database },
+  { href: "/admin/testing", label: "Test Runner", icon: FlaskConical },
 ];
 
 export function AdminSidebar() {
