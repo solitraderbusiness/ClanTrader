@@ -10,6 +10,7 @@ import {
   sendTradeCardSchema,
   editTradeCardSchema,
   updateTradeStatusSchema,
+  tradeActionSchema,
 } from "./validators";
 import {
   SOCKET_EVENTS,
@@ -30,6 +31,9 @@ import {
 import { getDefaultTopic } from "@/services/topic.service";
 import { createTradeCardMessage, editTradeCard } from "@/services/trade-card.service";
 import { trackTrade, updateTradeStatus } from "@/services/trade.service";
+import { executeTradeAction } from "@/services/trade-action.service";
+import { maybeAutoPost } from "@/services/auto-post.service";
+import type { TradeActionKey } from "@/lib/trade-action-constants";
 
 function getUser(socket: Socket): SocketUser {
   return (socket as Socket & { user: SocketUser }).user;
@@ -458,6 +462,13 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         SOCKET_EVENTS.RECEIVE_MESSAGE,
         serializeMessage(message, clanId)
       );
+
+      // Auto-post to channel if enabled
+      if (message.tradeCard) {
+        maybeAutoPost(message.tradeCard.id, clanId, user.id).catch((err: unknown) =>
+          console.error("Auto-post error:", err)
+        );
+      }
     } catch (error) {
       console.error("send_trade_card error:", error);
       socket.emit(SOCKET_EVENTS.ERROR, {
@@ -583,6 +594,77 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
           error instanceof MessageServiceError
             ? error.message
             : "Failed to update trade status",
+      });
+    }
+  });
+
+  // --- EXECUTE TRADE ACTION ---
+  socket.on(SOCKET_EVENTS.EXECUTE_TRADE_ACTION, async (data: unknown) => {
+    try {
+      const parsed = tradeActionSchema.safeParse(data);
+      if (!parsed.success) {
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          event: SOCKET_EVENTS.EXECUTE_TRADE_ACTION,
+          message: "Invalid trade action data",
+        });
+        return;
+      }
+
+      const { tradeId, clanId, actionType, newValue, note } = parsed.data;
+
+      await requireClanMembership(user.id, clanId);
+
+      const result = await executeTradeAction(
+        tradeId,
+        clanId,
+        user.id,
+        actionType as TradeActionKey,
+        newValue,
+        note
+      );
+
+      // Broadcast the TRADE_ACTION message to topic room
+      if (result.systemMessage) {
+        const topicId = result.tradeCard.message.topicId;
+        if (topicId) {
+          io.to(topicRoom(clanId, topicId)).emit(
+            SOCKET_EVENTS.RECEIVE_MESSAGE,
+            serializeMessage(result.systemMessage, clanId)
+          );
+        }
+      }
+
+      // Also emit trade status update if status changed
+      if (actionType === "CLOSE" || actionType === "STATUS_CHANGE") {
+        const topicId = result.tradeCard.message.topicId;
+        if (topicId) {
+          const updatedTrade = await (await import("@/services/trade.service")).getTradeById(tradeId);
+          io.to(topicRoom(clanId, topicId)).emit(SOCKET_EVENTS.TRADE_STATUS_UPDATED, {
+            tradeId,
+            messageId: result.tradeCard.message.id,
+            status: updatedTrade.status,
+            trade: { id: updatedTrade.id, status: updatedTrade.status, userId: updatedTrade.userId },
+          });
+        }
+      }
+
+      // Emit the action event
+      const topicId = result.tradeCard.message.topicId;
+      if (topicId) {
+        io.to(topicRoom(clanId, topicId)).emit(SOCKET_EVENTS.TRADE_ACTION_EXECUTED, {
+          tradeId,
+          actionType,
+          event: result.event,
+        });
+      }
+    } catch (error) {
+      console.error("execute_trade_action error:", error);
+      socket.emit(SOCKET_EVENTS.ERROR, {
+        event: SOCKET_EVENTS.EXECUTE_TRADE_ACTION,
+        message:
+          error instanceof MessageServiceError
+            ? error.message
+            : "Failed to execute trade action",
       });
     }
   });

@@ -16,6 +16,8 @@ interface MessageListProps {
   clanId: string;
   topicName?: string;
   highlightMessageId?: string | null;
+  userRole?: string;
+  memberRole?: string;
 }
 
 export function MessageList({
@@ -27,6 +29,8 @@ export function MessageList({
   clanId,
   topicName,
   highlightMessageId,
+  userRole,
+  memberRole,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -129,6 +133,8 @@ export function MessageList({
                   canPin={canPin}
                   clanId={clanId}
                   currentUserId={currentUserId}
+                  userRole={userRole}
+                  memberRole={memberRole}
                 />
               </div>
             );

@@ -169,6 +169,9 @@ export async function getChannelPosts(
       where: { clanId },
       include: {
         author: { select: { id: true, name: true, avatar: true } },
+        tradeCard: {
+          select: { id: true, instrument: true, direction: true, entry: true, stopLoss: true, targets: true, timeframe: true, tags: true },
+        },
       },
       orderBy: { createdAt: "desc" },
       skip,

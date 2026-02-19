@@ -61,6 +61,7 @@ export const SOCKET_EVENTS = {
   EDIT_TRADE_CARD: "edit_trade_card",
   TRACK_TRADE: "track_trade",
   UPDATE_TRADE_STATUS: "update_trade_status",
+  EXECUTE_TRADE_ACTION: "execute_trade_action",
 
   // Server -> Client
   RECEIVE_MESSAGE: "receive_message",
@@ -76,5 +77,6 @@ export const SOCKET_EVENTS = {
   TOPIC_UPDATED: "topic_updated",
   TOPIC_ARCHIVED: "topic_archived",
   TRADE_STATUS_UPDATED: "trade_status_updated",
+  TRADE_ACTION_EXECUTED: "trade_action_executed",
   ERROR: "error",
 } as const;

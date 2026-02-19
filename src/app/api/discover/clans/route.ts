@@ -16,12 +16,24 @@ export async function GET(request: Request) {
       { page, limit }
     );
 
-    // Sort by requested field
-    if (sort === "memberCount") {
-      result.clans.sort((a, b) => b._count.members - a._count.members);
-    } else if (sort === "followerCount") {
-      result.clans.sort((a, b) => b.followerCount - a.followerCount);
-    }
+    // Filter out clans with visibilityOverride = "hidden"
+    result.clans = result.clans.filter(
+      (c) => (c as typeof c & { visibilityOverride?: string | null }).visibilityOverride !== "hidden"
+    );
+
+    // Sort by requested field, with featured clans first
+    result.clans.sort((a, b) => {
+      const aFeatured = (a as typeof a & { isFeatured?: boolean }).isFeatured ? 1 : 0;
+      const bFeatured = (b as typeof b & { isFeatured?: boolean }).isFeatured ? 1 : 0;
+      if (aFeatured !== bFeatured) return bFeatured - aFeatured;
+
+      if (sort === "memberCount") {
+        return b._count.members - a._count.members;
+      } else if (sort === "followerCount") {
+        return b.followerCount - a.followerCount;
+      }
+      return 0;
+    });
 
     return NextResponse.json(result);
   } catch (error) {

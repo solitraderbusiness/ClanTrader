@@ -10,6 +10,10 @@ const prisma = new PrismaClient({ adapter });
 
 async function main() {
   // Clean existing data (order matters for FK constraints)
+  await prisma.auditLog.deleteMany();
+  await prisma.rankingConfig.deleteMany();
+  await prisma.traderStatement.deleteMany();
+  await prisma.tradeEvent.deleteMany();
   await prisma.tradeStatusHistory.deleteMany();
   await prisma.trade.deleteMany();
   await prisma.tradeCardVersion.deleteMany();
@@ -26,6 +30,9 @@ async function main() {
   await prisma.clanInvite.deleteMany();
   await prisma.clanMember.deleteMany();
   await prisma.tradingStatement.deleteMany();
+  await prisma.subscriptionPlan.deleteMany();
+  await prisma.paywallRule.deleteMany();
+  await prisma.featureFlag.deleteMany();
   await prisma.clan.deleteMany();
   await prisma.user.deleteMany();
 
@@ -214,6 +221,90 @@ async function main() {
     ],
   });
 
+  // Create feature flags
+  const featureFlags = [
+    { key: "trade_cards", name: "Trade Cards", description: "Enable trade card creation in chat", enabled: true },
+    { key: "trade_tracking", name: "Trade Tracking", description: "Enable trade tracking and status updates", enabled: true },
+    { key: "trade_actions", name: "Trade Actions", description: "Enable trade action menu (Set BE, Move SL, etc.)", enabled: true },
+    { key: "topics", name: "Chat Topics", description: "Enable topic-based chat organization", enabled: true },
+    { key: "auto_post", name: "Auto Channel Posts", description: "Auto-post signal trades to channel feed", enabled: true },
+    { key: "channel_posts", name: "Channel Posts", description: "Enable broadcast channel feed", enabled: true },
+    { key: "leaderboard", name: "Leaderboard", description: "Enable seasonal leaderboard rankings", enabled: true },
+    { key: "discover", name: "Discover", description: "Enable clan discovery page", enabled: true },
+    { key: "summary", name: "Chat Summary", description: "Enable AI-powered chat summaries", enabled: true },
+    { key: "paywall", name: "Paywall", description: "Enable paywall for premium content", enabled: false },
+    { key: "alerts", name: "Alerts", description: "Enable price and event alerts", enabled: false },
+    { key: "ai_features", name: "AI Features", description: "Enable AI-powered analysis features", enabled: false },
+  ];
+
+  await prisma.featureFlag.createMany({ data: featureFlags });
+
+  // Create paywall rules
+  await prisma.paywallRule.createMany({
+    data: [
+      {
+        resourceType: "signal_details",
+        name: "Signal Details",
+        description: "Controls visibility of entry/SL/TP in auto-posted signals",
+        freePreview: { showEntry: false, showTargets: false, showStopLoss: false },
+        enabled: false,
+      },
+      {
+        resourceType: "tutorial_details",
+        name: "Tutorial Details",
+        description: "Controls visibility of detailed tutorial content",
+        freePreview: { showContent: true, showImages: false },
+        enabled: false,
+      },
+    ],
+  });
+
+  // Create subscription plans
+  await prisma.subscriptionPlan.createMany({
+    data: [
+      {
+        name: "Free",
+        slug: "free",
+        description: "Basic access to the platform",
+        price: 0,
+        currency: "IRR",
+        interval: "monthly",
+        entitlements: ["VIEW_CHANNEL", "JOIN_CLAN", "CHAT"],
+        sortOrder: 0,
+      },
+      {
+        name: "Pro",
+        slug: "pro",
+        description: "Full access including signal details and advanced features",
+        price: 500000,
+        currency: "IRR",
+        interval: "monthly",
+        entitlements: ["VIEW_CHANNEL", "JOIN_CLAN", "CHAT", "VIEW_SIGNAL_DETAILS", "ADVANCED_FILTERS", "PRIORITY_SUPPORT"],
+        sortOrder: 1,
+      },
+      {
+        name: "Pro Annual",
+        slug: "pro-annual",
+        description: "Full access at a discounted annual rate",
+        price: 5000000,
+        currency: "IRR",
+        interval: "yearly",
+        entitlements: ["VIEW_CHANNEL", "JOIN_CLAN", "CHAT", "VIEW_SIGNAL_DETAILS", "ADVANCED_FILTERS", "PRIORITY_SUPPORT"],
+        sortOrder: 2,
+      },
+    ],
+  });
+
+  // Create ranking config
+  await prisma.rankingConfig.create({
+    data: {
+      key: "default",
+      lenses: ["composite", "profit", "low_risk", "consistency", "risk_adjusted", "activity"],
+      weights: { profit: 0.30, low_risk: 0.15, consistency: 0.25, risk_adjusted: 0.20, activity: 0.10 },
+      minTrades: 10,
+    },
+  });
+
   console.log("Seed data created successfully:");
   console.log(`  - ${5} users (1 admin, 3 traders, 1 spectator)`);
   console.log(`  - ${1} clan with ${4} members`);
@@ -221,6 +312,10 @@ async function main() {
   console.log(`  - ${3} trading events`);
   console.log(`  - ${3} watchlist items`);
   console.log(`  - ${1} active season`);
+  console.log(`  - ${featureFlags.length} feature flags`);
+  console.log(`  - ${2} paywall rules`);
+  console.log(`  - ${3} subscription plans`);
+  console.log(`  - ${1} ranking config`);
   console.log("\nTest credentials: any email above with password: password123");
 }
 

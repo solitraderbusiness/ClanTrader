@@ -232,6 +232,105 @@ export const updateTradeStatusSchema = z.object({
 
 export type UpdateTradeStatusInput = z.infer<typeof updateTradeStatusSchema>;
 
+// --- Admin schemas ---
+
+export const featureFlagSchema = z.object({
+  key: z.string().min(1).max(50).regex(/^[a-z_]+$/, "Key must be lowercase with underscores"),
+  name: z.string().min(1).max(100),
+  description: z.string().max(500).optional(),
+  enabled: z.boolean().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type FeatureFlagInput = z.infer<typeof featureFlagSchema>;
+
+export const updateFeatureFlagSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(500).optional(),
+  enabled: z.boolean().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type UpdateFeatureFlagInput = z.infer<typeof updateFeatureFlagSchema>;
+
+export const paywallRuleSchema = z.object({
+  resourceType: z.string().min(1).max(50),
+  name: z.string().min(1).max(100),
+  description: z.string().max(500).optional(),
+  freePreview: z.record(z.string(), z.boolean()).optional(),
+  enabled: z.boolean().optional(),
+});
+
+export type PaywallRuleInput = z.infer<typeof paywallRuleSchema>;
+
+export const updatePaywallRuleSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(500).optional(),
+  freePreview: z.record(z.string(), z.boolean()).optional(),
+  enabled: z.boolean().optional(),
+});
+
+export type UpdatePaywallRuleInput = z.infer<typeof updatePaywallRuleSchema>;
+
+export const planSchema = z.object({
+  name: z.string().min(1).max(100),
+  slug: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/, "Slug must be lowercase with hyphens"),
+  description: z.string().max(500).optional(),
+  price: z.number().min(0),
+  currency: z.string().max(10).optional(),
+  interval: z.string().max(20).optional(),
+  entitlements: z.array(z.string()),
+  sortOrder: z.number().int().optional(),
+});
+
+export type PlanInput = z.infer<typeof planSchema>;
+
+export const updatePlanSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(500).optional(),
+  price: z.number().min(0).optional(),
+  currency: z.string().max(10).optional(),
+  interval: z.string().max(20).optional(),
+  entitlements: z.array(z.string()).optional(),
+  isActive: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+});
+
+export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;
+
+export const auditLogQuerySchema = z.object({
+  action: z.string().optional(),
+  entityType: z.string().optional(),
+  actorId: z.string().optional(),
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+export type AuditLogQueryInput = z.infer<typeof auditLogQuerySchema>;
+
+// --- Clan Settings schemas ---
+
+export const clanSettingsSchema = z.object({
+  publicTags: z.array(z.string().max(30)).max(10).optional(),
+  autoPostEnabled: z.boolean().optional(),
+});
+
+export type ClanSettingsInput = z.infer<typeof clanSettingsSchema>;
+
+// --- Trade Action schemas ---
+
+export const tradeActionSchema = z.object({
+  tradeId: z.string().min(1),
+  clanId: z.string().min(1),
+  actionType: z.enum(["SET_BE", "MOVE_SL", "CHANGE_TP", "CLOSE", "ADD_NOTE", "STATUS_CHANGE"]),
+  newValue: z.string().optional(),
+  note: z.string().max(500).optional(),
+});
+
+export type TradeActionInput = z.infer<typeof tradeActionSchema>;
+
 // --- Watchlist schemas ---
 
 export const addWatchlistItemSchema = z.object({

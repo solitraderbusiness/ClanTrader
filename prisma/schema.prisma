@@ -25,8 +25,9 @@ model User {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  statements      TradingStatement[]
-  clanMemberships ClanMember[]
+  statements        TradingStatement[]
+  traderStatements  TraderStatement[]  @relation("TraderStatements")
+  clanMemberships   ClanMember[]
   createdClans    Clan[]        @relation("ClanCreator")
   followsGiven    Follow[]      @relation("Follower")
   stories         Story[]
@@ -76,26 +77,30 @@ enum VerificationMethod {
 }
 
 model Clan {
-  id           String   @id @default(cuid())
-  name         String   @unique
-  description  String?
-  avatar       String?
-  tradingFocus String?
-  isPublic     Boolean  @default(true)
-  tier         ClanTier @default(FREE)
-  settings     Json?
-  createdById  String
-  createdBy    User     @relation("ClanCreator", fields: [createdById], references: [id])
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  description        String?
+  avatar             String?
+  tradingFocus       String?
+  isPublic           Boolean  @default(true)
+  tier               ClanTier @default(FREE)
+  settings           Json?
+  isFeatured         Boolean  @default(false)
+  adminNotes         String?
+  visibilityOverride String?
+  createdById        String
+  createdBy          User     @relation("ClanCreator", fields: [createdById], references: [id])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  members      ClanMember[]
-  messages     Message[]
-  channelPosts ChannelPost[]
-  inviteLinks  ClanInvite[]
-  topics       ChatTopic[]
-  trades       Trade[]
-  watchlists   Watchlist[]
+  members           ClanMember[]
+  messages          Message[]
+  channelPosts      ChannelPost[]
+  inviteLinks       ClanInvite[]
+  topics            ChatTopic[]
+  trades            Trade[]
+  watchlists        Watchlist[]
+  traderStatements  TraderStatement[]
 
   @@index([name])
 }
@@ -163,6 +168,7 @@ model Season {
   createdAt DateTime     @default(now())
 
   leaderboardEntries LeaderboardEntry[]
+  traderStatements   TraderStatement[]
 
   @@index([status])
 }
@@ -180,12 +186,22 @@ model LeaderboardEntry {
   season     Season          @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   entityType LeaderboardType
   entityId   String
+  lens       String          @default("composite")
   rank       Int?
   metrics    Json
   updatedAt  DateTime        @updatedAt
 
-  @@unique([seasonId, entityType, entityId])
+  @@unique([seasonId, entityType, entityId, lens])
   @@index([seasonId, entityType, rank])
+}
+
+model RankingConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  lenses    Json
+  weights   Json
+  minTrades Int      @default(10)
+  updatedAt DateTime @updatedAt
 }
 
 enum LeaderboardType {
@@ -199,6 +215,16 @@ enum MessageType {
   TEXT
   TRADE_CARD
   SYSTEM_SUMMARY
+  TRADE_ACTION
+}
+
+enum TradeActionType {
+  SET_BE
+  MOVE_SL
+  CHANGE_TP
+  CLOSE
+  ADD_NOTE
+  STATUS_CHANGE
 }
 
 enum TradeDirection {
@@ -280,8 +306,9 @@ model TradeCard {
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
-  versions TradeCardVersion[]
-  trade    Trade?
+  versions    TradeCardVersion[]
+  trade       Trade?
+  channelPost ChannelPost?
 
   @@index([instrument])
   @@index([direction])
@@ -320,10 +347,26 @@ model Trade {
   updatedAt   DateTime    @updatedAt
 
   statusHistory TradeStatusHistory[]
+  events        TradeEvent[]
 
   @@index([clanId, status])
   @@index([clanId, createdAt])
   @@index([userId])
+}
+
+model TradeEvent {
+  id         String          @id @default(cuid())
+  tradeId    String
+  trade      Trade           @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  actionType TradeActionType
+  actorId    String
+  oldValue   String?
+  newValue   String?
+  note       String?
+  createdAt  DateTime        @default(now())
+
+  @@index([tradeId, createdAt])
+  @@index([actorId])
 }
 
 model TradeStatusHistory {
@@ -368,20 +411,28 @@ model TradingEvent {
   @@index([isActive, startTime])
 }
 
+enum ChannelPostSource {
+  MANUAL
+  AUTO_TAG
+}
+
 model ChannelPost {
-  id        String   @id @default(cuid())
-  clanId    String
-  clan      Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  title     String?
-  content   String
-  images    String[]
-  isPremium Boolean  @default(false)
-  viewCount Int      @default(0)
-  reactions Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String            @id @default(cuid())
+  clanId      String
+  clan        Clan              @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  title       String?
+  content     String
+  images      String[]
+  isPremium   Boolean           @default(false)
+  viewCount   Int               @default(0)
+  reactions   Json?
+  tradeCardId String?           @unique
+  tradeCard   TradeCard?        @relation(fields: [tradeCardId], references: [id], onDelete: SetNull)
+  sourceType  ChannelPostSource @default(MANUAL)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 
   @@index([clanId, createdAt])
   @@index([isPremium])
@@ -399,4 +450,84 @@ model Story {
 
   @@index([userId, createdAt])
   @@index([expiresAt])
+}
+
+// --- Trader Statements ---
+
+enum StatementPeriod {
+  MONTHLY
+  SEASONAL
+  ALL_TIME
+}
+
+model TraderStatement {
+  id           String          @id @default(cuid())
+  userId       String
+  user         User            @relation("TraderStatements", fields: [userId], references: [id], onDelete: Cascade)
+  clanId       String
+  clan         Clan            @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  periodType   StatementPeriod
+  periodKey    String
+  seasonId     String?
+  season       Season?         @relation(fields: [seasonId], references: [id])
+  metrics      Json
+  tradeCount   Int
+  calculatedAt DateTime        @default(now())
+
+  @@unique([userId, clanId, periodType, periodKey])
+  @@index([clanId, periodType])
+  @@index([userId, periodType])
+}
+
+// --- Admin Config ---
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  enabled     Boolean  @default(false)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PaywallRule {
+  id           String   @id @default(cuid())
+  resourceType String   @unique
+  name         String
+  description  String?
+  freePreview  Json?
+  enabled      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model SubscriptionPlan {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  description  String?
+  price        Float
+  currency     String   @default("IRR")
+  interval     String   @default("monthly")
+  entitlements Json
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  entityType String
+  entityId   String
+  actorId    String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([action, createdAt])
+  @@index([actorId])
 }

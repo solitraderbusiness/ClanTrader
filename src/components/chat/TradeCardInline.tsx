@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { getSocket } from "@/lib/socket-client";
 import { SOCKET_EVENTS } from "@/lib/chat-constants";
 import type { TradeCardData } from "@/stores/chat-store";
+import { TradeActionsMenu } from "./TradeActionsMenu";
 
 interface TradeCardInlineProps {
   tradeCard: TradeCardData;
@@ -15,6 +16,8 @@ interface TradeCardInlineProps {
   clanId: string;
   currentUserId: string;
   isPinned?: boolean;
+  userRole?: string;
+  memberRole?: string;
 }
 
 export function TradeCardInline({
@@ -23,20 +26,12 @@ export function TradeCardInline({
   clanId,
   currentUserId,
   isPinned,
+  userRole,
+  memberRole,
 }: TradeCardInlineProps) {
   function handleTrack() {
     const socket = getSocket();
     socket.emit(SOCKET_EVENTS.TRACK_TRADE, { messageId, clanId });
-  }
-
-  function handleStatusUpdate(status: string) {
-    if (!tradeCard.trade) return;
-    const socket = getSocket();
-    socket.emit(SOCKET_EVENTS.UPDATE_TRADE_STATUS, {
-      tradeId: tradeCard.trade.id,
-      clanId,
-      status,
-    });
   }
 
   const isTracker = tradeCard.trade?.userId === currentUserId;
@@ -56,7 +51,7 @@ export function TradeCardInline({
         <Pin className="absolute -top-1 -end-1 h-3 w-3 text-yellow-500" />
       )}
 
-      {/* Header: Direction + Instrument + Status */}
+      {/* Header: Direction + Instrument + Status + Actions */}
       <div className="mb-2 flex items-center gap-2">
         <DirectionBadge direction={tradeCard.direction as "LONG" | "SHORT"} />
         <span className="font-semibold">{tradeCard.instrument}</span>
@@ -64,6 +59,18 @@ export function TradeCardInline({
           {tradeCard.timeframe}
         </Badge>
         {tradeCard.trade && <StatusBadge status={tradeCard.trade.status} />}
+        {tradeCard.trade && tradeCard.trade.status === "OPEN" && (
+          <div className="ms-auto">
+            <TradeActionsMenu
+              tradeId={tradeCard.trade.id}
+              clanId={clanId}
+              currentUserId={currentUserId}
+              userRole={userRole}
+              memberRole={memberRole || "MEMBER"}
+              isAuthor={isTracker}
+            />
+          </div>
+        )}
       </div>
 
       {/* Price Grid */}
@@ -123,9 +130,9 @@ export function TradeCardInline({
         </p>
       )}
 
-      {/* Actions */}
-      <div className="flex items-center gap-1">
-        {!tradeCard.trade && (
+      {/* Track Button */}
+      {!tradeCard.trade && (
+        <div className="flex items-center gap-1">
           <Button
             variant="outline"
             size="sm"
@@ -134,54 +141,8 @@ export function TradeCardInline({
           >
             Track
           </Button>
-        )}
-        {isTracker && tradeCard.trade && tradeCard.trade.status === "OPEN" && (
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 text-xs text-green-600"
-              onClick={() => handleStatusUpdate("TP1_HIT")}
-            >
-              TP1
-            </Button>
-            {hasTarget2 && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-6 text-xs text-emerald-600"
-                onClick={() => handleStatusUpdate("TP2_HIT")}
-              >
-                TP2
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 text-xs text-red-600"
-              onClick={() => handleStatusUpdate("SL_HIT")}
-            >
-              SL
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 text-xs text-yellow-600"
-              onClick={() => handleStatusUpdate("BE")}
-            >
-              BE
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 text-xs"
-              onClick={() => handleStatusUpdate("CLOSED")}
-            >
-              Close
-            </Button>
-          </>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

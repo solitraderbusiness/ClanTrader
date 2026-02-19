@@ -15,6 +15,7 @@ import { SOCKET_EVENTS, MESSAGE_REACTION_EMOJIS } from "@/lib/chat-constants";
 import { useChatStore, type ChatMessage } from "@/stores/chat-store";
 import { TraderBadge } from "@/components/shared/TraderBadge";
 import { TradeCardInline } from "./TradeCardInline";
+import { TradeEventLine } from "./TradeEventLine";
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -23,6 +24,8 @@ interface MessageBubbleProps {
   canPin: boolean;
   clanId: string;
   currentUserId: string;
+  userRole?: string;
+  memberRole?: string;
 }
 
 function formatContent(content: string): React.ReactNode {
@@ -62,6 +65,8 @@ export function MessageBubble({
   canPin,
   clanId,
   currentUserId,
+  userRole,
+  memberRole,
 }: MessageBubbleProps) {
   const [showReactions, setShowReactions] = useState(false);
   const { setReplyingTo, setEditingMessage } = useChatStore();
@@ -92,6 +97,7 @@ export function MessageBubble({
   const activeReactions = Object.entries(reactions).filter(([, users]) => users.length > 0);
   const isTradeCard = message.type === "TRADE_CARD" && message.tradeCard;
   const isSummary = message.type === "SYSTEM_SUMMARY";
+  const isTradeAction = message.type === "TRADE_ACTION";
 
   return (
     <div
@@ -135,14 +141,18 @@ export function MessageBubble({
           </div>
         )}
 
-        {/* Trade Card rendering */}
-        {isTradeCard && message.tradeCard ? (
+        {/* Trade Action event line */}
+        {isTradeAction ? (
+          <TradeEventLine content={message.content} createdAt={message.createdAt} />
+        ) : isTradeCard && message.tradeCard ? (
           <TradeCardInline
             tradeCard={message.tradeCard}
             messageId={message.id}
             clanId={clanId}
             currentUserId={currentUserId}
             isPinned={message.isPinned}
+            userRole={userRole}
+            memberRole={memberRole}
           />
         ) : isSummary ? (
           /* System Summary message */

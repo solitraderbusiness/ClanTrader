@@ -19,7 +19,7 @@ export interface ChatMessage {
   clanId: string;
   topicId: string | null;
   content: string;
-  type: "TEXT" | "TRADE_CARD" | "SYSTEM_SUMMARY";
+  type: "TEXT" | "TRADE_CARD" | "SYSTEM_SUMMARY" | "TRADE_ACTION";
   isPinned: boolean;
   isEdited: boolean;
   reactions: Record<string, string[]> | null;

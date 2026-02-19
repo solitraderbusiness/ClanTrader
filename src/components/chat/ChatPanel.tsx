@@ -340,6 +340,7 @@ export function ChatPanel({
         clanId={clanId}
         topicName={currentTopicName}
         highlightMessageId={store.highlightMessageId}
+        memberRole={memberRole}
       />
 
       <TypingIndicator
