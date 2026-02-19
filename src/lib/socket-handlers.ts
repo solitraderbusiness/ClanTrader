@@ -436,9 +436,10 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
     try {
       const parsed = sendTradeCardSchema.safeParse(data);
       if (!parsed.success) {
+        console.error("Trade card validation failed:", parsed.error.flatten());
         socket.emit(SOCKET_EVENTS.ERROR, {
           event: SOCKET_EVENTS.SEND_TRADE_CARD,
-          message: "Invalid trade card data",
+          message: `Invalid trade card data: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
         });
         return;
       }

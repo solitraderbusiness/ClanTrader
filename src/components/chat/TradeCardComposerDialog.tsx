@@ -82,6 +82,12 @@ export function TradeCardComposerDialog({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (!topicId) {
+      toast.error("No topic selected. Please select a topic first.");
+      return;
+    }
+
     if (!instrument.trim() || !entry || !stopLoss || !tp1) {
       toast.error("Please fill in required fields");
       return;
@@ -104,6 +110,12 @@ export function TradeCardComposerDialog({
 
     setLoading(true);
     const socket = getSocket();
+
+    if (!socket.connected) {
+      toast.error("Not connected to chat. Please wait and try again.");
+      setLoading(false);
+      return;
+    }
 
     const data = {
       clanId,
