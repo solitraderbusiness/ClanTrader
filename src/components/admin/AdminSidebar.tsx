@@ -12,6 +12,7 @@ import {
   MessageSquare,
   Database,
   FlaskConical,
+  UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -69,6 +70,12 @@ const NAV_ITEMS = [
     label: "Test Runner",
     desc: "E2E test execution",
     icon: FlaskConical,
+  },
+  {
+    href: "/admin/impersonate",
+    label: "Switch User",
+    desc: "Dev: impersonate users",
+    icon: UserCheck,
   },
 ];
 

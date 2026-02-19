@@ -2,38 +2,53 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Shield,
-  Compass,
-  Trophy,
-  User,
-} from "lucide-react";
+import { Home, Compass, MessageSquare, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useNavStore } from "@/stores/nav-store";
 
-const tabs = [
-  { href: "/dashboard", label: "Home", icon: LayoutDashboard },
-  { href: "/clans", label: "Clans", icon: Shield },
-  { href: "/discover", label: "Discover", icon: Compass },
-  { href: "/leaderboard", label: "Board", icon: Trophy },
-  { href: "/settings/profile", label: "Profile", icon: User },
-];
+interface MobileTab {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: number;
+}
 
 export function MobileNav() {
   const pathname = usePathname();
+  const { chats } = useNavStore();
+  const hasChats = chats.length > 0;
+  const totalUnread = chats.reduce((s, c) => s + c.unreadCount, 0);
+
+  const renderedTabs: MobileTab[] = hasChats
+    ? [
+        { href: "/home", label: "Home", icon: Home },
+        {
+          href: "/clans",
+          label: "Chats",
+          icon: MessageSquare,
+          badge: totalUnread || undefined,
+        },
+        { href: "/explore", label: "Explore", icon: Compass },
+        { href: "/settings/profile", label: "Profile", icon: User },
+      ]
+    : [
+        { href: "/home", label: "Home", icon: Home },
+        { href: "/explore", label: "Explore", icon: Compass },
+        { href: "/settings/profile", label: "Profile", icon: User },
+      ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background lg:hidden">
       <div className="flex items-center justify-around">
-        {tabs.map((tab) => {
+        {renderedTabs.map((tab) => {
           const isActive =
             pathname === tab.href || pathname.startsWith(tab.href + "/");
           return (
             <Link
-              key={tab.href}
+              key={tab.label}
               href={tab.href}
               className={cn(
-                "flex flex-col items-center gap-0.5 px-3 py-2 text-xs transition-colors",
+                "relative flex flex-col items-center gap-0.5 px-3 py-2 text-xs transition-colors",
                 isActive
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
@@ -41,6 +56,11 @@ export function MobileNav() {
             >
               <tab.icon className="h-5 w-5" />
               <span>{tab.label}</span>
+              {tab.badge ? (
+                <span className="absolute -top-0.5 end-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] text-destructive-foreground">
+                  {tab.badge > 99 ? "99+" : tab.badge}
+                </span>
+              ) : null}
             </Link>
           );
         })}

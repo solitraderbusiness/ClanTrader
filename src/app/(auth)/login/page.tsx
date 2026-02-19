@@ -53,7 +53,7 @@ export default function LoginPage() {
       setError("Quick login failed — run npm run db:seed first");
       return;
     }
-    router.push("/dashboard");
+    router.push("/home");
     router.refresh();
   }
 
@@ -74,7 +74,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
+    router.push("/home");
     router.refresh();
   }
 

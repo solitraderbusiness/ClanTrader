@@ -116,8 +116,9 @@ model ClanMember {
   user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   clanId   String
   clan     Clan           @relation(fields: [clanId], references: [id], onDelete: Cascade)
-  role     ClanMemberRole @default(MEMBER)
-  joinedAt DateTime       @default(now())
+  role       ClanMemberRole @default(MEMBER)
+  joinedAt   DateTime       @default(now())
+  lastReadAt DateTime?
 
   @@unique([userId, clanId])
   @@index([clanId])
@@ -149,6 +150,7 @@ model Follow {
   followingType FollowType
   followingId   String
   createdAt     DateTime   @default(now())
+  lastReadAt    DateTime?
 
   @@unique([followerId, followingType, followingId])
   @@index([followingType, followingId])

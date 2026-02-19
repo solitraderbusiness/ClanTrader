@@ -6,7 +6,7 @@ import { ImpersonatePanel } from "@/components/admin/ImpersonatePanel";
 export default async function ImpersonatePage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
-  if (session.user.role !== "ADMIN") redirect("/dashboard");
+  if (session.user.role !== "ADMIN") redirect("/home");
 
   const users = await db.user.findMany({
     select: {

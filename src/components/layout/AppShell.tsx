@@ -1,6 +1,6 @@
 "use client";
 
-import { Sidebar } from "./Sidebar";
+import { LeftPanel } from "./LeftPanel";
 import { TopBar } from "./TopBar";
 import { MobileNav } from "./MobileNav";
 import {
@@ -16,18 +16,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex lg:w-[280px] lg:flex-col lg:border-r">
-        <Sidebar />
+      {/* Desktop left panel */}
+      <aside className="hidden lg:flex lg:w-[320px] lg:flex-col lg:border-e">
+        <LeftPanel />
       </aside>
 
-      {/* Mobile sidebar (sheet) */}
+      {/* Mobile left panel (sheet) */}
       <Sheet open={isOpen} onOpenChange={(open) => !open && close()}>
-        <SheetContent side="left" className="w-[280px] p-0">
+        <SheetContent side="left" className="w-[320px] p-0">
           <VisuallyHidden>
             <SheetTitle>Navigation</SheetTitle>
           </VisuallyHidden>
-          <Sidebar />
+          <LeftPanel />
         </SheetContent>
       </Sheet>
 

@@ -41,7 +41,7 @@ export function ImpersonatePanel({
 
       if (res.ok) {
         toast.success(`Switched to ${userName || "user"}`);
-        router.push("/dashboard");
+        router.push("/home");
         router.refresh();
       } else {
         const data = await res.json();

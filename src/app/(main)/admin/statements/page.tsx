@@ -6,7 +6,7 @@ import { AdminStatementsDashboard } from "@/components/admin/AdminStatementsDash
 export default async function AdminStatementsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
-  if (session.user.role !== "ADMIN") redirect("/dashboard");
+  if (session.user.role !== "ADMIN") redirect("/home");
 
   const [statements, allCount, pendingCount, verifiedCount, rejectedCount, expiredCount] =
     await Promise.all([
