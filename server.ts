@@ -1,5 +1,6 @@
 import "dotenv/config";
-import { createServer } from "http";
+import { createServer, type IncomingMessage, type ServerResponse } from "http";
+import compression from "compression";
 import next from "next";
 import { Server, type Socket } from "socket.io";
 import { authenticateSocket } from "@/lib/socket-auth";
@@ -12,8 +13,16 @@ const port = parseInt(process.env.PORT || "3000", 10);
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
+const compress = compression({ level: 6 }) as (
+  req: IncomingMessage,
+  res: ServerResponse,
+  next: () => void,
+) => void;
+
 app.prepare().then(() => {
-  const httpServer = createServer(handle);
+  const httpServer = createServer((req, res) => {
+    compress(req, res, () => handle(req, res));
+  });
 
   const io = new Server(httpServer, {
     path: "/api/socketio",
