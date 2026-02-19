@@ -103,7 +103,7 @@ export default function TestRunnerPage() {
   // Clamp workers when switching to headed
   useEffect(() => {
     if (isHeaded && workers > 2) {
-      setWorkers(1);
+      setWorkers(2);
     }
   }, [isHeaded, workers]);
 

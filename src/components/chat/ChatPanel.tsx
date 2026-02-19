@@ -57,6 +57,15 @@ export function ChatPanel({
     }
   }, [initialTopics]);
 
+  // Mark chat as read when opening / switching clans
+  useEffect(() => {
+    fetch("/api/me/chats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clanId }),
+    }).catch(() => {});
+  }, [clanId]);
+
   useEffect(() => {
     const socket = socketRef.current;
     const {

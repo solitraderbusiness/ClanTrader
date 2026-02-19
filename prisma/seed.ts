@@ -115,6 +115,7 @@ async function main() {
       tradingFocus: "XAUUSD",
       createdById: trader1.id,
       tier: "PRO",
+      settings: { autoPostEnabled: true, publicTags: ["signal"] },
     },
   });
 
@@ -401,11 +402,24 @@ async function main() {
         },
       });
 
+      // Auto-post to channel for signal-tagged cards
+      await prisma.channelPost.create({
+        data: {
+          clanId: clan.id,
+          authorId: user.id,
+          title: `${direction} ${instrument} Signal`,
+          content: `${direction} ${instrument} @ ${entry} | SL: ${stopLoss} | TP: ${targets.join(", ")}`,
+          tradeCardId: card.id,
+          sourceType: "AUTO_TAG",
+          createdAt,
+        },
+      });
+
       totalTrades++;
     }
   }
 
-  console.log(`  - ${totalTrades} signal-tagged trades created`);
+  console.log(`  - ${totalTrades} signal-tagged trades + channel posts created`);
 
   // ---------------------------------------------------------------------------
   // Calculate statements for each trader in the clan
