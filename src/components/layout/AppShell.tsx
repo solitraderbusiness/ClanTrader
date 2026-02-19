@@ -23,7 +23,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile left panel (sheet) */}
       <Sheet open={isOpen} onOpenChange={(open) => !open && close()}>
-        <SheetContent side="left" className="w-[320px] p-0">
+        <SheetContent side="left" className="w-full max-w-[320px] p-0">
           <VisuallyHidden>
             <SheetTitle>Navigation</SheetTitle>
           </VisuallyHidden>
