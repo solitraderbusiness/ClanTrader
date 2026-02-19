@@ -3,6 +3,7 @@
 import { Menu, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { UserMenu } from "./UserMenu";
 import { useSidebarStore } from "@/stores/sidebar-store";
 
@@ -33,6 +34,7 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-2">
+        <ThemeToggle />
         <UserMenu />
       </div>
     </header>

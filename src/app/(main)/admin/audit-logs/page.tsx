@@ -3,7 +3,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { InfoTip } from "@/components/ui/info-tip";
 import { toast } from "sonner";
 
 interface AuditLog {
@@ -56,33 +58,59 @@ export default function AuditLogsPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Audit Logs</h1>
+      <div>
+        <h1 className="text-2xl font-bold">Audit Logs</h1>
+        <p className="text-sm text-muted-foreground">
+          Every admin action and important system event is logged here. Use the
+          filters to find specific actions.
+        </p>
+      </div>
 
       <div className="flex gap-2">
-        <Input
-          placeholder="Filter by action..."
-          value={actionFilter}
-          onChange={(e) => {
-            setActionFilter(e.target.value);
-            setPage(1);
-          }}
-          className="max-w-[200px]"
-        />
-        <Input
-          placeholder="Filter by entity type..."
-          value={entityFilter}
-          onChange={(e) => {
-            setEntityFilter(e.target.value);
-            setPage(1);
-          }}
-          className="max-w-[200px]"
-        />
+        <div className="space-y-1">
+          <Input
+            placeholder="Filter by action..."
+            value={actionFilter}
+            onChange={(e) => {
+              setActionFilter(e.target.value);
+              setPage(1);
+            }}
+            className="max-w-[200px]"
+          />
+          <p className="text-[10px] text-muted-foreground ps-1">
+            e.g. TOGGLE, CREATE, DELETE
+          </p>
+        </div>
+        <div className="space-y-1">
+          <Input
+            placeholder="Filter by entity type..."
+            value={entityFilter}
+            onChange={(e) => {
+              setEntityFilter(e.target.value);
+              setPage(1);
+            }}
+            className="max-w-[200px]"
+          />
+          <p className="text-[10px] text-muted-foreground ps-1">
+            e.g. FeatureFlag, Trade, Clan
+          </p>
+        </div>
+        <div className="pt-0.5">
+          <InfoTip>
+            Audit logs track all admin actions: toggling feature flags, managing
+            clans, generating demo data, calculating rankings, and more.
+            Metadata contains the details of each action.
+          </InfoTip>
+        </div>
       </div>
 
       {loading ? (
         <p className="text-muted-foreground">Loading...</p>
       ) : logs.length === 0 ? (
-        <p className="text-muted-foreground">No audit logs found</p>
+        <p className="text-muted-foreground">
+          No audit logs found. Try adjusting your filters, or perform some admin
+          actions first.
+        </p>
       ) : (
         <>
           <Card>
@@ -99,9 +127,14 @@ export default function AuditLogsPage() {
                     className="flex items-start justify-between border-b pb-2 text-sm last:border-0"
                   >
                     <div className="space-y-0.5">
-                      <div>
-                        <span className="font-medium">{log.action}</span>
-                        <span className="ms-2 text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className="font-mono text-[10px]"
+                        >
+                          {log.action}
+                        </Badge>
+                        <span className="text-muted-foreground">
                           {log.entityType}
                         </span>
                       </div>

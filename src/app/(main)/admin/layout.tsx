@@ -16,9 +16,14 @@ export default async function AdminLayout({
 
   return (
     <div className="flex gap-6">
-      <aside className="hidden w-48 flex-shrink-0 lg:block">
-        <div className="sticky top-20">
-          <h2 className="mb-4 text-lg font-bold">Admin Panel</h2>
+      <aside className="hidden w-56 flex-shrink-0 lg:block">
+        <div className="sticky top-20 space-y-4">
+          <div>
+            <h2 className="text-lg font-bold">Admin Panel</h2>
+            <p className="text-xs text-muted-foreground">
+              Platform configuration
+            </p>
+          </div>
           <AdminSidebar />
         </div>
       </aside>

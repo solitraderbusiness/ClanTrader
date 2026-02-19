@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { InfoTip } from "@/components/ui/info-tip";
 import { toast } from "sonner";
 
 interface AdminClan {
@@ -54,16 +55,32 @@ export default function AdminClansPage() {
     return <p className="text-muted-foreground">Loading...</p>;
   }
 
+  const featuredCount = clans.filter((c) => c.isFeatured).length;
+
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Clan Management</h1>
+      <div>
+        <h1 className="text-2xl font-bold">Clan Management</h1>
+        <p className="text-sm text-muted-foreground">
+          Manage clan visibility and featured status on the Discover page.{" "}
+          <span className="font-medium">{featuredCount}</span> featured out of{" "}
+          <span className="font-medium">{clans.length}</span> total clans.
+        </p>
+      </div>
 
       {clans.length === 0 ? (
         <p className="text-muted-foreground">No clans found</p>
       ) : (
         <div className="space-y-3">
           {clans.map((clan) => (
-            <Card key={clan.id}>
+            <Card
+              key={clan.id}
+              className={
+                clan.isFeatured
+                  ? "border-amber-200 dark:border-amber-900"
+                  : ""
+              }
+            >
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -83,7 +100,14 @@ export default function AdminClansPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Featured</span>
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      Featured
+                      <InfoTip side="left">
+                        Featured clans appear at the top of the Discover page
+                        with a special badge. Use this to promote high-quality
+                        or trusted clans.
+                      </InfoTip>
+                    </span>
                     <Switch
                       checked={clan.isFeatured}
                       onCheckedChange={(checked) =>
@@ -93,15 +117,46 @@ export default function AdminClansPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="pt-0">
+              <CardContent className="pt-0 space-y-1">
                 <p className="text-xs text-muted-foreground">
-                  Created by {clan.createdBy.name || "Unknown"}
-                  {clan.visibilityOverride && (
-                    <span className="ms-2">
-                      Visibility: {clan.visibilityOverride}
-                    </span>
+                  Created by{" "}
+                  <span className="font-medium">
+                    {clan.createdBy.name || "Unknown"}
+                  </span>
+                  {clan.isPublic ? (
+                    <Badge
+                      variant="outline"
+                      className="ms-2 text-[10px] text-green-600"
+                    >
+                      Public
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="ms-2 text-[10px] text-yellow-600"
+                    >
+                      Private
+                    </Badge>
                   )}
                 </p>
+                {clan.visibilityOverride && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    Visibility override:{" "}
+                    <Badge variant="destructive" className="text-[10px]">
+                      {clan.visibilityOverride}
+                    </Badge>
+                    <InfoTip side="right">
+                      Admin visibility override hides or force-shows this clan
+                      on Discover regardless of its public/private setting. Used
+                      for moderation.
+                    </InfoTip>
+                  </p>
+                )}
+                {clan.adminNotes && (
+                  <p className="text-xs italic text-muted-foreground">
+                    Note: {clan.adminNotes}
+                  </p>
+                )}
               </CardContent>
             </Card>
           ))}

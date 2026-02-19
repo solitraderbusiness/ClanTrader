@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { InfoTip } from "@/components/ui/info-tip";
 import { toast } from "sonner";
-import { Zap } from "lucide-react";
+import { Zap, Database } from "lucide-react";
 
 export default function DemoDataPage() {
   const [clanCount, setClanCount] = useState(2);
@@ -56,7 +57,14 @@ export default function DemoDataPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Demo Data</h1>
+      <div>
+        <h1 className="text-2xl font-bold">Demo Data</h1>
+        <p className="text-sm text-muted-foreground">
+          Generate realistic test data for development and demos. This creates
+          fake clans with members, trade signals, and optionally computes all
+          downstream data (statements, rankings).
+        </p>
+      </div>
 
       {/* Populate Everything */}
       <Card className="border-blue-200 dark:border-blue-900">
@@ -64,19 +72,31 @@ export default function DemoDataPage() {
           <CardTitle className="flex items-center gap-2 text-sm font-medium">
             <Zap className="h-4 w-4 text-blue-500" />
             Populate Everything
+            <InfoTip side="right">
+              Creates demo clans &amp; trades, then runs the full pipeline:
+              calculates trader statements (monthly performance summaries) for
+              ALL clans and builds leaderboard rankings for all active seasons.
+              After this, the dashboard, leaderboard, discover, and statements
+              pages will all show data.
+            </InfoTip>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-xs text-muted-foreground">
-            One-click pipeline: creates demo clans + trades, then calculates
-            statements for ALL clans, and builds leaderboard rankings for all
-            active seasons. After this, dashboard, leaderboard, discover, and
-            statements pages will all show real data.
+            One-click full pipeline: creates demo clans + trades, then
+            calculates statements and leaderboard rankings. Use this when you
+            want the entire platform to look alive with data.
           </p>
 
           <div className="flex gap-4">
             <div className="space-y-2">
-              <Label>Clans</Label>
+              <Label className="flex items-center gap-1">
+                Number of Clans
+                <InfoTip>
+                  How many demo clans to create. Each clan gets random members,
+                  a chat topic, and its own set of trade signals.
+                </InfoTip>
+              </Label>
               <Input
                 type="number"
                 min={1}
@@ -87,13 +107,23 @@ export default function DemoDataPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Trades / Clan</Label>
+              <Label className="flex items-center gap-1">
+                Trades per Clan
+                <InfoTip>
+                  How many trade signal cards to create inside each demo clan.
+                  Each trade gets a random instrument (XAUUSD, EURUSD, etc.),
+                  direction, entry/SL/TP, and a resolved status (win, loss, or
+                  break-even).
+                </InfoTip>
+              </Label>
               <Input
                 type="number"
                 min={5}
                 max={50}
                 value={tradesPerClan}
-                onChange={(e) => setTradesPerClan(parseInt(e.target.value) || 5)}
+                onChange={(e) =>
+                  setTradesPerClan(parseInt(e.target.value) || 5)
+                }
                 className="max-w-[100px]"
               />
             </div>
@@ -115,8 +145,28 @@ export default function DemoDataPage() {
               onClick={() => handleGenerate(false)}
               disabled={loading || populatingAll}
             >
+              <Database className="me-1 h-4 w-4" />
               {loading ? "Generating..." : "Generate Data Only"}
             </Button>
+          </div>
+
+          <div className="rounded-md border border-muted p-3 text-xs text-muted-foreground space-y-1">
+            <p className="font-medium text-foreground">
+              What&apos;s the difference?
+            </p>
+            <p>
+              <span className="font-medium text-blue-600 dark:text-blue-400">
+                Populate Everything
+              </span>{" "}
+              = Creates data + calculates statements + builds rankings. The
+              full pipeline — dashboard, leaderboard, and discover will all
+              show real data.
+            </p>
+            <p>
+              <span className="font-medium">Generate Data Only</span> =
+              Creates clans + trades only. Useful if you want raw data without
+              recomputing statements and rankings (faster).
+            </p>
           </div>
 
           {result && (

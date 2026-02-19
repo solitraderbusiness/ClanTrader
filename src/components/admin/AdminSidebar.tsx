@@ -2,41 +2,101 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Flag, Shield, CreditCard, ScrollText, Trophy, MessageSquare, Database, FlaskConical } from "lucide-react";
+import {
+  LayoutDashboard,
+  Flag,
+  Shield,
+  CreditCard,
+  ScrollText,
+  Trophy,
+  MessageSquare,
+  Database,
+  FlaskConical,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/feature-flags", label: "Feature Flags", icon: Flag },
-  { href: "/admin/paywall", label: "Paywall Rules", icon: Shield },
-  { href: "/admin/plans", label: "Plans", icon: CreditCard },
-  { href: "/admin/ranking", label: "Ranking", icon: Trophy },
-  { href: "/admin/clans", label: "Clans", icon: MessageSquare },
-  { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
-  { href: "/admin/demo-data", label: "Demo Data", icon: Database },
-  { href: "/admin/testing", label: "Test Runner", icon: FlaskConical },
+  {
+    href: "/admin",
+    label: "Dashboard",
+    desc: "Overview & stats",
+    icon: LayoutDashboard,
+  },
+  {
+    href: "/admin/feature-flags",
+    label: "Feature Flags",
+    desc: "Toggle platform features",
+    icon: Flag,
+  },
+  {
+    href: "/admin/paywall",
+    label: "Paywall Rules",
+    desc: "Content access control",
+    icon: Shield,
+  },
+  {
+    href: "/admin/plans",
+    label: "Plans",
+    desc: "Subscription pricing",
+    icon: CreditCard,
+  },
+  {
+    href: "/admin/ranking",
+    label: "Ranking",
+    desc: "Leaderboard weights",
+    icon: Trophy,
+  },
+  {
+    href: "/admin/clans",
+    label: "Clans",
+    desc: "Manage & feature clans",
+    icon: MessageSquare,
+  },
+  {
+    href: "/admin/audit-logs",
+    label: "Audit Logs",
+    desc: "Activity history",
+    icon: ScrollText,
+  },
+  {
+    href: "/admin/demo-data",
+    label: "Demo Data",
+    desc: "Generate test data",
+    icon: Database,
+  },
+  {
+    href: "/admin/testing",
+    label: "Test Runner",
+    desc: "E2E test execution",
+    icon: FlaskConical,
+  },
 ];
 
 export function AdminSidebar() {
   const pathname = usePathname();
 
   return (
-    <nav className="space-y-1">
+    <nav className="space-y-0.5">
       {NAV_ITEMS.map((item) => {
-        const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+        const isActive =
+          pathname === item.href ||
+          (item.href !== "/admin" && pathname.startsWith(item.href));
         return (
           <Link
             key={item.href}
             href={item.href}
             className={cn(
-              "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
               isActive
-                ? "bg-accent font-medium text-accent-foreground"
-                : "text-muted-foreground hover:bg-accent/50"
+                ? "bg-primary/10 font-medium text-primary"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             )}
           >
-            <item.icon className="h-4 w-4" />
-            {item.label}
+            <item.icon className={cn("h-4 w-4 flex-shrink-0", isActive && "text-primary")} />
+            <div className="min-w-0">
+              <p className="truncate leading-tight">{item.label}</p>
+              <p className="truncate text-[10px] opacity-60">{item.desc}</p>
+            </div>
           </Link>
         );
       })}

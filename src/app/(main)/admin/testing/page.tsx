@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { InfoTip } from "@/components/ui/info-tip";
 import { toast } from "sonner";
 import {
   Select,
@@ -48,12 +49,21 @@ interface TestRun {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  QUEUED: "bg-yellow-100 text-yellow-800",
-  CLAIMED: "bg-blue-100 text-blue-800",
-  RUNNING: "bg-blue-100 text-blue-800",
-  PASSED: "bg-green-100 text-green-800",
-  FAILED: "bg-red-100 text-red-800",
-  CANCELED: "bg-gray-100 text-gray-800",
+  QUEUED: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
+  CLAIMED: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  RUNNING: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  PASSED: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+  FAILED: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+  CANCELED: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
+};
+
+const SUITE_TIPS: Record<string, string> = {
+  SMOKE:
+    "Quick health checks (~30 seconds). Tests basic page loads, API health endpoints, and auth flow. Run this first to make sure the app is up and running. Good for: after deployments, quick sanity checks.",
+  FULL_E2E:
+    "Complete user journey tests (~3-5 minutes). Tests the full flow: signup → create clan → invite member → post signal → track trade → view leaderboard. Covers all major features end-to-end. Good for: before releases, after major changes.",
+  SIMULATOR:
+    "Multi-user concurrent scenario tests (~5-10 minutes). Simulates multiple users interacting simultaneously — sending messages, creating trades, joining clans — to test real-time features and race conditions. Good for: stress testing, Socket.io verification.",
 };
 
 function formatDuration(ms: number): string {
@@ -146,7 +156,9 @@ export default function TestRunnerPage() {
       );
       fetchRuns();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to queue test run");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to queue test run"
+      );
     } finally {
       setSubmitting(false);
     }
@@ -154,7 +166,9 @@ export default function TestRunnerPage() {
 
   async function handleCancel(runId: string) {
     try {
-      const res = await fetch(`/api/admin/test-runs/${runId}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/test-runs/${runId}`, {
+        method: "DELETE",
+      });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || "Failed");
@@ -175,29 +189,42 @@ export default function TestRunnerPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Test Runner</h1>
-        <Button variant="outline" size="sm" onClick={fetchRuns}>
-          <RefreshCw className="me-1 h-4 w-4" />
-          Refresh
-        </Button>
+      <div>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Test Runner</h1>
+          <Button variant="outline" size="sm" onClick={fetchRuns}>
+            <RefreshCw className="me-1 h-4 w-4" />
+            Refresh
+          </Button>
+        </div>
+        <p className="text-sm text-muted-foreground mt-1">
+          Queue E2E test runs from the admin panel. Tests run on your local
+          machine via the test worker CLI — start it with{" "}
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">
+            npm run test:worker
+          </code>
+          .
+        </p>
       </div>
 
       {/* New Run Form */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium">Queue New Test Run</CardTitle>
+          <CardTitle className="text-sm font-medium">
+            Queue New Test Run
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-xs text-muted-foreground">
-            Tests run on your local machine via the test worker CLI. The worker
-            polls for queued jobs, runs Playwright, and uploads the report.
-          </p>
-
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {/* Suite */}
             <div className="space-y-2">
-              <Label>Test Suite</Label>
+              <Label className="flex items-center gap-1">
+                Test Suite
+                <InfoTip>
+                  Choose which set of tests to run. Hover each option for
+                  details, or see the guide below.
+                </InfoTip>
+              </Label>
               <Select value={suite} onValueChange={setSuite}>
                 <SelectTrigger>
                   <SelectValue />
@@ -212,7 +239,14 @@ export default function TestRunnerPage() {
 
             {/* Run Mode */}
             <div className="space-y-2">
-              <Label>Run Mode</Label>
+              <Label className="flex items-center gap-1">
+                Run Mode
+                <InfoTip>
+                  Headless runs tests invisibly in the background (faster, uses
+                  less resources). Headed opens real browser windows so you can
+                  watch the tests run visually.
+                </InfoTip>
+              </Label>
               <Select value={runMode} onValueChange={setRunMode}>
                 <SelectTrigger>
                   <SelectValue />
@@ -234,7 +268,14 @@ export default function TestRunnerPage() {
 
             {/* Workers */}
             <div className="space-y-2">
-              <Label>Workers (parallelism)</Label>
+              <Label className="flex items-center gap-1">
+                Workers
+                <InfoTip>
+                  Number of parallel browser instances running tests
+                  simultaneously. More workers = faster but uses more CPU/RAM.
+                  Headed mode is capped at {maxWorkers} to prevent overload.
+                </InfoTip>
+              </Label>
               <Input
                 type="number"
                 min={1}
@@ -247,14 +288,21 @@ export default function TestRunnerPage() {
                 className="max-w-[100px]"
               />
               <p className="text-[10px] text-muted-foreground">
-                Max {maxWorkers}{isHeaded ? " (headed limit)" : ""}
+                Max {maxWorkers}
+                {isHeaded ? " (headed limit)" : ""}
               </p>
             </div>
 
             {/* SlowMo (headed only) */}
             {isHeaded && (
               <div className="space-y-2">
-                <Label>Slow Motion (ms)</Label>
+                <Label className="flex items-center gap-1">
+                  Slow Motion
+                  <InfoTip>
+                    Adds a delay between each test step so you can follow what
+                    the browser is doing. Only available in headed mode.
+                  </InfoTip>
+                </Label>
                 <Select
                   value={String(slowMo)}
                   onValueChange={(v) => setSlowMo(parseInt(v))}
@@ -281,9 +329,24 @@ export default function TestRunnerPage() {
                 <p className="font-medium">Headed mode is resource-heavy</p>
                 <p>
                   Browsers will be visible on your local machine. Workers are
-                  capped at {maxWorkers}. Use slowMo to watch steps in real time.
+                  capped at {maxWorkers}. Use slowMo to watch steps in real
+                  time.
                 </p>
               </div>
+            </div>
+          )}
+
+          {/* Suite description */}
+          {SUITE_TIPS[suite] && (
+            <div className="rounded-md border border-muted bg-muted/30 p-3 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground mb-1">
+                {suite === "SMOKE"
+                  ? "Smoke Tests"
+                  : suite === "FULL_E2E"
+                    ? "Full E2E"
+                    : "Simulator"}
+              </p>
+              <p>{SUITE_TIPS[suite]}</p>
             </div>
           )}
 
@@ -291,6 +354,72 @@ export default function TestRunnerPage() {
             <Play className="me-1 h-4 w-4" />
             {submitting ? "Queuing..." : "Start Test Run"}
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Which suite should I use? */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-medium">
+            Which suite should I use?
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3 text-xs">
+            <div className="flex gap-3">
+              <Badge
+                variant="outline"
+                className="h-fit flex-shrink-0 font-mono"
+              >
+                SMOKE
+              </Badge>
+              <div>
+                <p className="font-medium text-foreground">
+                  Quick health check (~30s)
+                </p>
+                <p className="text-muted-foreground">
+                  Tests that the app starts, pages load, login works, and APIs
+                  respond. Run this after deploying or restarting the server.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Badge
+                variant="outline"
+                className="h-fit flex-shrink-0 font-mono"
+              >
+                FULL_E2E
+              </Badge>
+              <div>
+                <p className="font-medium text-foreground">
+                  Complete user journeys (~3-5min)
+                </p>
+                <p className="text-muted-foreground">
+                  Tests the full flow from signup to viewing the leaderboard.
+                  Covers clan creation, trade signals, statements, and more. Run
+                  this before releases or after major code changes.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Badge
+                variant="outline"
+                className="h-fit flex-shrink-0 font-mono"
+              >
+                SIMULATOR
+              </Badge>
+              <div>
+                <p className="font-medium text-foreground">
+                  Multi-user stress test (~5-10min)
+                </p>
+                <p className="text-muted-foreground">
+                  Simulates several users at once — chatting, trading, joining
+                  clans — to test real-time Socket.io features and catch race
+                  conditions. Run this when testing concurrent usage.
+                </p>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -363,7 +492,11 @@ export default function TestRunnerPage() {
           ) : historyRuns.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No completed test runs yet. Queue a run above and start the worker
-              on your local machine.
+              on your local machine with{" "}
+              <code className="rounded bg-muted px-1 py-0.5">
+                npm run test:worker
+              </code>
+              .
             </p>
           ) : (
             <div className="rounded-lg border">
@@ -407,11 +540,11 @@ export default function TestRunnerPage() {
                       <td className="hidden px-3 py-2 text-end font-mono md:table-cell">
                         {run.totalTests !== null ? (
                           <span>
-                            <span className="text-green-600">
+                            <span className="text-green-600 dark:text-green-400">
                               {run.passedTests || 0}
                             </span>
                             /
-                            <span className="text-red-600">
+                            <span className="text-red-600 dark:text-red-400">
                               {run.failedTests || 0}
                             </span>
                             /
@@ -438,7 +571,7 @@ export default function TestRunnerPage() {
                           <a
                             href={run.reportUrl}
                             download
-                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline dark:text-blue-400"
                           >
                             <Download className="h-3 w-3" />
                             Report
