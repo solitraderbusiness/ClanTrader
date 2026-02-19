@@ -28,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang={locale} dir={getDirection(locale)}>
+    <html lang={locale} dir={getDirection(locale)} suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
         {children}
         <Toaster />
