@@ -33,7 +33,7 @@ export function ClanCard({ clan, role }: ClanCardProps) {
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
               <h3 className="truncate font-semibold">{clan.name}</h3>
               {clan.tradingFocus && (
                 <Badge variant="secondary" className="shrink-0">
