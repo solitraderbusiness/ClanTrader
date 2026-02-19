@@ -26,15 +26,15 @@ export function ClanCard({ clan, role }: ClanCardProps) {
     <Link href={`/clans/${clan.id}`}>
       <Card className="transition-colors hover:bg-accent/50">
         <CardContent className="flex items-center gap-4">
-          <Avatar className="h-12 w-12">
+          <Avatar className="h-12 w-12 shrink-0">
             <AvatarImage src={clan.avatar || undefined} alt={clan.name} />
             <AvatarFallback>
               {clan.name.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <h3 className="truncate font-semibold">{clan.name}</h3>
+            <div className="flex items-center gap-1.5">
+              <h3 className="min-w-0 truncate font-semibold">{clan.name}</h3>
               {clan.tradingFocus && (
                 <Badge variant="secondary" className="shrink-0">
                   {clan.tradingFocus}
