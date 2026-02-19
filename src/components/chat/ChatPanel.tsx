@@ -22,6 +22,7 @@ import { WatchlistSheet } from "./WatchlistSheet";
 import { EventsSheet } from "./EventsSheet";
 import { SummarySheet } from "./SummarySheet";
 import { toast } from "sonner";
+import { useNavStore } from "@/stores/nav-store";
 
 interface ChatPanelProps {
   clanId: string;
@@ -63,7 +64,19 @@ export function ChatPanel({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ clanId }),
-    }).catch(() => {});
+    })
+      .then((res) => {
+        if (res.ok) {
+          // Immediately zero out unread in the nav store
+          const { chats, setChats } = useNavStore.getState();
+          setChats(
+            chats.map((c) =>
+              c.clanId === clanId ? { ...c, unreadCount: 0 } : c
+            )
+          );
+        }
+      })
+      .catch(() => {});
   }, [clanId]);
 
   useEffect(() => {

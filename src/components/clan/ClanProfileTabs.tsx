@@ -1,6 +1,7 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useCallback } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface ClanProfileTabsProps {
@@ -17,18 +18,29 @@ export function ClanProfileTabs({
   statementsContent,
 }: ClanProfileTabsProps) {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const requestedTab = searchParams.get("tab");
 
-  // Default to requested tab if valid, otherwise "channel"
-  let defaultTab = "channel";
-  if (requestedTab === "chat" && chatContent) defaultTab = "chat";
-  else if (requestedTab === "channel") defaultTab = "channel";
-  else if (requestedTab === "members") defaultTab = "members";
+  // Derive active tab from URL
+  let activeTab = "channel";
+  if (requestedTab === "chat" && chatContent) activeTab = "chat";
+  else if (requestedTab === "channel") activeTab = "channel";
+  else if (requestedTab === "members") activeTab = "members";
   else if (requestedTab === "statements" && statementsContent)
-    defaultTab = "statements";
+    activeTab = "statements";
+
+  const handleTabChange = useCallback(
+    (tab: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", tab);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [searchParams, router, pathname]
+  );
 
   return (
-    <Tabs defaultValue={defaultTab} className="space-y-4">
+    <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
       <TabsList>
         <TabsTrigger value="channel">Channel</TabsTrigger>
         {chatContent && <TabsTrigger value="chat">Chat</TabsTrigger>}

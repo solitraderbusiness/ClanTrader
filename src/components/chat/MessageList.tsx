@@ -37,12 +37,21 @@ export function MessageList({
   const [showScrollDown, setShowScrollDown] = useState(false);
   const prevMessageCount = useRef(messages.length);
 
-  // Auto-scroll on new messages if near bottom
+  // Auto-scroll on new messages
   useEffect(() => {
-    const isNewMessage = messages.length > prevMessageCount.current;
+    const prevCount = prevMessageCount.current;
     prevMessageCount.current = messages.length;
+    const isNewMessage = messages.length > prevCount;
 
     if (isNewMessage) {
+      // Initial load (0 → N): always scroll to bottom
+      if (prevCount === 0) {
+        requestAnimationFrame(() => {
+          bottomRef.current?.scrollIntoView();
+        });
+        return;
+      }
+      // Incremental messages: only if near bottom
       const container = scrollRef.current;
       if (container) {
         const isNearBottom =
@@ -56,11 +65,6 @@ export function MessageList({
       }
     }
   }, [messages.length]);
-
-  // Initial scroll to bottom
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView();
-  }, []);
 
   // Scroll to highlighted message
   useEffect(() => {
