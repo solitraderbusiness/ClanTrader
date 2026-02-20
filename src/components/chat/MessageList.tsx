@@ -101,7 +101,7 @@ export function MessageList({
     <div className="relative flex-1 overflow-hidden">
       <div
         ref={scrollRef}
-        className="h-full overflow-y-auto p-4"
+        className="chat-bg-pattern h-full overflow-y-auto p-4"
         onScroll={handleScroll}
       >
         {hasMore && (
@@ -129,7 +129,7 @@ export function MessageList({
             const showAvatar = !prevMsg || prevMsg.user.id !== msg.user.id;
 
             return (
-              <div key={msg.id} id={`msg-${msg.id}`}>
+              <div key={msg.id} id={`msg-${msg.id}`} className="animate-message-enter">
                 <MessageBubble
                   message={msg}
                   isOwn={msg.user.id === currentUserId}

@@ -5,10 +5,39 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { type Locale, getDirection } from "@/lib/locale";
 import { ServiceWorkerRegistration } from "@/components/pwa/ServiceWorkerRegistration";
+import { FontApplier } from "@/components/providers/FontApplier";
 
 const inter = localFont({
   src: "../fonts/InterVariable.woff2",
-  variable: "--font-sans",
+  variable: "--font-inter",
+  display: "swap",
+  weight: "100 900",
+});
+
+const geist = localFont({
+  src: "../fonts/GeistVariable.woff2",
+  variable: "--font-geist",
+  display: "swap",
+  weight: "100 900",
+});
+
+const jakarta = localFont({
+  src: "../fonts/PlusJakartaSansVariable.woff2",
+  variable: "--font-jakarta",
+  display: "swap",
+  weight: "200 800",
+});
+
+const vazirmatn = localFont({
+  src: "../fonts/VazirmatnVariable.woff2",
+  variable: "--font-vazirmatn",
+  display: "swap",
+  weight: "100 900",
+});
+
+const sahel = localFont({
+  src: "../fonts/SahelVariable.woff2",
+  variable: "--font-sahel",
   display: "swap",
   weight: "100 900",
 });
@@ -63,8 +92,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang={locale} dir={getDirection(locale)} suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} ${geist.variable} ${jakarta.variable} ${vazirmatn.variable} ${sahel.variable} font-sans antialiased`}>
         <ServiceWorkerRegistration />
+        <FontApplier />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

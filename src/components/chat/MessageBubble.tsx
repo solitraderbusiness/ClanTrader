@@ -130,7 +130,7 @@ export function MessageBubble({
 
         {/* Reply preview */}
         {message.replyTo && (
-          <div className={`mb-1 flex items-center gap-1 rounded border-s-2 border-primary/50 bg-muted/50 px-2 py-1 text-xs ${isOwn ? "ms-auto" : ""}`}>
+          <div className={`mb-1 flex items-center gap-1 rounded-lg border-s-2 border-primary/50 bg-muted/30 px-2.5 py-1.5 text-xs ${isOwn ? "ms-auto" : ""}`}>
             <Reply className="h-3 w-3 text-muted-foreground" />
             <span className="font-medium">{message.replyTo.user.name}:</span>
             <span className="truncate text-muted-foreground">
@@ -164,9 +164,22 @@ export function MessageBubble({
         ) : (
           /* Regular text message bubble */
           <div
-            className={`relative rounded-lg px-3 py-2 text-sm ${
-              isOwn ? "bg-primary text-primary-foreground" : "bg-muted"
-            } ${message.isPinned ? "ring-2 ring-yellow-400/50" : ""}`}
+            className={`relative text-[15px] leading-relaxed ${
+              showAvatar
+                ? isOwn
+                  ? "rounded-2xl rounded-ee-md"
+                  : "rounded-2xl rounded-es-md"
+                : "rounded-2xl"
+            } px-3.5 py-2.5 ${message.isPinned ? "ring-2 ring-yellow-400/50" : ""}`}
+            style={{
+              backgroundColor: isOwn
+                ? "var(--chat-bubble-own)"
+                : "var(--chat-bubble-other)",
+              color: isOwn
+                ? "var(--chat-bubble-own-fg)"
+                : "var(--chat-bubble-other-fg)",
+              boxShadow: "var(--chat-bubble-shadow)",
+            }}
           >
             {message.isPinned && (
               <Pin className="absolute -top-1 -end-1 h-3 w-3 text-yellow-500" />
@@ -182,9 +195,9 @@ export function MessageBubble({
               <button
                 key={emoji}
                 onClick={() => handleReact(emoji)}
-                className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-xs transition-colors ${
+                className={`inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-xs transition-all ${
                   users.includes(currentUserId)
-                    ? "border-primary bg-primary/10"
+                    ? "border-primary bg-primary/10 shadow-sm"
                     : "border-input hover:bg-accent"
                 }`}
               >

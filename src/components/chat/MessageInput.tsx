@@ -231,7 +231,7 @@ export function MessageInput({ clanId, topicId, disabled, onOpenPanel, onOpenTra
   }
 
   return (
-    <div className="border-t p-3">
+    <div className="border-t bg-card/80 p-3 backdrop-blur-sm" style={{ boxShadow: "var(--chat-input-shadow)" }}>
       {(replyingTo || editingMessage) && (
         <div className="mb-2 flex items-center gap-2 rounded border-s-2 border-primary bg-muted/50 px-3 py-2 text-sm">
           {replyingTo && (
@@ -326,10 +326,11 @@ export function MessageInput({ clanId, topicId, disabled, onOpenPanel, onOpenTra
             disabled={disabled}
             maxLength={MESSAGE_CONTENT_MAX}
             rows={1}
-            className="min-h-[40px] max-h-[120px] resize-none"
+            className="min-h-[40px] max-h-[120px] resize-none rounded-xl bg-muted/30"
           />
           <Button
             size="icon"
+            className="rounded-full"
             onClick={handleSend}
             disabled={disabled || !content.trim()}
           >

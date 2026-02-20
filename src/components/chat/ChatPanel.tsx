@@ -336,7 +336,7 @@ export function ChatPanel({
   )?.name;
 
   return (
-    <div className="flex h-[600px] flex-col rounded-lg border lg:h-[calc(100vh-280px)]">
+    <div className="flex h-[600px] flex-col overflow-hidden rounded-xl border shadow-sm lg:h-[calc(100vh-280px)]">
       <ChatHeader
         topics={store.topics}
         currentTopicId={store.currentTopicId}

@@ -43,14 +43,21 @@ export function TradeCardInline({
 
   return (
     <div
-      className={`relative rounded-lg border bg-card p-3 text-sm shadow-sm ${
+      className={`relative overflow-hidden rounded-xl border bg-card text-[15px] shadow-[0_2px_8px_oklch(0_0_0/8%)] ${
         isPinned ? "ring-2 ring-yellow-400/50" : ""
       }`}
     >
+      {/* Colored accent bar */}
+      <div
+        className={`absolute inset-y-0 start-0 w-1 ${
+          tradeCard.direction === "LONG" ? "bg-green-500" : "bg-red-500"
+        }`}
+      />
       {isPinned && (
         <Pin className="absolute -top-1 -end-1 h-3 w-3 text-yellow-500" />
       )}
 
+      <div className="p-3 ps-4">
       {/* Header: Direction + Instrument + Status + Actions */}
       <div className="mb-2 flex items-center gap-2">
         <DirectionBadge direction={tradeCard.direction as "LONG" | "SHORT"} />
@@ -75,15 +82,15 @@ export function TradeCardInline({
 
       {/* Price Grid */}
       <div className="mb-2 grid grid-cols-3 gap-2 text-xs">
-        <div>
+        <div className="rounded-lg bg-muted/50 px-2 py-1.5 text-center">
           <span className="text-muted-foreground">Entry</span>
           <p className="font-mono font-medium">{tradeCard.entry}</p>
         </div>
-        <div>
+        <div className="rounded-lg bg-muted/50 px-2 py-1.5 text-center">
           <span className="text-muted-foreground">Stop Loss</span>
           <p className="font-mono font-medium text-red-500">{tradeCard.stopLoss}</p>
         </div>
-        <div>
+        <div className="rounded-lg bg-muted/50 px-2 py-1.5 text-center">
           <span className="text-muted-foreground">
             {hasTarget2 ? "TP1" : "Target"}
           </span>
@@ -143,6 +150,7 @@ export function TradeCardInline({
           </Button>
         </div>
       )}
+      </div>
     </div>
   );
 }

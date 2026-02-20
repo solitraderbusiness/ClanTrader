@@ -32,7 +32,7 @@ export function ChatHeader({
   onTogglePanel,
 }: ChatHeaderProps) {
   return (
-    <div className="border-b">
+    <div className="border-b bg-card/80 backdrop-blur-sm">
       <div className="flex items-center justify-between px-3 py-1.5">
         <OnlineUsersBar users={onlineUsers} />
         <div className="flex items-center gap-2">

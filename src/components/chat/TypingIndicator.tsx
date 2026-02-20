@@ -18,16 +18,21 @@ export function TypingIndicator({
   const names = others.map(([, name]) => name || "Someone");
   let text: string;
   if (names.length === 1) {
-    text = `${names[0]} is typing...`;
+    text = `${names[0]} is typing`;
   } else if (names.length === 2) {
-    text = `${names[0]} and ${names[1]} are typing...`;
+    text = `${names[0]} and ${names[1]} are typing`;
   } else {
-    text = `${names.length} people are typing...`;
+    text = `${names.length} people are typing`;
   }
 
   return (
-    <div className="animate-pulse px-4 py-1 text-xs text-muted-foreground">
-      {text}
+    <div className="flex items-center gap-1.5 px-4 py-1 text-xs text-muted-foreground">
+      <span>{text}</span>
+      <span className="flex items-center gap-0.5">
+        <span className="typing-dot" />
+        <span className="typing-dot" />
+        <span className="typing-dot" />
+      </span>
     </div>
   );
 }

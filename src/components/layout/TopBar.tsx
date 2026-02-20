@@ -3,6 +3,7 @@
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { FontSwitch } from "@/components/ui/font-switch";
 import { UserMenu } from "./UserMenu";
 import { useSidebarStore } from "@/stores/sidebar-store";
 
@@ -25,6 +26,7 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-2">
+        <FontSwitch />
         <ThemeToggle />
         <UserMenu />
       </div>
