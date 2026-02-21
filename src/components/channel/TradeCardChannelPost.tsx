@@ -67,17 +67,6 @@ export function TradeCardChannelPost({
         </div>
       </div>
 
-      {data.targets.length > 1 && (
-        <div className="mb-3 flex gap-3 text-xs">
-          {data.targets.slice(1).map((tp, i) => (
-            <div key={i}>
-              <span className="text-muted-foreground">TP{i + 2}</span>
-              <p className="font-mono font-medium text-green-500">{tp}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
       {riskReward != null && (
         <p className="mb-2 text-xs text-muted-foreground">
           R:R 1:{riskReward.toFixed(1)}

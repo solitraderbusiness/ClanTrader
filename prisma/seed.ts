@@ -10,6 +10,9 @@ const prisma = new PrismaClient({ adapter });
 
 async function main() {
   // Clean existing data (order matters for FK constraints)
+  await prisma.badgeAdminChange.deleteMany();
+  await prisma.userBadge.deleteMany();
+  await prisma.badgeDefinition.deleteMany();
   await prisma.testRun.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.rankingConfig.deleteMany();
@@ -237,6 +240,7 @@ async function main() {
     { key: "paywall", name: "Paywall", description: "Enable paywall for premium content", enabled: false },
     { key: "alerts", name: "Alerts", description: "Enable price and event alerts", enabled: false },
     { key: "ai_features", name: "AI Features", description: "Enable AI-powered analysis features", enabled: false },
+    { key: "trade_integrity_evaluator", name: "Trade Integrity Evaluator", description: "Enable periodic candle-based trade evaluation (PENDING → OPEN → resolved)", enabled: false },
   ];
 
   await prisma.featureFlag.createMany({ data: featureFlags });
@@ -308,12 +312,111 @@ async function main() {
   });
 
   // ---------------------------------------------------------------------------
+  // Create badge definitions
+  // ---------------------------------------------------------------------------
+  const rankBadges = [
+    { key: "rank-bronze", name: "Bronze", displayOrder: 0, min_closed_trades: 10 },
+    { key: "rank-silver", name: "Silver", displayOrder: 1, min_closed_trades: 25 },
+    { key: "rank-gold", name: "Gold", displayOrder: 2, min_closed_trades: 50 },
+    { key: "rank-platinum", name: "Platinum", displayOrder: 3, min_closed_trades: 100 },
+    { key: "rank-a", name: "A", displayOrder: 4, min_closed_trades: 250 },
+    { key: "rank-s", name: "S", displayOrder: 5, min_closed_trades: 500 },
+    { key: "rank-ss", name: "SS", displayOrder: 6, min_closed_trades: 1000 },
+    { key: "rank-sss", name: "SSS", displayOrder: 7, min_closed_trades: 2500 },
+    { key: "rank-divine", name: "Divine", displayOrder: 8, min_closed_trades: 5000 },
+  ];
+
+  for (const badge of rankBadges) {
+    await prisma.badgeDefinition.create({
+      data: {
+        key: badge.key,
+        category: "RANK",
+        name: badge.name,
+        description: `Awarded for closing ${badge.min_closed_trades} valid trades`,
+        requirementsJson: { type: "rank", min_closed_trades: badge.min_closed_trades },
+        displayOrder: badge.displayOrder,
+        enabled: true,
+      },
+    });
+  }
+
+  const perfBadges = [
+    {
+      key: "perf-sharpshooter",
+      name: "Sharpshooter",
+      description: "Win rate >= 60% over 100 trades",
+      requirementsJson: { type: "performance", metric: "win_rate", window: 100, op: ">=", value: 0.6 },
+    },
+    {
+      key: "perf-r-machine",
+      name: "R-Machine",
+      description: "Net R >= 10 over 50 trades",
+      requirementsJson: { type: "performance", metric: "net_r", window: 50, op: ">=", value: 10 },
+    },
+    {
+      key: "perf-steady-hands",
+      name: "Steady Hands",
+      description: "Max drawdown R <= 8 over 100 trades",
+      requirementsJson: { type: "performance", metric: "max_drawdown_r", window: 100, op: "<=", value: 8 },
+    },
+    {
+      key: "perf-consistent",
+      name: "Consistent",
+      description: "Avg R >= 0.2 over 100 trades",
+      requirementsJson: { type: "performance", metric: "avg_r", window: 100, op: ">=", value: 0.2 },
+    },
+  ];
+
+  for (const badge of perfBadges) {
+    await prisma.badgeDefinition.create({
+      data: {
+        key: badge.key,
+        category: "PERFORMANCE",
+        name: badge.name,
+        description: badge.description,
+        requirementsJson: badge.requirementsJson,
+        enabled: true,
+      },
+    });
+  }
+
+  const trophyBadges = [
+    {
+      key: "trophy-champion",
+      name: "Season Champion",
+      description: "1st place in season composite ranking",
+      requirementsJson: { type: "trophy", season_id: "*", lens: "composite", rank_min: 1, rank_max: 1 },
+    },
+    {
+      key: "trophy-top3",
+      name: "Podium Finish",
+      description: "Top 3 in season composite ranking",
+      requirementsJson: { type: "trophy", season_id: "*", lens: "composite", rank_min: 1, rank_max: 3 },
+    },
+  ];
+
+  for (const badge of trophyBadges) {
+    await prisma.badgeDefinition.create({
+      data: {
+        key: badge.key,
+        category: "TROPHY",
+        name: badge.name,
+        description: badge.description,
+        requirementsJson: badge.requirementsJson,
+        enabled: true,
+      },
+    });
+  }
+
+  console.log(`  - ${rankBadges.length + perfBadges.length + trophyBadges.length} badge definitions created`);
+
+  // ---------------------------------------------------------------------------
   // Generate trade cards + tracked trades for each trader (signal-tagged)
   // ---------------------------------------------------------------------------
   const INSTRUMENTS = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "BTCUSD"];
   const DIRECTIONS: TradeDirection[] = ["LONG", "SHORT"];
   const TIMEFRAMES = ["M15", "H1", "H4", "D1"];
-  const STATUSES: TradeStatus[] = ["TP1_HIT", "TP2_HIT", "SL_HIT", "BE", "CLOSED"];
+  const STATUSES: TradeStatus[] = ["TP_HIT", "SL_HIT", "BE", "CLOSED"];
 
   function pick<T>(arr: T[]): T {
     return arr[Math.floor(Math.random() * arr.length)];
@@ -344,20 +447,20 @@ async function main() {
         entry = rf(2600, 2700, 1);
         stopLoss = direction === "LONG" ? entry - rf(10, 30, 1) : entry + rf(10, 30, 1);
         targets = direction === "LONG"
-          ? [entry + rf(15, 40, 1), entry + rf(45, 80, 1)]
-          : [entry - rf(15, 40, 1), entry - rf(45, 80, 1)];
+          ? [entry + rf(15, 40, 1)]
+          : [entry - rf(15, 40, 1)];
       } else if (instrument === "BTCUSD") {
         entry = rf(90000, 100000, 0);
         stopLoss = direction === "LONG" ? entry - rf(500, 1500, 0) : entry + rf(500, 1500, 0);
         targets = direction === "LONG"
-          ? [entry + rf(800, 2000, 0), entry + rf(2500, 5000, 0)]
-          : [entry - rf(800, 2000, 0), entry - rf(2500, 5000, 0)];
+          ? [entry + rf(800, 2000, 0)]
+          : [entry - rf(800, 2000, 0)];
       } else {
         entry = rf(1.05, 1.15, 5);
         stopLoss = direction === "LONG" ? entry - rf(0.002, 0.005, 5) : entry + rf(0.002, 0.005, 5);
         targets = direction === "LONG"
-          ? [entry + rf(0.003, 0.008, 5), entry + rf(0.01, 0.02, 5)]
-          : [entry - rf(0.003, 0.008, 5), entry - rf(0.01, 0.02, 5)];
+          ? [entry + rf(0.003, 0.008, 5)]
+          : [entry - rf(0.003, 0.008, 5)];
       }
 
       const createdAt = new Date(now.getTime() - Math.random() * 25 * 24 * 60 * 60 * 1000);
@@ -389,16 +492,24 @@ async function main() {
         },
       });
 
+      // First 2 trades per user are PENDING (for demo)
+      const effectiveStatus = i < 2 ? "PENDING" as TradeStatus : status;
+      const isResolved = ["TP_HIT", "SL_HIT", "BE", "CLOSED"].includes(effectiveStatus);
+
       await prisma.trade.create({
         data: {
           tradeCardId: card.id,
           clanId: clan.id,
           userId: user.id,
-          status,
+          status: effectiveStatus,
           createdAt,
-          ...(status !== "OPEN"
+          ...(isResolved
             ? { closedAt: new Date(createdAt.getTime() + Math.random() * 48 * 60 * 60 * 1000) }
             : {}),
+          integrityStatus: "VERIFIED",
+          statementEligible: true,
+          resolutionSource: "UNKNOWN",
+          lastEvaluatedAt: createdAt,
         },
       });
 
@@ -476,8 +587,7 @@ async function main() {
       let r = 0;
       if (risk > 0) {
         switch (trade.status) {
-          case "TP1_HIT": r = Math.abs(c.targets[0] - c.entry) / risk; break;
-          case "TP2_HIT": r = c.targets.length > 1 ? Math.abs(c.targets[1] - c.entry) / risk : Math.abs(c.targets[0] - c.entry) / risk; break;
+          case "TP_HIT": r = Math.abs((c.targets[0] ?? c.entry) - c.entry) / risk; break;
           case "SL_HIT": r = -1; break;
           case "BE": r = 0; break;
           case "CLOSED": r = 0; break;
@@ -486,7 +596,7 @@ async function main() {
 
       rVals.push(r);
       metrics.totalRMultiple += r;
-      if (trade.status === "TP1_HIT" || trade.status === "TP2_HIT") metrics.wins++;
+      if (trade.status === "TP_HIT") metrics.wins++;
       else if (trade.status === "SL_HIT") metrics.losses++;
       else if (trade.status === "BE") metrics.breakEven++;
       else if (trade.status === "CLOSED") metrics.closed++;

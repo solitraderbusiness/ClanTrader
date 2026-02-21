@@ -40,7 +40,7 @@ export const COMMON_INSTRUMENTS = [
 ] as const;
 
 export const TRADE_STATUSES = [
-  "OPEN", "TP1_HIT", "TP2_HIT", "SL_HIT", "BE", "CLOSED",
+  "PENDING", "OPEN", "TP_HIT", "SL_HIT", "BE", "CLOSED", "UNVERIFIED",
 ] as const;
 
 // DM constraints

@@ -25,7 +25,11 @@ export async function trackTrade(messageId: string, clanId: string, userId: stri
       tradeCardId: message.tradeCard.id,
       clanId,
       userId,
-      status: "OPEN",
+      status: "PENDING",
+      integrityStatus: "VERIFIED",
+      statementEligible: true,
+      resolutionSource: "UNKNOWN",
+      lastEvaluatedAt: new Date(),
     },
   });
 
@@ -65,27 +69,52 @@ export async function updateTradeStatus(
   }
 
   const fromStatus = trade.status;
+  const newStatus = status as TradeStatus;
 
   // Create status history entry
   const history = await db.tradeStatusHistory.create({
     data: {
       tradeId,
       fromStatus,
-      toStatus: status as TradeStatus,
+      toStatus: newStatus,
       changedById: userId,
       note,
     },
   });
 
-  // Update trade
-  const closedStatuses: TradeStatus[] = ["SL_HIT", "CLOSED"];
+  // Manual status changes to resolved statuses are flagged as MANUAL_OVERRIDE
+  const resolvedStatuses: TradeStatus[] = ["TP_HIT", "SL_HIT", "BE", "CLOSED"];
+  const isManualResolve = resolvedStatuses.includes(newStatus);
+
   const updatedTrade = await db.trade.update({
     where: { id: tradeId },
     data: {
-      status: status as TradeStatus,
-      ...(closedStatuses.includes(status as TradeStatus) ? { closedAt: new Date() } : {}),
+      status: newStatus,
+      ...(resolvedStatuses.includes(newStatus) ? { closedAt: new Date() } : {}),
+      ...(isManualResolve
+        ? {
+            integrityStatus: "UNVERIFIED",
+            integrityReason: "MANUAL_OVERRIDE",
+            statementEligible: false,
+            resolutionSource: "MANUAL",
+          }
+        : {}),
     },
   });
+
+  // Record manual status set event
+  if (isManualResolve) {
+    await db.tradeEvent.create({
+      data: {
+        tradeId,
+        actionType: "MANUAL_STATUS_SET",
+        actorId: userId,
+        oldValue: JSON.stringify({ status: fromStatus }),
+        newValue: JSON.stringify({ status: newStatus }),
+        note: note || "Manual status change — excluded from statements",
+      },
+    });
+  }
 
   return {
     trade: updatedTrade,

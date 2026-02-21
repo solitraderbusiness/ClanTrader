@@ -22,6 +22,11 @@ interface TradeDetail {
   userId: string;
   createdAt: string;
   closedAt: string | null;
+  integrityStatus?: string;
+  integrityReason?: string | null;
+  integrityDetails?: Record<string, unknown> | null;
+  statementEligible?: boolean;
+  resolutionSource?: string;
   tradeCard: {
     instrument: string;
     direction: string;
@@ -106,6 +111,8 @@ export function TradeCardDetailSheet({
 
   const isTracker = trade?.userId === currentUserId;
   const isOpen = trade?.status === "OPEN";
+  const isPending = trade?.status === "PENDING";
+  const canUpdateStatus = isTracker && (isOpen || isPending);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -177,8 +184,15 @@ export function TradeCardDetailSheet({
               </p>
             )}
 
+            {/* Pending State */}
+            {isPending && (
+              <div className="rounded-md border border-indigo-500/30 bg-indigo-500/5 p-3 text-sm text-indigo-600 dark:text-indigo-400">
+                Waiting for entry confirmation...
+              </div>
+            )}
+
             {/* Quick Actions */}
-            {isTracker && isOpen && (
+            {canUpdateStatus && (
               <>
                 <Separator />
                 <div>
@@ -188,20 +202,10 @@ export function TradeCardDetailSheet({
                       variant="outline"
                       size="sm"
                       className="text-green-600"
-                      onClick={() => handleStatusUpdate("TP1_HIT")}
+                      onClick={() => handleStatusUpdate("TP_HIT")}
                     >
-                      TP1 Hit
+                      TP Hit
                     </Button>
-                    {trade.tradeCard.targets.length > 1 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-emerald-600"
-                        onClick={() => handleStatusUpdate("TP2_HIT")}
-                      >
-                        TP2 Hit
-                      </Button>
-                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -226,6 +230,33 @@ export function TradeCardDetailSheet({
                       Close
                     </Button>
                   </div>
+                </div>
+              </>
+            )}
+
+            {/* Integrity Section */}
+            {trade.integrityStatus && trade.integrityStatus !== "VERIFIED" && (
+              <>
+                <Separator />
+                <div className="rounded-md border border-orange-500/30 bg-orange-500/5 p-3 text-sm">
+                  <p className="font-medium text-orange-600 dark:text-orange-400">
+                    Integrity: {trade.integrityStatus}
+                    {trade.integrityReason && (
+                      <span className="ms-2 font-normal text-muted-foreground">
+                        ({trade.integrityReason.replace(/_/g, " ").toLowerCase()})
+                      </span>
+                    )}
+                  </p>
+                  {trade.statementEligible === false && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Excluded from statements &amp; competition
+                    </p>
+                  )}
+                  {trade.integrityReason === "MANUAL_OVERRIDE" && (
+                    <Badge variant="outline" className="mt-1 text-[10px] border-orange-500/50">
+                      Manual
+                    </Badge>
+                  )}
                 </div>
               </>
             )}

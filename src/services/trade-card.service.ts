@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { MessageServiceError } from "@/services/message.service";
+import { evaluateUserBadges } from "@/services/badge-engine.service";
 import type { TradeDirection } from "@prisma/client";
 
 const messageInclude = {
@@ -127,11 +128,24 @@ export async function editTradeCard(
 
   // Update message content summary
   const content = `${data.direction} ${data.instrument} @ ${data.entry}`;
-  return db.message.update({
+  const result = await db.message.update({
     where: { id: messageId },
     data: { content, isEdited: true },
     include: messageInclude,
   });
+
+  // Fire-and-forget badge re-evaluation if trade card has an associated trade
+  const trade = await db.trade.findUnique({
+    where: { tradeCardId: message.tradeCard.id },
+    select: { userId: true },
+  });
+  if (trade) {
+    evaluateUserBadges(trade.userId).catch((err) =>
+      console.error("Badge evaluation error after card edit:", err)
+    );
+  }
+
+  return result;
 }
 
 export async function getTradeCardWithVersions(messageId: string) {

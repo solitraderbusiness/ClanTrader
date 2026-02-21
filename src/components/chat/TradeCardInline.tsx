@@ -35,7 +35,8 @@ export function TradeCardInline({
   }
 
   const isTracker = tradeCard.trade?.userId === currentUserId;
-  const hasTarget2 = tradeCard.targets.length > 1;
+  const tradeStatus = tradeCard.trade?.status;
+  const canAct = tradeStatus === "OPEN" || tradeStatus === "PENDING";
   const riskReward = tradeCard.stopLoss
     ? Math.abs(tradeCard.targets[0] - tradeCard.entry) /
       Math.abs(tradeCard.entry - tradeCard.stopLoss)
@@ -71,7 +72,7 @@ export function TradeCardInline({
           {tradeCard.timeframe}
         </Badge>
         {tradeCard.trade && <StatusBadge status={tradeCard.trade.status} />}
-        {tradeCard.trade && tradeCard.trade.status === "OPEN" && (
+        {tradeCard.trade && canAct && (
           <div className="ms-auto">
             <TradeActionsMenu
               tradeId={tradeCard.trade.id}
@@ -96,23 +97,10 @@ export function TradeCardInline({
           <p className="font-mono font-medium text-red-500">{tradeCard.stopLoss}</p>
         </div>
         <div className="rounded-lg bg-muted/30 backdrop-blur-sm px-2 py-1.5 text-center">
-          <span className="text-muted-foreground">
-            {hasTarget2 ? "TP1" : "Target"}
-          </span>
+          <span className="text-muted-foreground">Target</span>
           <p className="font-mono font-medium text-green-500">{tradeCard.targets[0]}</p>
         </div>
       </div>
-
-      {hasTarget2 && (
-        <div className="mb-2 flex gap-2 text-xs">
-          {tradeCard.targets.slice(1).map((tp, i) => (
-            <div key={i}>
-              <span className="text-muted-foreground">TP{i + 2}</span>
-              <p className="font-mono font-medium text-green-500">{tp}</p>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Meta Row */}
       <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">

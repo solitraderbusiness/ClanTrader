@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { MessageServiceError, requireClanMembership, createMessage } from "@/services/message.service";
 import { canPerformAction, type TradeActionKey } from "@/lib/trade-action-constants";
 import { audit } from "@/lib/audit";
+import { evaluateUserBadges } from "@/services/badge-engine.service";
 import type { TradeActionType, TradeStatus } from "@prisma/client";
 
 export async function executeTradeAction(
@@ -87,8 +88,8 @@ export async function executeTradeAction(
         throw new MessageServiceError("New targets value is required", "INVALID_INPUT", 400);
       }
       const newTargets = newValue.split(",").map((v) => parseFloat(v.trim())).filter((v) => !isNaN(v) && v > 0);
-      if (newTargets.length === 0) {
-        throw new MessageServiceError("Invalid target values", "INVALID_INPUT", 400);
+      if (newTargets.length !== 1) {
+        throw new MessageServiceError("Exactly one target is required in v1", "INVALID_INPUT", 400);
       }
       oldValue = JSON.stringify({ targets: tradeCard.targets });
       await db.tradeCard.update({
@@ -107,6 +108,10 @@ export async function executeTradeAction(
         data: {
           status: "CLOSED",
           closedAt: new Date(),
+          integrityStatus: "UNVERIFIED",
+          integrityReason: "MANUAL_OVERRIDE",
+          statementEligible: false,
+          resolutionSource: "MANUAL",
         },
       });
       // Also record in legacy status history
@@ -135,20 +140,29 @@ export async function executeTradeAction(
       if (!newValue) {
         throw new MessageServiceError("New status is required", "INVALID_INPUT", 400);
       }
-      const validStatuses: TradeStatus[] = ["OPEN", "TP1_HIT", "TP2_HIT", "SL_HIT", "BE", "CLOSED"];
+      const validStatuses: TradeStatus[] = ["TP_HIT", "SL_HIT", "BE", "CLOSED"];
       if (!validStatuses.includes(newValue as TradeStatus)) {
         throw new MessageServiceError("Invalid status", "INVALID_INPUT", 400);
       }
       oldValue = JSON.stringify({ status: trade.status });
-      const closedStatuses: TradeStatus[] = ["SL_HIT", "CLOSED"];
+      const resolvedForClose: TradeStatus[] = ["TP_HIT", "SL_HIT", "BE", "CLOSED"];
+      const isResolved = resolvedForClose.includes(newValue as TradeStatus);
       await db.trade.update({
         where: { id: tradeId },
         data: {
           status: newValue as TradeStatus,
-          ...(closedStatuses.includes(newValue as TradeStatus) ? { closedAt: new Date() } : {}),
+          ...(isResolved ? { closedAt: new Date() } : {}),
+          // Manual status changes to resolved statuses are MANUAL_OVERRIDE
+          ...(isResolved
+            ? {
+                integrityStatus: "UNVERIFIED",
+                integrityReason: "MANUAL_OVERRIDE",
+                statementEligible: false,
+                resolutionSource: "MANUAL",
+              }
+            : {}),
         },
       });
-      // Also record in legacy status history
       await db.tradeStatusHistory.create({
         data: {
           tradeId,
@@ -194,6 +208,17 @@ export async function executeTradeAction(
       systemContent,
       topicId,
       { type: "TRADE_ACTION" }
+    );
+  }
+
+  // Fire-and-forget badge re-evaluation when trade reaches a resolved status
+  const resolvedStatuses: TradeStatus[] = ["TP_HIT", "SL_HIT", "BE", "CLOSED"];
+  if (
+    actionType === "CLOSE" ||
+    (actionType === "STATUS_CHANGE" && newValue && resolvedStatuses.includes(newValue as TradeStatus))
+  ) {
+    evaluateUserBadges(trade.userId).catch((err) =>
+      console.error("Badge evaluation error:", err)
     );
   }
 

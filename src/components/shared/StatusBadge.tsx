@@ -3,17 +3,17 @@
 import { Badge } from "@/components/ui/badge";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
+  PENDING: {
+    label: "Pending",
+    className: "border-indigo-500 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
+  },
   OPEN: {
     label: "Open",
     className: "border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-400",
   },
-  TP1_HIT: {
-    label: "TP1",
+  TP_HIT: {
+    label: "TP Hit",
     className: "border-green-500 bg-green-500/10 text-green-600 dark:text-green-400",
-  },
-  TP2_HIT: {
-    label: "TP2",
-    className: "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
   },
   SL_HIT: {
     label: "SL Hit",
@@ -26,6 +26,10 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   CLOSED: {
     label: "Closed",
     className: "border-gray-500 bg-gray-500/10 text-gray-600 dark:text-gray-400",
+  },
+  UNVERIFIED: {
+    label: "Unverified",
+    className: "border-orange-500 bg-orange-500/10 text-orange-600 dark:text-orange-400",
   },
 };
 

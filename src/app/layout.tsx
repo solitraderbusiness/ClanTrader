@@ -91,8 +91,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang={locale} dir={getDirection(locale)} suppressHydrationWarning>
-      <body className={`${inter.variable} ${geist.variable} ${jakarta.variable} ${vazirmatn.variable} ${sahel.variable} font-sans antialiased`}>
+    <html
+      lang={locale}
+      dir={getDirection(locale)}
+      suppressHydrationWarning
+      className={`${inter.variable} ${geist.variable} ${jakarta.variable} ${vazirmatn.variable} ${sahel.variable}`}
+    >
+      <body className="font-sans antialiased">
         <ServiceWorkerRegistration />
         <FontApplier />
         <ThemeProvider

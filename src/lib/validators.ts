@@ -196,46 +196,76 @@ export type UpdateTopicInput = z.infer<typeof updateTopicSchema>;
 
 // --- Trade Card schemas ---
 
-export const sendTradeCardSchema = z.object({
-  clanId: z.string().min(1),
-  topicId: z.string().min(1),
-  instrument: z.string().min(1).max(20),
-  direction: z.enum(["LONG", "SHORT"]),
-  entry: z.number().positive(),
-  stopLoss: z.number().positive(),
-  targets: z.array(z.number().positive()).min(1).max(5),
-  timeframe: z.string().min(1).max(10),
-  riskPct: z.number().min(0).max(100).optional(),
-  note: z.string().max(500).optional(),
-  tags: z.array(z.string().max(30)).max(5).optional(),
-});
+const tradeCardPriceOrderingRefinement = (
+  data: { direction: "LONG" | "SHORT"; entry: number; stopLoss: number; targets: number[] },
+  ctx: z.RefinementCtx
+) => {
+  const { direction, entry, stopLoss, targets } = data;
+  const tp = targets[0];
+  if (direction === "LONG") {
+    if (stopLoss >= entry)
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "LONG: stop loss must be below entry", path: ["stopLoss"] });
+    if (tp <= entry)
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "LONG: target must be above entry", path: ["targets"] });
+  } else {
+    if (stopLoss <= entry)
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "SHORT: stop loss must be above entry", path: ["stopLoss"] });
+    if (tp >= entry)
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "SHORT: target must be below entry", path: ["targets"] });
+  }
+};
+
+export const sendTradeCardSchema = z
+  .object({
+    clanId: z.string().min(1),
+    topicId: z.string().min(1),
+    instrument: z.string().min(1).max(20),
+    direction: z.enum(["LONG", "SHORT"]),
+    entry: z.number().positive(),
+    stopLoss: z.number().positive(),
+    targets: z.array(z.number().positive()).length(1, "Exactly one take-profit target is required in v1"),
+    timeframe: z.string().min(1).max(10),
+    riskPct: z.number().min(0).max(100).optional(),
+    note: z.string().max(500).optional(),
+    tags: z.array(z.string().max(30)).max(5).optional(),
+  })
+  .superRefine(tradeCardPriceOrderingRefinement);
 
 export type SendTradeCardInput = z.infer<typeof sendTradeCardSchema>;
 
-export const editTradeCardSchema = z.object({
-  messageId: z.string().min(1),
-  clanId: z.string().min(1),
-  instrument: z.string().min(1).max(20),
-  direction: z.enum(["LONG", "SHORT"]),
-  entry: z.number().positive(),
-  stopLoss: z.number().positive(),
-  targets: z.array(z.number().positive()).min(1).max(5),
-  timeframe: z.string().min(1).max(10),
-  riskPct: z.number().min(0).max(100).optional(),
-  note: z.string().max(500).optional(),
-  tags: z.array(z.string().max(30)).max(5).optional(),
-});
+export const editTradeCardSchema = z
+  .object({
+    messageId: z.string().min(1),
+    clanId: z.string().min(1),
+    instrument: z.string().min(1).max(20),
+    direction: z.enum(["LONG", "SHORT"]),
+    entry: z.number().positive(),
+    stopLoss: z.number().positive(),
+    targets: z.array(z.number().positive()).length(1, "Exactly one take-profit target is required in v1"),
+    timeframe: z.string().min(1).max(10),
+    riskPct: z.number().min(0).max(100).optional(),
+    note: z.string().max(500).optional(),
+    tags: z.array(z.string().max(30)).max(5).optional(),
+  })
+  .superRefine(tradeCardPriceOrderingRefinement);
 
 export type EditTradeCardInput = z.infer<typeof editTradeCardSchema>;
 
 export const updateTradeStatusSchema = z.object({
   tradeId: z.string().min(1),
   clanId: z.string().min(1),
-  status: z.enum(["OPEN", "TP1_HIT", "TP2_HIT", "SL_HIT", "BE", "CLOSED"]),
+  status: z.enum(["PENDING", "OPEN", "TP_HIT", "SL_HIT", "BE", "CLOSED", "UNVERIFIED"]),
   note: z.string().max(500).optional(),
 });
 
 export type UpdateTradeStatusInput = z.infer<typeof updateTradeStatusSchema>;
+
+export const updateStatementEligibilitySchema = z.object({
+  statementEligible: z.boolean(),
+  reason: z.string().min(1).max(500),
+});
+
+export type UpdateStatementEligibilityInput = z.infer<typeof updateStatementEligibilitySchema>;
 
 // --- Admin schemas ---
 
@@ -424,3 +454,92 @@ export const updateTestRunSchema = z.object({
 });
 
 export type UpdateTestRunInput = z.infer<typeof updateTestRunSchema>;
+
+// --- Badge schemas ---
+
+const rankRequirementsSchema = z.object({
+  type: z.literal("rank"),
+  min_closed_trades: z.number().int().min(1),
+});
+
+const performanceRequirementsSchema = z.object({
+  type: z.literal("performance"),
+  metric: z.enum(["net_r", "avg_r", "max_drawdown_r", "win_rate"]),
+  window: z.number().int().min(1).max(10000),
+  op: z.enum([">=", "<=", ">", "<"]),
+  value: z.number(),
+});
+
+const trophyRequirementsSchema = z.object({
+  type: z.literal("trophy"),
+  season_id: z.string().min(1),
+  lens: z.string().min(1),
+  rank_min: z.number().int().min(1),
+  rank_max: z.number().int().min(1),
+});
+
+const manualRequirementsSchema = z.object({
+  type: z.literal("manual"),
+});
+
+const badgeRequirementsSchema = z.discriminatedUnion("type", [
+  rankRequirementsSchema,
+  performanceRequirementsSchema,
+  trophyRequirementsSchema,
+  manualRequirementsSchema,
+]);
+
+export const createBadgeDefinitionSchema = z.object({
+  key: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-z0-9-]+$/, "Key must be lowercase with hyphens"),
+  category: z.enum(["RANK", "PERFORMANCE", "TROPHY", "OTHER"]),
+  name: z.string().min(1).max(100),
+  description: z.string().max(500).optional(),
+  iconUrl: z.string().max(500).optional(),
+  iconAssetKey: z.string().max(100).optional(),
+  requirementsJson: badgeRequirementsSchema,
+  enabled: z.boolean().optional(),
+  displayOrder: z.number().int().min(0).optional(),
+});
+
+export type CreateBadgeDefinitionInput = z.infer<typeof createBadgeDefinitionSchema>;
+
+export const updateBadgeDefinitionSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(500).optional().nullable(),
+  iconUrl: z.string().max(500).optional().nullable(),
+  iconAssetKey: z.string().max(100).optional().nullable(),
+  requirementsJson: badgeRequirementsSchema.optional(),
+  enabled: z.boolean().optional(),
+  displayOrder: z.number().int().min(0).optional(),
+});
+
+export type UpdateBadgeDefinitionInput = z.infer<typeof updateBadgeDefinitionSchema>;
+
+export const badgeReorderSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string().min(1),
+      displayOrder: z.number().int().min(0),
+    })
+  ).min(1),
+});
+
+export type BadgeReorderInput = z.infer<typeof badgeReorderSchema>;
+
+export const badgeRecomputeSchema = z.object({
+  scope: z.enum(["user", "badge", "all"]),
+  targetId: z.string().optional(),
+});
+
+export type BadgeRecomputeInput = z.infer<typeof badgeRecomputeSchema>;
+
+export const badgeDryRunSchema = z.object({
+  badgeId: z.string().min(1),
+  requirementsJson: badgeRequirementsSchema,
+});
+
+export type BadgeDryRunInput = z.infer<typeof badgeDryRunSchema>;

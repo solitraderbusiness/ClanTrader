@@ -44,6 +44,37 @@ app.prepare().then(() => {
     registerSocketHandlers(io, socket);
   });
 
+  // Trade integrity evaluator — runs every 60s, gated by feature flag
+  const EVAL_INTERVAL_MS = 60_000;
+  let evalRunning = false;
+
+  setInterval(async () => {
+    if (evalRunning) return;
+    try {
+      // Check feature flag dynamically
+      const { db } = await import("@/lib/db");
+      const flag = await db.featureFlag.findUnique({
+        where: { key: "trade_integrity_evaluator" },
+      });
+      if (!flag?.enabled) return;
+
+      evalRunning = true;
+      const { evaluateAllPendingTrades } = await import(
+        "@/services/trade-evaluator.service"
+      );
+      const result = await evaluateAllPendingTrades();
+      if (result.evaluated > 0) {
+        console.log(
+          `[Evaluator] evaluated=${result.evaluated} changes=${result.statusChanges} errors=${result.errors}`
+        );
+      }
+    } catch (err) {
+      console.error("[Evaluator] error:", err);
+    } finally {
+      evalRunning = false;
+    }
+  }, EVAL_INTERVAL_MS);
+
   httpServer.listen(port, hostname, () => {
     console.log(`> Ready on http://${hostname}:${port}`);
   });

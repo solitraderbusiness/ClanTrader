@@ -8,29 +8,70 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+interface RankBadgeInfo {
+  name: string;
+  key: string;
+  iconUrl?: string | null;
+}
+
 interface TraderBadgeProps {
   role?: string;
   size?: "sm" | "default";
+  rankBadge?: RankBadgeInfo | null;
 }
 
-export function TraderBadge({ role, size = "sm" }: TraderBadgeProps) {
-  if (role !== "TRADER" && role !== "ADMIN") return null;
+export function TraderBadge({ role, size = "sm", rankBadge }: TraderBadgeProps) {
+  const showRole = role === "TRADER" || role === "ADMIN";
+
+  if (!showRole && !rankBadge) return null;
 
   return (
     <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Badge
-            variant={role === "ADMIN" ? "destructive" : "default"}
-            className={size === "sm" ? "px-1 py-0 text-[10px]" : ""}
-          >
-            {role === "ADMIN" ? "A" : "T"}
-          </Badge>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{role === "ADMIN" ? "Admin" : "Verified Trader"}</p>
-        </TooltipContent>
-      </Tooltip>
+      <span className="inline-flex items-center gap-1">
+        {/* Rank badge */}
+        {rankBadge && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge
+                variant="outline"
+                className={`border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-300 ${
+                  size === "sm" ? "px-1 py-0 text-[10px]" : "px-1.5 py-0.5 text-xs"
+                }`}
+              >
+                {rankBadge.iconUrl ? (
+                  <img
+                    src={rankBadge.iconUrl}
+                    alt={rankBadge.name}
+                    className={size === "sm" ? "h-3 w-3" : "h-4 w-4"}
+                  />
+                ) : (
+                  rankBadge.name
+                )}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Rank: {rankBadge.name}</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Role badge */}
+        {showRole && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge
+                variant={role === "ADMIN" ? "destructive" : "default"}
+                className={size === "sm" ? "px-1 py-0 text-[10px]" : ""}
+              >
+                {role === "ADMIN" ? "A" : "T"}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{role === "ADMIN" ? "Admin" : "Verified Trader"}</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </span>
     </TooltipProvider>
   );
 }

@@ -39,7 +39,7 @@ export const TRADE_ACTIONS = {
     requiresInput: true,
     inputLabel: "New Status",
     inputType: "select" as const,
-    options: ["TP1_HIT", "TP2_HIT", "SL_HIT", "BE", "CLOSED"],
+    options: ["TP_HIT", "SL_HIT", "BE", "CLOSED"],
   },
 } as const;
 

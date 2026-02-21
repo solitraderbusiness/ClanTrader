@@ -1,6 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { MetricsDisplay } from "@/components/statements/MetricsDisplay";
+import { ProfileBadgeSection } from "@/components/profile/ProfileBadgeSection";
 import type { StatementMetrics } from "@/types/statement";
 import Link from "next/link";
 
@@ -68,6 +69,9 @@ export function ProfileCard({ user }: ProfileCardProps) {
           )}
         </div>
       </div>
+
+      {/* Badges */}
+      <ProfileBadgeSection userId={user.id} />
 
       {/* Details */}
       <div className="grid gap-4 sm:grid-cols-2">

@@ -11,7 +11,13 @@ export interface TradeCardData {
   riskPct: number | null;
   note: string | null;
   tags: string[];
-  trade: { id: string; status: string; userId: string } | null;
+  trade: {
+    id: string;
+    status: string;
+    userId: string;
+    integrityStatus?: string;
+    statementEligible?: boolean;
+  } | null;
 }
 
 export interface ChatMessage {
@@ -35,6 +41,7 @@ export interface ChatMessage {
     name: string | null;
     avatar: string | null;
     role?: string;
+    rankBadge?: { name: string; key: string; iconUrl?: string | null } | null;
   };
   tradeCard: TradeCardData | null;
 }

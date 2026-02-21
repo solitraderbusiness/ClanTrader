@@ -5,7 +5,7 @@ import type { TradeStatus, TradeDirection } from "@prisma/client";
 const INSTRUMENTS = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "BTCUSD"];
 const DIRECTIONS: TradeDirection[] = ["LONG", "SHORT"];
 const TIMEFRAMES = ["M15", "H1", "H4", "D1"];
-const STATUSES: TradeStatus[] = ["OPEN", "TP1_HIT", "TP2_HIT", "SL_HIT", "BE", "CLOSED"];
+const STATUSES: TradeStatus[] = ["PENDING", "OPEN", "TP_HIT", "SL_HIT", "BE", "CLOSED"];
 
 function randomElement<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -81,20 +81,20 @@ export async function generateDemoTrades(
       entry = randomFloat(2600, 2700, 1);
       stopLoss = direction === "LONG" ? entry - randomFloat(10, 30, 1) : entry + randomFloat(10, 30, 1);
       targets = direction === "LONG"
-        ? [entry + randomFloat(15, 40, 1), entry + randomFloat(45, 80, 1)]
-        : [entry - randomFloat(15, 40, 1), entry - randomFloat(45, 80, 1)];
+        ? [entry + randomFloat(15, 40, 1)]
+        : [entry - randomFloat(15, 40, 1)];
     } else if (instrument === "BTCUSD") {
       entry = randomFloat(90000, 100000, 0);
       stopLoss = direction === "LONG" ? entry - randomFloat(500, 1500, 0) : entry + randomFloat(500, 1500, 0);
       targets = direction === "LONG"
-        ? [entry + randomFloat(800, 2000, 0), entry + randomFloat(2500, 5000, 0)]
-        : [entry - randomFloat(800, 2000, 0), entry - randomFloat(2500, 5000, 0)];
+        ? [entry + randomFloat(800, 2000, 0)]
+        : [entry - randomFloat(800, 2000, 0)];
     } else {
       entry = randomFloat(1.05, 1.15, 5);
       stopLoss = direction === "LONG" ? entry - randomFloat(0.002, 0.005, 5) : entry + randomFloat(0.002, 0.005, 5);
       targets = direction === "LONG"
-        ? [entry + randomFloat(0.003, 0.008, 5), entry + randomFloat(0.01, 0.02, 5)]
-        : [entry - randomFloat(0.003, 0.008, 5), entry - randomFloat(0.01, 0.02, 5)];
+        ? [entry + randomFloat(0.003, 0.008, 5)]
+        : [entry - randomFloat(0.003, 0.008, 5)];
     }
 
     const createdAt = new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000);
@@ -128,6 +128,7 @@ export async function generateDemoTrades(
       },
     });
 
+    const isResolved = ["TP_HIT", "SL_HIT", "BE", "CLOSED"].includes(status);
     const trade = await db.trade.create({
       data: {
         tradeCardId: tradeCard.id,
@@ -135,7 +136,11 @@ export async function generateDemoTrades(
         userId,
         status,
         createdAt,
-        ...(status !== "OPEN" ? { closedAt: new Date(createdAt.getTime() + Math.random() * 48 * 60 * 60 * 1000) } : {}),
+        ...(isResolved ? { closedAt: new Date(createdAt.getTime() + Math.random() * 48 * 60 * 60 * 1000) } : {}),
+        integrityStatus: "VERIFIED",
+        statementEligible: true,
+        resolutionSource: "UNKNOWN",
+        lastEvaluatedAt: createdAt,
       },
     });
 

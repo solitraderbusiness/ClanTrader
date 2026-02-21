@@ -16,6 +16,9 @@ export async function getEligibleTrades(
     where: {
       userId,
       clanId,
+      status: { in: ["TP_HIT", "SL_HIT", "BE", "CLOSED"] },
+      integrityStatus: "VERIFIED",
+      statementEligible: true,
       tradeCard: {
         tags: { hasSome: ["signal"] },
       },
@@ -48,12 +51,8 @@ function calculateRMultiple(
   if (risk === 0) return 0;
 
   switch (status) {
-    case "TP1_HIT":
-      return Math.abs(targets[0] - entry) / risk;
-    case "TP2_HIT":
-      return targets.length > 1
-        ? Math.abs(targets[1] - entry) / risk
-        : Math.abs(targets[0] - entry) / risk;
+    case "TP_HIT":
+      return Math.abs((targets[0] ?? entry) - entry) / risk;
     case "SL_HIT":
       return -1;
     case "BE":
@@ -107,7 +106,7 @@ export async function calculateStatement(
       metrics.tagDistribution[tag] = (metrics.tagDistribution[tag] || 0) + 1;
     }
 
-    if (trade.status === "OPEN") {
+    if (trade.status === "OPEN" || trade.status === "PENDING") {
       metrics.open++;
       continue;
     }
@@ -126,8 +125,7 @@ export async function calculateStatement(
     if (r < metrics.worstRMultiple) metrics.worstRMultiple = r;
 
     switch (trade.status) {
-      case "TP1_HIT":
-      case "TP2_HIT":
+      case "TP_HIT":
         metrics.wins++;
         break;
       case "SL_HIT":

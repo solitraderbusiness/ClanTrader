@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { DEFAULT_WEIGHTS, DEFAULT_LENSES } from "@/lib/ranking-constants";
+import { evaluateTrophyBadges } from "@/services/badge-engine.service";
 import type { Prisma } from "@prisma/client";
 import type { TraderStatementMetrics } from "@/types/trader-statement";
 import type { LeaderboardLens, RankingWeights } from "@/types/ranking";
@@ -162,6 +163,14 @@ export async function calculateRankings(seasonId: string) {
 
       entries.push(result);
     }
+  }
+
+  // Fire-and-forget trophy badge evaluation for ranked users
+  const rankedUserIds = [...new Set(entries.map((e) => e.entityId))];
+  for (const uid of rankedUserIds) {
+    evaluateTrophyBadges(uid).catch((err) =>
+      console.error("Trophy badge evaluation error:", err)
+    );
   }
 
   return entries;

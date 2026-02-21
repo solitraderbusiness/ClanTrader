@@ -47,7 +47,7 @@ test.describe("08 — Trade Cards (Socket.io)", () => {
       direction: "LONG",
       entry: 2650.50,
       stopLoss: 2640.00,
-      targets: [2660.00, 2670.00, 2680.00],
+      targets: [2660.00],
       timeframe: "H4",
       riskPct: 2,
       note: "Gold looking bullish on H4",
@@ -76,7 +76,7 @@ test.describe("08 — Trade Cards (Socket.io)", () => {
       direction: "SHORT",
       entry: 1.0850,
       stopLoss: 1.0900,
-      targets: [1.0800, 1.0750],
+      targets: [1.0800],
       timeframe: "H1",
     });
 
@@ -92,7 +92,7 @@ test.describe("08 — Trade Cards (Socket.io)", () => {
     expect(msg.tradeCard.direction).toBe("SHORT");
   });
 
-  test("edit trade card — update targets", async () => {
+  test("edit trade card — update target", async () => {
     // Ali sends a trade card
     await ali.sendTradeCard({
       clanId,
@@ -116,7 +116,7 @@ test.describe("08 — Trade Cards (Socket.io)", () => {
       }},
     );
 
-    // Edit — add more targets
+    // Edit — change target value
     ali.editTradeCard({
       messageId: msg.id,
       clanId,
@@ -124,7 +124,7 @@ test.describe("08 — Trade Cards (Socket.io)", () => {
       direction: "LONG",
       entry: 1.2700,
       stopLoss: 1.2650,
-      targets: [1.2750, 1.2800],
+      targets: [1.2800],
       timeframe: "M15",
     });
 
@@ -135,10 +135,11 @@ test.describe("08 — Trade Cards (Socket.io)", () => {
       "message_edited",
       { filter: (d) => (d as { id: string }).id === msg.id, timeout: 10000 },
     );
-    expect(edited.tradeCard.targets).toHaveLength(2);
+    expect(edited.tradeCard.targets).toHaveLength(1);
+    expect(edited.tradeCard.targets[0]).toBe(1.2800);
   });
 
-  test("track trade — status becomes OPEN", async () => {
+  test("track trade — status becomes PENDING", async () => {
     // Ali posts trade card
     await ali.sendTradeCard({
       clanId,
@@ -173,11 +174,11 @@ test.describe("08 — Trade Cards (Socket.io)", () => {
       "trade_status_updated",
       { timeout: 10000 },
     );
-    expect(update.status).toBe("OPEN");
+    expect(update.status).toBe("PENDING");
     expect(update.trade.id).toBeTruthy();
   });
 
-  test("update trade status to TP1_HIT", async () => {
+  test("update trade status to TP_HIT", async () => {
     // Post + track first
     await ali.sendTradeCard({
       clanId,
@@ -186,7 +187,7 @@ test.describe("08 — Trade Cards (Socket.io)", () => {
       direction: "SHORT",
       entry: 0.6100,
       stopLoss: 0.6150,
-      targets: [0.6050, 0.6000],
+      targets: [0.6050],
       timeframe: "D1",
     });
 
@@ -207,14 +208,14 @@ test.describe("08 — Trade Cards (Socket.io)", () => {
       { timeout: 10000 },
     );
 
-    // Update to TP1_HIT
-    ali.updateTradeStatus(tracked.tradeId, clanId, "TP1_HIT", "First target hit!");
+    // Update to TP_HIT
+    ali.updateTradeStatus(tracked.tradeId, clanId, "TP_HIT", "Target hit!");
 
     const updated = await sara.waitForEvent<{ tradeId: string; status: string }>(
       "trade_status_updated",
-      { filter: (d) => (d as { status: string }).status === "TP1_HIT", timeout: 10000 },
+      { filter: (d) => (d as { status: string }).status === "TP_HIT", timeout: 10000 },
     );
-    expect(updated.status).toBe("TP1_HIT");
+    expect(updated.status).toBe("TP_HIT");
   });
 
   test("update trade status to SL_HIT", async () => {

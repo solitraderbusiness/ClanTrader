@@ -9,6 +9,7 @@ import {
   CreditCard,
   ScrollText,
   Trophy,
+  Award,
   MessageSquare,
   Database,
   FlaskConical,
@@ -46,6 +47,12 @@ const NAV_ITEMS = [
     label: "Ranking",
     desc: "Leaderboard weights",
     icon: Trophy,
+  },
+  {
+    href: "/admin/badges",
+    label: "Badges",
+    desc: "Rank & achievement badges",
+    icon: Award,
   },
   {
     href: "/admin/clans",

@@ -41,6 +41,8 @@ model User {
   dmConversations1    Conversation[]     @relation("ConversationParticipant1")
   dmConversations2    Conversation[]     @relation("ConversationParticipant2")
   sentDirectMessages  DirectMessage[]    @relation("DirectMessageSender")
+  badges              UserBadge[]
+  badgeAdminChanges   BadgeAdminChange[] @relation("BadgeAdminChanges")
 
   @@index([email])
 }
@@ -233,6 +235,9 @@ enum TradeActionType {
   CLOSE
   ADD_NOTE
   STATUS_CHANGE
+  INTEGRITY_FLAG
+  MANUAL_STATUS_SET
+  ADMIN_STATEMENT_TOGGLE
 }
 
 enum TradeDirection {
@@ -241,12 +246,34 @@ enum TradeDirection {
 }
 
 enum TradeStatus {
+  PENDING
   OPEN
-  TP1_HIT
-  TP2_HIT
+  TP_HIT
+  TP1_HIT // @deprecated — kept for PostgreSQL compat, never used in code
+  TP2_HIT // @deprecated — kept for PostgreSQL compat, never used in code
   SL_HIT
   BE
   CLOSED
+  UNVERIFIED
+}
+
+enum IntegrityStatus {
+  VERIFIED
+  UNVERIFIED
+}
+
+enum IntegrityReason {
+  ENTRY_CONFLICT
+  EXIT_CONFLICT
+  DATA_GAP
+  MANUAL_OVERRIDE
+  OTHER
+}
+
+enum ResolutionSource {
+  EVALUATOR
+  MANUAL
+  UNKNOWN
 }
 
 enum TopicStatus {
@@ -350,10 +377,19 @@ model Trade {
   clan        Clan        @relation(fields: [clanId], references: [id], onDelete: Cascade)
   userId      String
   user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status      TradeStatus @default(OPEN)
+  status      TradeStatus @default(PENDING)
   closedAt    DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+
+  // Trade integrity fields
+  entryFilledAt     DateTime?
+  lastEvaluatedAt   DateTime?
+  integrityStatus   IntegrityStatus  @default(VERIFIED)
+  integrityReason   IntegrityReason?
+  integrityDetails  Json?
+  statementEligible Boolean          @default(true)
+  resolutionSource  ResolutionSource @default(UNKNOWN)
 
   statusHistory TradeStatusHistory[]
   events        TradeEvent[]
@@ -361,6 +397,7 @@ model Trade {
   @@index([clanId, status])
   @@index([clanId, createdAt])
   @@index([userId])
+  @@index([status, lastEvaluatedAt])
 }
 
 model TradeEvent {
@@ -616,6 +653,70 @@ model ClanJoinRequest {
   @@unique([clanId, userId])
   @@index([clanId, status])
   @@index([userId])
+}
+
+// --- Badges & Ranking ---
+
+enum BadgeCategory {
+  RANK
+  PERFORMANCE
+  TROPHY
+  OTHER
+}
+
+model BadgeDefinition {
+  id               String        @id @default(cuid())
+  key              String        @unique
+  category         BadgeCategory
+  name             String
+  description      String?
+  iconUrl          String?
+  iconAssetKey     String?
+  requirementsJson Json
+  enabled          Boolean       @default(true)
+  displayOrder     Int           @default(0)
+  isDeleted        Boolean       @default(false)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  userBadges   UserBadge[]
+  adminChanges BadgeAdminChange[]
+
+  @@index([category, enabled])
+  @@index([enabled, isDeleted, displayOrder])
+}
+
+model UserBadge {
+  id                String          @id @default(cuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeDefinitionId String
+  badgeDefinition   BadgeDefinition @relation(fields: [badgeDefinitionId], references: [id], onDelete: Restrict)
+  awardedAt         DateTime        @default(now())
+  metadataJson      Json?
+  isActive          Boolean         @default(true)
+  revokedAt         DateTime?
+  evaluatedAt       DateTime        @default(now())
+
+  @@unique([userId, badgeDefinitionId])
+  @@index([userId, isActive])
+  @@index([badgeDefinitionId])
+  @@index([awardedAt])
+}
+
+model BadgeAdminChange {
+  id                String          @id @default(cuid())
+  adminUserId       String
+  adminUser         User            @relation("BadgeAdminChanges", fields: [adminUserId], references: [id], onDelete: Cascade)
+  badgeDefinitionId String
+  badgeDefinition   BadgeDefinition @relation(fields: [badgeDefinitionId], references: [id], onDelete: Cascade)
+  changeType        String
+  oldValueJson      Json?
+  newValueJson      Json?
+  createdAt         DateTime        @default(now())
+
+  @@index([badgeDefinitionId, createdAt])
+  @@index([adminUserId])
 }
 
 // --- Direct Messages ---

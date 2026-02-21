@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useLayoutEffect } from "react";
 import { useFontStore } from "@/stores/font-store";
 
 export function FontApplier() {
   const enFont = useFontStore((s) => s.enFont);
   const faFont = useFontStore((s) => s.faFont);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const html = document.documentElement;
     const lang = html.getAttribute("lang") || "en";
     const isRtl = lang === "fa" || lang === "ar";

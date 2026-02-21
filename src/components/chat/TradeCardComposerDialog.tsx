@@ -45,8 +45,7 @@ export function TradeCardComposerDialog({
   const [direction, setDirection] = useState<"LONG" | "SHORT">("LONG");
   const [entry, setEntry] = useState("");
   const [stopLoss, setStopLoss] = useState("");
-  const [tp1, setTp1] = useState("");
-  const [tp2, setTp2] = useState("");
+  const [tp, setTp] = useState("");
   const [timeframe, setTimeframe] = useState("H1");
   const [riskPct, setRiskPct] = useState("");
   const [note, setNote] = useState("");
@@ -71,8 +70,7 @@ export function TradeCardComposerDialog({
     setDirection("LONG");
     setEntry("");
     setStopLoss("");
-    setTp1("");
-    setTp2("");
+    setTp("");
     setTimeframe("H1");
     setRiskPct("");
     setNote("");
@@ -88,25 +86,42 @@ export function TradeCardComposerDialog({
       return;
     }
 
-    if (!instrument.trim() || !entry || !stopLoss || !tp1) {
+    if (!instrument.trim() || !entry || !stopLoss || !tp) {
       toast.error("Please fill in required fields");
       return;
     }
 
     const entryNum = parseFloat(entry);
     const slNum = parseFloat(stopLoss);
-    const tp1Num = parseFloat(tp1);
+    const tpNum = parseFloat(tp);
 
-    if (isNaN(entryNum) || isNaN(slNum) || isNaN(tp1Num)) {
+    if (isNaN(entryNum) || isNaN(slNum) || isNaN(tpNum)) {
       toast.error("Price values must be valid numbers");
       return;
     }
 
-    const targets = [tp1Num];
-    if (tp2) {
-      const tp2Num = parseFloat(tp2);
-      if (!isNaN(tp2Num)) targets.push(tp2Num);
+    // Price ordering validation
+    if (direction === "LONG") {
+      if (slNum >= entryNum) {
+        toast.error("LONG: stop loss must be below entry");
+        return;
+      }
+      if (tpNum <= entryNum) {
+        toast.error("LONG: target must be above entry");
+        return;
+      }
+    } else {
+      if (slNum <= entryNum) {
+        toast.error("SHORT: stop loss must be above entry");
+        return;
+      }
+      if (tpNum >= entryNum) {
+        toast.error("SHORT: target must be below entry");
+        return;
+      }
     }
+
+    const targets = [tpNum];
 
     setLoading(true);
     const socket = getSocket();
@@ -200,7 +215,7 @@ export function TradeCardComposerDialog({
           </div>
 
           {/* Price Grid */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="space-y-2">
               <Label>Entry *</Label>
               <Input
@@ -224,24 +239,14 @@ export function TradeCardComposerDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label>TP1 *</Label>
+              <Label>Target *</Label>
               <Input
                 type="number"
                 step="any"
-                value={tp1}
-                onChange={(e) => setTp1(e.target.value)}
+                value={tp}
+                onChange={(e) => setTp(e.target.value)}
                 placeholder="0.00"
                 required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>TP2</Label>
-              <Input
-                type="number"
-                step="any"
-                value={tp2}
-                onChange={(e) => setTp2(e.target.value)}
-                placeholder="0.00 (optional)"
               />
             </div>
           </div>
