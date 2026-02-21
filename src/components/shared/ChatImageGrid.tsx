@@ -39,7 +39,7 @@ export function ChatImageGrid({ images }: ChatImageGridProps) {
             <img
               src={src}
               alt={`Image ${i + 1}`}
-              className="w-full object-cover"
+              className={images.length === 1 ? "max-w-full rounded-lg" : "w-full object-cover"}
               style={{
                 maxHeight: images.length === 1 ? 300 : 150,
               }}

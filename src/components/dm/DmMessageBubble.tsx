@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,13 +59,9 @@ export function DmMessageBubble({
   onDelete,
   onUserClick,
 }: DmMessageBubbleProps) {
-  const [showActions, setShowActions] = useState(false);
-
   return (
     <div
       className={`group flex gap-2 px-3 py-0.5 ${isOwn ? "flex-row-reverse" : ""}`}
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
     >
       {/* Avatar */}
       <div className="w-8 flex-shrink-0">
@@ -127,41 +122,39 @@ export function DmMessageBubble({
       </div>
 
       {/* Action menu */}
-      <div className="flex items-start">
-        {showActions && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 opacity-0 group-hover:opacity-100"
-              >
-                <MoreHorizontal className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align={isOwn ? "end" : "start"}>
-              <DropdownMenuItem onClick={() => onReply(message)}>
-                <Reply className="me-2 h-4 w-4" />
-                Reply
-              </DropdownMenuItem>
-              {isOwn && (
-                <>
-                  <DropdownMenuItem onClick={() => onEdit(message)}>
-                    <Pencil className="me-2 h-4 w-4" />
-                    Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => onDelete(message.id)}
-                    className="text-destructive"
-                  >
-                    <Trash2 className="me-2 h-4 w-4" />
-                    Delete
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+      <div className="flex items-start opacity-0 transition-opacity group-hover:opacity-100">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+            >
+              <MoreHorizontal className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align={isOwn ? "end" : "start"}>
+            <DropdownMenuItem onClick={() => onReply(message)}>
+              <Reply className="me-2 h-4 w-4" />
+              Reply
+            </DropdownMenuItem>
+            {isOwn && (
+              <>
+                <DropdownMenuItem onClick={() => onEdit(message)}>
+                  <Pencil className="me-2 h-4 w-4" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => onDelete(message.id)}
+                  className="text-destructive"
+                >
+                  <Trash2 className="me-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
     </div>
