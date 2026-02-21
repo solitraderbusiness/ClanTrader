@@ -106,7 +106,9 @@ export function DmConversationList({
                           hasUnread ? "text-foreground" : "text-muted-foreground"
                         )}
                       >
-                        {conv.lastMessage?.content || "No messages yet"}
+                        {conv.lastMessage
+                          ? conv.lastMessage.content || (conv.lastMessage.images?.length ? "Photo" : "No messages yet")
+                          : "No messages yet"}
                       </p>
                       {hasUnread && (
                         <Badge

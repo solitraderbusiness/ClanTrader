@@ -43,7 +43,7 @@ export function TradeCardInline({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-xl border bg-card text-[15px] shadow-[0_2px_8px_oklch(0_0_0/8%)] ${
+      className={`relative overflow-hidden rounded-xl glass-card text-[15px] ${
         isPinned ? "ring-2 ring-yellow-400/50" : ""
       }`}
     >
@@ -53,6 +53,11 @@ export function TradeCardInline({
           tradeCard.direction === "LONG" ? "bg-green-500" : "bg-red-500"
         }`}
       />
+      <div className={`absolute inset-0 ${
+        tradeCard.direction === "LONG"
+          ? "bg-gradient-to-b from-green-500/5 to-transparent"
+          : "bg-gradient-to-b from-red-500/5 to-transparent"
+      } pointer-events-none`} />
       {isPinned && (
         <Pin className="absolute -top-1 -end-1 h-3 w-3 text-yellow-500" />
       )}
@@ -82,15 +87,15 @@ export function TradeCardInline({
 
       {/* Price Grid */}
       <div className="mb-2 grid grid-cols-3 gap-2 text-xs">
-        <div className="rounded-lg bg-muted/50 px-2 py-1.5 text-center">
+        <div className="rounded-lg bg-muted/30 backdrop-blur-sm px-2 py-1.5 text-center">
           <span className="text-muted-foreground">Entry</span>
           <p className="font-mono font-medium">{tradeCard.entry}</p>
         </div>
-        <div className="rounded-lg bg-muted/50 px-2 py-1.5 text-center">
+        <div className="rounded-lg bg-muted/30 backdrop-blur-sm px-2 py-1.5 text-center">
           <span className="text-muted-foreground">Stop Loss</span>
           <p className="font-mono font-medium text-red-500">{tradeCard.stopLoss}</p>
         </div>
-        <div className="rounded-lg bg-muted/50 px-2 py-1.5 text-center">
+        <div className="rounded-lg bg-muted/30 backdrop-blur-sm px-2 py-1.5 text-center">
           <span className="text-muted-foreground">
             {hasTarget2 ? "TP1" : "Target"}
           </span>

@@ -30,7 +30,7 @@ export function ChannelPostCard({
   const reactions = (post.reactions || {}) as Record<string, string[]>;
 
   return (
-    <Card>
+    <Card className="glass-card">
       <CardContent className="space-y-3">
         {/* Author + timestamp */}
         <div className="flex items-center justify-between">
@@ -84,7 +84,7 @@ export function ChannelPostCard({
         {/* Images */}
         {post.images.length > 0 && !post.locked && (
           <div
-            className={`grid gap-2 ${
+            className={`grid gap-2 overflow-hidden rounded-lg ${
               post.images.length === 1
                 ? "grid-cols-1"
                 : post.images.length === 2

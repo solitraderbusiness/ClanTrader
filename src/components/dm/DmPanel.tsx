@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { getSocket } from "@/lib/socket-client";
 import { SOCKET_EVENTS } from "@/lib/chat-constants";
 import { useDmStore, type DmMessage } from "@/stores/dm-store";
 import { DmMessageBubble } from "./DmMessageBubble";
 import { DmMessageInput } from "./DmMessageInput";
+import { UserProfileSheet } from "@/components/chat/UserProfileSheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -33,6 +34,7 @@ export function DmPanel({
   nextCursor: initialNextCursor,
 }: DmPanelProps) {
   const store = useDmStore();
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const socketRef = useRef(getSocket());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -256,6 +258,7 @@ export function DmPanel({
                 onReply={(m) => store.setReplyingTo(m)}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                onUserClick={setProfileUserId}
               />
             );
           })
@@ -272,6 +275,12 @@ export function DmPanel({
 
       {/* Input */}
       <DmMessageInput recipientId={recipientId} disabled={false} />
+
+      <UserProfileSheet
+        userId={profileUserId}
+        currentUserId={currentUserId}
+        onClose={() => setProfileUserId(null)}
+      />
     </div>
   );
 }

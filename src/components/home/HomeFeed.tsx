@@ -105,7 +105,7 @@ export function HomeFeed({
 
       {/* Season widget */}
       {activeSeason && (
-        <Card className="border-primary/20">
+        <Card className="glass-card border-primary/30">
           <CardContent className="flex items-center justify-between py-3">
             <div className="flex items-center gap-2">
               <Trophy className="h-4 w-4 text-primary" />
@@ -186,7 +186,7 @@ export function HomeFeed({
 function FeedPostCard({ post }: { post: FeedPost }) {
   return (
     <Link href={`/clans/${post.clanId}/posts/${post.id}`}>
-      <Card className="transition-colors hover:bg-accent/30">
+      <Card className="glass-card transition-all hover:-translate-y-0.5 hover:shadow-lg">
         <CardContent className="py-3 space-y-2">
           {/* Header: clan + author + time */}
           <div className="flex items-center gap-2">
@@ -211,7 +211,7 @@ function FeedPostCard({ post }: { post: FeedPost }) {
           {/* Trade card badge */}
           {post.tradeCard && (
             <div className="flex items-center gap-1.5">
-              <Badge variant="outline" className="text-[10px]">
+              <Badge variant="outline" className="text-[10px] bg-gradient-to-r from-primary/10 to-primary/5">
                 {post.tradeCard.direction} {post.tradeCard.instrument}
               </Badge>
               {post.tradeCard.tags.map((tag) => (
@@ -229,6 +229,17 @@ function FeedPostCard({ post }: { post: FeedPost }) {
           <p className="text-xs text-muted-foreground line-clamp-2">
             {post.content}
           </p>
+
+          {post.images.length > 0 && (
+            <div className="flex gap-1">
+              <img
+                src={post.images[0]}
+                alt=""
+                className="h-16 w-16 rounded-md object-cover"
+                loading="lazy"
+              />
+            </div>
+          )}
 
           {/* Footer */}
           <div className="flex items-center gap-3 text-[11px] text-muted-foreground">

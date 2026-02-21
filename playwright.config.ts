@@ -36,6 +36,7 @@ export default defineConfig({
     {
       name: "simulator",
       testMatch: /simulator\/.+\.spec\.ts/,
+      timeout: 60_000,
       use: { ...devices["Desktop Chrome"] },
     },
   ],

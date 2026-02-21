@@ -7,6 +7,7 @@ export async function GET(request: Request) {
     const tradingStyle = searchParams.get("tradingStyle") || undefined;
     const sessionPreference =
       searchParams.get("sessionPreference") || undefined;
+    const preferredPair = searchParams.get("preferredPair") || undefined;
     const sort = searchParams.get("sort") || "winRate";
     const page = parseInt(searchParams.get("page") || "1");
     const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
@@ -24,6 +25,7 @@ export async function GET(request: Request) {
       },
       ...(tradingStyle ? { tradingStyle } : {}),
       ...(sessionPreference ? { sessionPreference } : {}),
+      ...(preferredPair ? { preferredPairs: { has: preferredPair } } : {}),
     };
 
     const [users, total] = await Promise.all([

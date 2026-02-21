@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { MessageBubble } from "./MessageBubble";
+import { UserProfileSheet } from "./UserProfileSheet";
 import { ChevronDown, MessageCircle } from "lucide-react";
 import type { ChatMessage } from "@/stores/chat-store";
 import { useChatStore } from "@/stores/chat-store";
@@ -35,6 +36,7 @@ export function MessageList({
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const prevMessageCount = useRef(messages.length);
 
   // Auto-scroll on new messages
@@ -139,6 +141,7 @@ export function MessageList({
                   currentUserId={currentUserId}
                   userRole={userRole}
                   memberRole={memberRole}
+                  onUserClick={setProfileUserId}
                 />
               </div>
             );
@@ -158,6 +161,12 @@ export function MessageList({
           <ChevronDown className="h-4 w-4" />
         </Button>
       )}
+
+      <UserProfileSheet
+        userId={profileUserId}
+        currentUserId={currentUserId}
+        onClose={() => setProfileUserId(null)}
+      />
     </div>
   );
 }

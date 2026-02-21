@@ -126,9 +126,14 @@ export const sendMessageSchema = z.object({
   topicId: z.string().min(1),
   content: z
     .string()
-    .min(1, "Message cannot be empty")
-    .max(2000, "Message must be at most 2000 characters"),
+    .min(0)
+    .max(2000, "Message must be at most 2000 characters")
+    .default(""),
   replyToId: z.string().optional(),
+  images: z.array(z.string()).max(4).optional(),
+}).refine((data) => data.content.trim().length > 0 || (data.images && data.images.length > 0), {
+  message: "Message must have content or images",
+  path: ["content"],
 });
 
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
@@ -340,9 +345,14 @@ export type ReviewJoinRequestInput = z.infer<typeof reviewJoinRequestSchema>;
 export const sendDirectMessageSchema = z.object({
   content: z
     .string()
-    .min(1, "Message cannot be empty")
-    .max(2000, "Message must be at most 2000 characters"),
+    .min(0)
+    .max(2000, "Message must be at most 2000 characters")
+    .default(""),
   replyToId: z.string().optional(),
+  images: z.array(z.string()).max(4).optional(),
+}).refine((data) => data.content.trim().length > 0 || (data.images && data.images.length > 0), {
+  message: "Message must have content or images",
+  path: ["content"],
 });
 
 export type SendDirectMessageInput = z.infer<typeof sendDirectMessageSchema>;

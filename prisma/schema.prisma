@@ -290,6 +290,7 @@ model Message {
   replyToId String?
   replyTo   Message?    @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies   Message[]   @relation("MessageReplies")
+  images    String[]
   createdAt DateTime    @default(now())
 
   tradeCard TradeCard?
@@ -648,6 +649,7 @@ model DirectMessage {
   replyToId      String?
   replyTo        DirectMessage?  @relation("DmReplies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies        DirectMessage[] @relation("DmReplies")
+  images         String[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 

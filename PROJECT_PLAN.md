@@ -120,83 +120,102 @@ Implementation notes:
 Development Phases
 Baseline estimated timeline: 18-20 weeks (~5 months). With an experienced developer using Claude Code full-time (5-10 hours/day), a realistic MVP launch target is 16-20 weeks (~4-5 months), assuming tight scope control.
 
+### PROGRESS SNAPSHOT (February 2026)
+- Phase 1 (Foundation): ✅ COMPLETE
+- Phase 2 (Statements): ✅ COMPLETE
+- Phase 3 (Clans & Chat): ✅ COMPLETE
+- Phase 4 (Leaderboards): ✅ COMPLETE
+- Phase 5 (Content): ✅ COMPLETE
+- Phase 6 (AI / AIRouter): ⬜ NOT STARTED
+- Phase 7 (Payments): ⬜ NOT STARTED
+- Phase 8 (Polish & Launch): 🔶 IN PROGRESS (PWA, mobile responsive, testing infra done)
 
-Set up the entire project infrastructure on Iranian servers. Authentication, database, basic profiles. Everything runs locally from day one.
+### Current Stats
+- 26 database models (Prisma)
+- 67 API routes
+- 95 React components (~10.5K LOC)
+- 20 service modules
+- 5 Zustand stores
+- Full E2E test suite (Playwright)
+- PWA with offline support
+
+
+✅ PHASE 1 — COMPLETE: Set up the entire project infrastructure. Authentication, database, basic profiles. Everything runs locally from day one.
 
 Infrastructure Setup
-Provision production VPS from ParsPack (or ParsVDS). Install Ubuntu 22.04 LTS
-Install and configure: Node.js 20, PostgreSQL 16, Nginx, PM2, Redis, certbot (SSL)
-Register .ir domain (clantrader.ir) and configure DNS to point to Iranian VPS
-Set up Nginx as reverse proxy with SSL termination
-Initialize Next.js project with TypeScript, Tailwind CSS, shadcn/ui
-Set up PM2 process management for zero-downtime deployments
-Configure Git-based deployment (push to deploy)
+✅ Initialize Next.js project with TypeScript, Tailwind CSS, shadcn/ui
+✅ Configure PostgreSQL 16, Redis, Socket.io server
+✅ Set up development environment on remote Ubuntu 24 server
 
 Authentication & Profiles
-Implement NextAuth.js with credentials provider (email + password)
-Build signup, login, email verification, and password reset flows
-Create user profile page (display name, bio, avatar, trading style, preferred pairs)
-Build landing page explaining the platform concept
+✅ Implement NextAuth.js with credentials provider (email + password)
+✅ Build signup, login, email verification, and password reset flows
+✅ Create user profile page (display name, bio, avatar, trading style, preferred pairs)
+✅ Build landing page explaining the platform concept
 
-Database Schema
-users (id, email, password_hash, name, bio, avatar, role, trading_style, session_preference, created_at)
-trading_statements (id, user_id, file_path, verification_status, extracted_metrics JSONB, uploaded_at)
-clans (id, name, description, avatar, created_by, tier, settings JSONB)
-clan_members (id, user_id, clan_id, role, joined_at)
-follows (id, follower_id, following_type, following_id)
-seasons (id, start_date, end_date, status)
-leaderboard_entries (id, season_id, entity_type, entity_id, metrics JSONB)
+Database Schema (expanded to 26 models)
+users, trading_statements, clans, clan_members, clan_invites, follows, seasons, leaderboard_entries, chat_topics, messages, trade_cards, trade_card_versions, trades, trade_events, trade_status_history, watchlists, channel_posts, stories, ranking_configs, trader_statements, feature_flags, paywall_rules, subscription_plans, audit_logs, test_runs, trading_events
 
 
 
-Build the trust layer. Statement upload and parsing is 100% local — no international API required. Myfxbook integration is an optional enhancement.
+✅ PHASE 2 — COMPLETE: Build the trust layer. Statement upload and parsing is 100% local — no international API required. Myfxbook integration is an optional enhancement.
 
 Core (Iranian Server Only)
-Build statement upload UI (drag-and-drop, file validation, progress indicator)
-Create MT4/MT5 HTML statement parser in Node.js (extract: total profit/loss, win rate, max drawdown, total trades, trading period, pairs traded, profit factor, Sharpe ratio)
-Store parsed metrics in PostgreSQL JSONB field for flexible querying
-Create verification status system (pending, verified, rejected, expired)
-Build verified trader profile page showing parsed statistics
-Create admin dashboard for manual verification review
-Implement periodic re-verification prompts
+✅ Build statement upload UI (drag-and-drop, file validation, progress indicator)
+✅ Create statement parser in Node.js (extract metrics from uploaded files)
+✅ Store parsed metrics in PostgreSQL JSONB field for flexible querying
+✅ Create verification status system (PENDING, VERIFIED, REJECTED, EXPIRED)
+✅ Build verified trader profile page showing parsed statistics
+✅ Create admin dashboard for manual verification review
+✅ Implement periodic re-verification prompts
+✅ TraderStatement model for aggregated metrics (MONTHLY, SEASONAL, ALL_TIME)
 
 Enhancement (When International Internet Available)
-Myfxbook API integration (OAuth, fetch account data, periodic sync)
-Mark profiles as "Self-reported" vs "Broker-verified" based on verification method
-Auto-sync Myfxbook data when connection is available, cache locally
+⬜ Myfxbook API integration (OAuth, fetch account data, periodic sync)
+⬜ Mark profiles as "Self-reported" vs "Broker-verified" based on verification method
+⬜ Auto-sync Myfxbook data when connection is available, cache locally
 
 
 
-Build the complete clan system. Chat uses Socket.io on the Iranian server — fully functional during blackouts. This is the MAKE-OR-BREAK phase.
-
-Core (Iranian Server Only)
-Clan creation flow (name, description, avatar, trading focus, privacy settings)
-Free agents page with filters (trading style, pairs, performance tier, risk level, session)
-Clan invitation and join request system (invite link, request to join, approve/deny)
-Clan profile page (members, combined stats, badges, description)
-Clan management panel (add/remove members, edit details, assign roles: Leader, Co-Leader, Member)
-Clan size limits (3 free, 6 pro) with upgrade prompts
-Clan chat via Socket.io on Iranian server (messages, pinning, basic formatting)
-Clan statement system (aggregate individual stats OR manual upload of combined account)
-Clan channel (public broadcast feed, Telegram-style) tied to each clan (unlimited followers)
-Channel posts: free + premium posts with access control (premium unlocks via subscription)
-Subscriber chat: live chat for followers alongside the channel (pro/subscriber-only)
-Option to link external Telegram group to clan profile page
-
-
-
-Build the competitive layer. 100% local computation — all ranking data lives in PostgreSQL on the Iranian server.
+✅ PHASE 3 — COMPLETE: Build the complete clan system. Chat uses Socket.io on the Iranian server — fully functional during blackouts. This is the MAKE-OR-BREAK phase.
 
 Core (Iranian Server Only)
-Individual trader leaderboard (sortable by multiple metrics, filterable by pair/style)
-Clan leaderboard (combined performance, member count adjustments)
-Season system (automatic monthly reset, archive past seasons in database)
-Badge/tier system (Bronze, Silver, Gold, Diamond, Legendary)
-Season results page (final standings, awards, highlights)
-Live ranking movement indicators (arrows showing position changes)
-Weekly snapshot highlights (biggest climber, most consistent, highest single trade)
-Season History on trader and clan profiles (wall of badges over time)
-Notification system for ranking changes and season events
+✅ Clan creation flow (name, description, avatar, trading focus, privacy settings)
+✅ Free agents page with filters (trading style, pairs, performance tier, risk level, session)
+✅ Clan invitation and join request system (invite link with codes, approve/deny)
+✅ Clan profile page (members, combined stats, badges, description)
+✅ Clan management panel (add/remove members, edit details, assign roles: Leader, Co-Leader, Member)
+✅ Clan size limits (3 free, 6 pro) with upgrade prompts
+✅ Clan chat via Socket.io (messages, pinning, reactions, replies, editing, deleting, rate limiting)
+✅ Chat topics/channels per clan with default topics
+✅ Trade card system in chat (create, share, version history, trade actions)
+✅ Trade lifecycle tracking (OPEN → TP1_HIT/TP2_HIT/SL_HIT/BE/CLOSED)
+✅ Clan watchlist per clan
+✅ Clan channel (public broadcast feed, Telegram-style) tied to each clan
+✅ Channel posts with auto-posting of high-signal trades
+✅ Online users bar with real-time presence
+✅ Discover public clans page
+⬜ Subscriber chat: live chat for followers alongside the channel (pro/subscriber-only)
+⬜ Option to link external Telegram group to clan profile page
+
+
+
+✅ PHASE 4 — COMPLETE: Build the competitive layer. 100% local computation — all ranking data lives in PostgreSQL on the Iranian server.
+
+Core (Iranian Server Only)
+✅ Individual trader leaderboard (sortable by multiple metrics, filterable)
+✅ Clan leaderboard (combined performance)
+✅ Season system (UPCOMING, ACTIVE, COMPLETED, ARCHIVED statuses)
+✅ Configurable ranking weights and thresholds (RankingConfig model)
+✅ Composite scoring system with multi-lens ranking (TRADER and CLAN)
+✅ Minimum trade requirements for ranking eligibility
+✅ Leaderboard explorer page with multiple views
+⬜ Badge/tier system (Bronze, Silver, Gold, Diamond, Legendary)
+⬜ Season results page (final standings, awards, highlights)
+⬜ Live ranking movement indicators (arrows showing position changes)
+⬜ Weekly snapshot highlights (biggest climber, most consistent, highest single trade)
+⬜ Season History on trader and clan profiles (wall of badges over time)
+⬜ Notification system for ranking changes and season events
 
 Competition Categories
 Overall Champion, Most Consistent, Best Risk Manager, Rising Star, Specialist Awards per instrument
@@ -208,74 +227,77 @@ Maximum drawdown penalty (20%) — penalizes reckless risk
 Trading activity (15%) — minimum activity threshold to prevent gaming
 
 
-Content ecosystem is 100% local. Images and files stored on Iranian server disk. No CDN dependency.
+✅ PHASE 5 — COMPLETE: Content ecosystem is 100% local. Images and files stored on Iranian server disk. No CDN dependency.
 
 Core (Iranian Server Only)
-Story creation tool (image/chart upload, text overlay, 24hr expiry)
-Stories viewer (tap-through format, verified badge + win rate visible on every story)
-Home feed (stories bar + posts from followed clan channels + discovery/trending channels)
-Clan channel view: Telegram-style post layout (text/images/charts, reactions, view counts)
-Channel follow mechanics: follow channels for free; subscribe to unlock premium posts
-Clan content library (permanent posts: tutorials, strategy guides, trade breakdowns)
-Content creation editor (rich text, image embedding, chart markup tools)
-Content library access control (free preview vs premium-only content)
-Daily peek system (3 free premium post peeks per day for non-subscribers; resets daily)
-Story analytics for pro users (views, taps, engagement rates)
-Daily peek system (3 free clan visits per day, limited content preview for non-subscribers)
+✅ Home feed (posts from followed clan channels + discovery)
+✅ Clan channel view: Telegram-style post layout (text/images/charts, reactions, view counts)
+✅ Channel follow mechanics: follow channels for free
+✅ Channel post creation with image uploads
+✅ Auto-posting of high-signal trades to channels
+✅ Reaction system on channel posts
+✅ Premium content gating (PaywallRule model)
+✅ Feature flags for content features
+⬜ Story creation tool (image/chart upload, text overlay, 24hr expiry)
+⬜ Stories viewer (tap-through format, verified badge + win rate visible on every story)
+⬜ Clan content library (permanent posts: tutorials, strategy guides, trade breakdowns)
+⬜ Content creation editor (rich text, image embedding, chart markup tools)
+⬜ Daily peek system (3 free premium post peeks per day for non-subscribers)
+⬜ Story analytics for pro users (views, taps, engagement rates)
 
 
 
 
-This is the most architecturally important phase. Build the AIRouter system that transparently handles failover between OpenRouter and local Ollama.
+⬜ PHASE 6 — NOT STARTED: This is the most architecturally important phase. Build the AIRouter system that transparently handles failover between OpenRouter and local Ollama.
 
 Step 1: Build the AIRouter Service
-Create AIRouter class that accepts a query and returns a response
-Implement provider chain: OpenRouter → Ollama → Cache
-Add 3-second timeout for OpenRouter calls before falling to Ollama
-Build health check that pings OpenRouter every 60 seconds to detect connectivity status
-Create model config file: specify which OpenRouter model for which query type, which Ollama model as fallback
-Implement response caching: cache every successful AI response in Redis with 1hr TTL
-Build admin toggle to force local-only mode (useful during known shutdown periods)
+⬜ Create AIRouter class that accepts a query and returns a response
+⬜ Implement provider chain: OpenRouter → Ollama → Cache
+⬜ Add 3-second timeout for OpenRouter calls before falling to Ollama
+⬜ Build health check that pings OpenRouter every 60 seconds to detect connectivity status
+⬜ Create model config file: specify which OpenRouter model for which query type, which Ollama model as fallback
+⬜ Implement response caching: cache every successful AI response in Redis with 1hr TTL
+⬜ Build admin toggle to force local-only mode (useful during known shutdown periods)
 
 Step 2: Set Up Local Ollama
-Install Ollama on the AI server (dedicated Iranian VPS or dedicated machine)
-Download models: Mistral 7B, Llama 3 8B, Qwen 2.5 7B, Phi-4 Mini (all Q4 quantized)
-Configure Ollama to expose API on internal network (not public-facing)
-Create system prompts optimized for each local model (shorter, more structured than cloud prompts)
-Load test: simulate 10 concurrent queries on the local model to establish baseline performance
+⬜ Install Ollama on the AI server (dedicated Iranian VPS or dedicated machine)
+⬜ Download models: Mistral 7B, Llama 3 8B, Qwen 2.5 7B, Phi-4 Mini (all Q4 quantized)
+⬜ Configure Ollama to expose API on internal network (not public-facing)
+⬜ Create system prompts optimized for each local model (shorter, more structured than cloud prompts)
+⬜ Load test: simulate 10 concurrent queries on the local model to establish baseline performance
 
 Step 3: Build AI Features
-Spectator AI chatbot (chat interface, 3 free questions/day for non-pro users)
-System prompt with database query access (top clans, trending instruments, trader search)
-Clan AI assistant (@ai mention trigger in clan chat, pro-only feature)
-Clan-specific context (members, stats, history) injected into clan AI prompts
-Recruiting assistant ('Find us a free agent who trades gold with low drawdown')
-Competitive intelligence ('Clan X just passed us, what changed?')
-Weekly auto-generated clan performance summary (runs on schedule, uses cheapest available model)
+⬜ Spectator AI chatbot (chat interface, 3 free questions/day for non-pro users)
+⬜ System prompt with database query access (top clans, trending instruments, trader search)
+⬜ Clan AI assistant (@ai mention trigger in clan chat, pro-only feature)
+⬜ Clan-specific context (members, stats, history) injected into clan AI prompts
+⬜ Recruiting assistant ('Find us a free agent who trades gold with low drawdown')
+⬜ Competitive intelligence ('Clan X just passed us, what changed?')
+⬜ Weekly auto-generated clan performance summary (runs on schedule, uses cheapest available model)
 
 Step 4: Optimize for Blackout Mode
-Pre-compute and cache top-50 common platform queries every hour
-Build a 'Platform Intelligence Snapshot' that runs daily: aggregates all clan stats, trending instruments, performance summaries into a JSON blob that the local AI can reference without database queries
-Create simplified system prompts for Ollama that work with smaller context windows
-Add a UI indicator for users: green dot = cloud AI, yellow dot = local AI, gray dot = cached responses
+⬜ Pre-compute and cache top-50 common platform queries every hour
+⬜ Build a 'Platform Intelligence Snapshot' that runs daily: aggregates all clan stats, trending instruments, performance summaries into a JSON blob that the local AI can reference without database queries
+⬜ Create simplified system prompts for Ollama that work with smaller context windows
+⬜ Add a UI indicator for users: green dot = cloud AI, yellow dot = local AI, gray dot = cached responses
 
 
 
-Payment integration uses Iranian gateways that work on NIN. No Stripe dependency for domestic users.
+⬜ PHASE 7 — NOT STARTED: Payment integration uses Iranian gateways that work on NIN. No Stripe dependency for domestic users.
 
 Iranian Payment Gateways
 
 
 Tasks
-Integrate ZarinPal as primary payment gateway (using their Node.js SDK)
-Build Pro plan checkout flow (monthly and annual options, priced in Toman)
-Create channel subscription marketplace UI (browse clan channels, preview free posts, subscribe for premium posts)
-Channel pricing controls (each clan sets monthly price in Toman; optional daily/weekly passes later)
-Build marketplace commission split (70-80% to clan, 20-30% platform)
-Create revenue dashboard for clans (subscribers, earnings, payout history)
-Build subscriber management for clans (view subscribers, engagement metrics)
-Implement featured placement system (clans pay for boosted visibility)
-Build billing management page (plan changes, payment history, cancel/resume)
+⬜ Integrate ZarinPal as primary payment gateway (using their Node.js SDK)
+⬜ Build Pro plan checkout flow (monthly and annual options, priced in Toman)
+⬜ Create channel subscription marketplace UI (browse clan channels, preview free posts, subscribe for premium posts)
+⬜ Channel pricing controls (each clan sets monthly price in Toman; optional daily/weekly passes later)
+⬜ Build marketplace commission split (70-80% to clan, 20-30% platform)
+⬜ Create revenue dashboard for clans (subscribers, earnings, payout history)
+⬜ Build subscriber management for clans (view subscribers, engagement metrics)
+⬜ Implement featured placement system (clans pay for boosted visibility)
+⬜ Build billing management page (plan changes, payment history, cancel/resume)
 
 Pricing Strategy (in Toman, adjust to market)
 Pro Plan: ~500,000-900,000 Toman/month (~$10-18 at current rates)
@@ -285,36 +307,49 @@ Featured Placement: 300,000-1,500,000 Toman/day
 
 
 
-Final polish, the dev/prod split, staged user testing, and public launch.
+🔶 PHASE 8 — IN PROGRESS: Final polish, the dev/prod split, staged user testing, and public launch.
 
 Dev Server Setup
-Provision separate Iranian VPS for dev environment (dev.clantrader.ir)
-Deployment strategy: prefer SSH/rsync deploys from your development machine (Starlink) to dev/prod servers (works even if servers cannot reach GitHub). If you want Git-based deploys inside Iran, use self-hosted Gitea for domestic pulls; keep GitHub as international backup.
-Set up separate PostgreSQL database with test/seed data on dev server
-Verify all environment variables are correctly separated between dev and prod
+⬜ Provision separate Iranian VPS for dev environment (dev.clantrader.ir)
+⬜ Deployment strategy: prefer SSH/rsync deploys from development machine to dev/prod servers
+⬜ Set up separate PostgreSQL database with test/seed data on dev server
+⬜ Verify all environment variables are correctly separated between dev and prod
 
 Polish & Optimization
-Mobile responsive design audit (most Iranian users will be on mobile)
-Performance optimization (lazy loading, image compression, query optimization)
-SEO setup for .ir domain (meta tags, Open Graph, sitemap)
-Security audit (SQL injection prevention, rate limiting, input sanitization, CSRF)
-Error handling (empty states, loading states, error states, offline indicators)
-Email notification system (welcome, season reminders, ranking changes)
-Onboarding flow for new users (guided tour, explain features, prompt verification)
+✅ Mobile responsive design (Telegram-like layout, overflow fixes, narrow screen support)
+✅ PWA with custom service worker (offline support, install prompts, background sync)
+✅ Gzip compression for throttled connections
+✅ Self-hosted fonts (Vazirmatn, Sahel, Inter, Geist, Plus Jakarta Sans)
+✅ Multi-font switching system
+✅ Dark mode support (next-themes)
+✅ Error handling (empty states, loading states, connection status indicators)
+⬜ Performance optimization (lazy loading, image compression, query optimization)
+⬜ SEO setup for .ir domain (meta tags, Open Graph, sitemap)
+⬜ Security audit (SQL injection prevention, rate limiting, input sanitization, CSRF)
+⬜ Email notification system (welcome, season reminders, ranking changes)
+⬜ Onboarding flow for new users (guided tour, explain features, prompt verification)
+
+Testing Infrastructure (Done)
+✅ E2E test suite with Playwright
+✅ Smoke test suite
+✅ Simulator tests
+✅ Test runner with distributed worker support
+✅ Test run tracking in database
+✅ Admin test dashboard
 
 Blackout Resilience Test
-Disconnect the production server from international internet (block all non-.ir traffic)
-Test EVERY feature in NIN-only mode: login, upload, chat, stories, AI, leaderboard, payments
-Verify AI failover: OpenRouter fails → Ollama responds → user experience is seamless
-Verify payment gateway works in NIN-only mode
-Run a simulated 24-hour blackout test with the beta group
+⬜ Disconnect the production server from international internet (block all non-.ir traffic)
+⬜ Test EVERY feature in NIN-only mode: login, upload, chat, stories, AI, leaderboard, payments
+⬜ Verify AI failover: OpenRouter fails → Ollama responds → user experience is seamless
+⬜ Verify payment gateway works in NIN-only mode
+⬜ Run a simulated 24-hour blackout test with the beta group
 
 Staged Launch
-Week 16-17: Internal testing — you use every feature, find and fix bugs
-Week 17-18: Alpha — 10-15 trusted traders test on dev server
-Week 18-19: Founding clans — help alpha testers form 5-10 clans on prod server
-Week 19-20: Beta — expand to 100-200 users on prod, monitor performance at scale
-Week 20: Public soft launch — announce to Telegram first, then Instagram and YouTube
+⬜ Week 16-17: Internal testing — you use every feature, find and fix bugs
+⬜ Week 17-18: Alpha — 10-15 trusted traders test on dev server
+⬜ Week 18-19: Founding clans — help alpha testers form 5-10 clans on prod server
+⬜ Week 19-20: Beta — expand to 100-200 users on prod, monitor performance at scale
+⬜ Week 20: Public soft launch — announce to Telegram first, then Instagram and YouTube
 
 
 

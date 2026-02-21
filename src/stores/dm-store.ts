@@ -4,6 +4,7 @@ export interface DmMessage {
   id: string;
   conversationId: string;
   content: string;
+  images: string[];
   senderId: string;
   isEdited: boolean;
   isRead: boolean;
@@ -30,6 +31,7 @@ export interface DmConversation {
   lastMessage: {
     id: string;
     content: string;
+    images: string[];
     senderId: string;
     createdAt: string;
   } | null;

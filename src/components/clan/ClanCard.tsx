@@ -24,9 +24,9 @@ export function ClanCard({ clan, role }: ClanCardProps) {
 
   return (
     <Link href={`/clans/${clan.id}`}>
-      <Card className="transition-colors hover:bg-accent/50">
+      <Card className="glass-card transition-all hover:shadow-lg hover:border-primary/20">
         <CardContent className="flex items-center gap-4">
-          <Avatar className="h-12 w-12 shrink-0">
+          <Avatar className="h-12 w-12 shrink-0 ring-2 ring-primary/10">
             <AvatarImage src={clan.avatar || undefined} alt={clan.name} />
             <AvatarFallback>
               {clan.name.slice(0, 2).toUpperCase()}
@@ -40,7 +40,7 @@ export function ClanCard({ clan, role }: ClanCardProps) {
                   {clan.tradingFocus}
                 </Badge>
               )}
-              <Badge variant="outline" className="shrink-0">
+              <Badge variant="outline" className={`shrink-0 ${clan.tier === "PRO" ? "bg-gradient-to-r from-amber-500/20 to-amber-600/20" : ""}`}>
                 {clan.tier}
               </Badge>
             </div>

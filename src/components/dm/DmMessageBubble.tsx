@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Pencil, Trash2, MoreHorizontal, Reply, Check, CheckCheck } from "lucide-react";
+import { ChatImageGrid } from "@/components/shared/ChatImageGrid";
 import type { DmMessage } from "@/stores/dm-store";
 
 interface DmMessageBubbleProps {
@@ -20,6 +21,7 @@ interface DmMessageBubbleProps {
   onReply: (msg: DmMessage) => void;
   onEdit: (msg: DmMessage) => void;
   onDelete: (msgId: string) => void;
+  onUserClick?: (userId: string) => void;
 }
 
 function formatContent(content: string): React.ReactNode {
@@ -53,10 +55,10 @@ export function DmMessageBubble({
   message,
   isOwn,
   showAvatar,
-  currentUserId,
   onReply,
   onEdit,
   onDelete,
+  onUserClick,
 }: DmMessageBubbleProps) {
   const [showActions, setShowActions] = useState(false);
 
@@ -69,7 +71,10 @@ export function DmMessageBubble({
       {/* Avatar */}
       <div className="w-8 flex-shrink-0">
         {showAvatar && !isOwn && (
-          <Avatar className="h-8 w-8">
+          <Avatar
+            className={`h-8 w-8 ${onUserClick ? "cursor-pointer" : ""}`}
+            onClick={onUserClick ? () => onUserClick(message.sender.id) : undefined}
+          >
             <AvatarImage
               src={message.sender.avatar || undefined}
               alt={message.sender.name || ""}
@@ -100,9 +105,14 @@ export function DmMessageBubble({
               : "bg-muted"
           }`}
         >
-          <p className="whitespace-pre-wrap break-words">
-            {formatContent(message.content)}
-          </p>
+          {message.images && message.images.length > 0 && (
+            <ChatImageGrid images={message.images} />
+          )}
+          {message.content.trim() && (
+            <p className="whitespace-pre-wrap break-words">
+              {formatContent(message.content)}
+            </p>
+          )}
         </div>
 
         <div className={`mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground ${isOwn ? "justify-end" : ""}`}>
@@ -153,6 +163,7 @@ export function DmMessageBubble({
           </DropdownMenu>
         )}
       </div>
+
     </div>
   );
 }

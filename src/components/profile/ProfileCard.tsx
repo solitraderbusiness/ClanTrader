@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { MetricsDisplay } from "@/components/statements/MetricsDisplay";
 import type { StatementMetrics } from "@/types/statement";
+import Link from "next/link";
 
 interface ProfileCardProps {
   user: {
@@ -73,13 +74,27 @@ export function ProfileCard({ user }: ProfileCardProps) {
         {user.tradingStyle && (
           <div className="rounded-lg border p-3">
             <p className="text-xs text-muted-foreground">Trading Style</p>
-            <p className="font-medium">{user.tradingStyle}</p>
+            <p className="font-medium">
+              <Link
+                href={`/explore?tab=agents&tradingStyle=${user.tradingStyle}`}
+                className="text-primary hover:underline"
+              >
+                {user.tradingStyle}
+              </Link>
+            </p>
           </div>
         )}
         {user.sessionPreference && (
           <div className="rounded-lg border p-3">
             <p className="text-xs text-muted-foreground">Preferred Session</p>
-            <p className="font-medium">{user.sessionPreference}</p>
+            <p className="font-medium">
+              <Link
+                href={`/explore?tab=agents&sessionPreference=${user.sessionPreference}`}
+                className="text-primary hover:underline"
+              >
+                {user.sessionPreference}
+              </Link>
+            </p>
           </div>
         )}
         {user.preferredPairs.length > 0 && (
@@ -87,9 +102,15 @@ export function ProfileCard({ user }: ProfileCardProps) {
             <p className="text-xs text-muted-foreground">Preferred Pairs</p>
             <div className="mt-1 flex flex-wrap gap-1">
               {user.preferredPairs.map((pair) => (
-                <Badge key={pair} variant="outline" className="text-xs">
-                  {pair}
-                </Badge>
+                <Link
+                  key={pair}
+                  href={`/explore?tab=agents&preferredPair=${pair}`}
+                  className="text-primary hover:underline"
+                >
+                  <Badge variant="outline" className="text-xs">
+                    {pair}
+                  </Badge>
+                </Link>
               ))}
             </div>
           </div>
@@ -101,7 +122,12 @@ export function ProfileCard({ user }: ProfileCardProps) {
         <div className="rounded-lg border p-3">
           <p className="text-xs text-muted-foreground">Clan</p>
           <p className="font-medium">
-            {clan.clan.name}{" "}
+            <Link
+              href={`/clans/${clan.clan.id}`}
+              className="text-primary hover:underline"
+            >
+              {clan.clan.name}
+            </Link>{" "}
             <span className="text-xs text-muted-foreground">
               ({clan.role.toLowerCase().replace("_", "-")})
             </span>

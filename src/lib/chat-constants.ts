@@ -48,6 +48,9 @@ export const DM_CONTENT_MAX = 2000;
 export const DM_CONTENT_MIN = 1;
 export const DMS_PER_PAGE = 50;
 
+// Chat images
+export const CHAT_IMAGES_MAX = 4;
+
 // Socket events
 export const SOCKET_EVENTS = {
   // Client -> Server (Clan Chat)

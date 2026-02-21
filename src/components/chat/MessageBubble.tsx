@@ -14,6 +14,7 @@ import { getSocket } from "@/lib/socket-client";
 import { SOCKET_EVENTS, MESSAGE_REACTION_EMOJIS } from "@/lib/chat-constants";
 import { useChatStore, type ChatMessage } from "@/stores/chat-store";
 import { TraderBadge } from "@/components/shared/TraderBadge";
+import { ChatImageGrid } from "@/components/shared/ChatImageGrid";
 import { TradeCardInline } from "./TradeCardInline";
 import { TradeEventLine } from "./TradeEventLine";
 
@@ -26,6 +27,7 @@ interface MessageBubbleProps {
   currentUserId: string;
   userRole?: string;
   memberRole?: string;
+  onUserClick?: (userId: string) => void;
 }
 
 function formatContent(content: string): React.ReactNode {
@@ -67,6 +69,7 @@ export function MessageBubble({
   currentUserId,
   userRole,
   memberRole,
+  onUserClick,
 }: MessageBubbleProps) {
   const [showReactions, setShowReactions] = useState(false);
   const { setReplyingTo, setEditingMessage } = useChatStore();
@@ -106,7 +109,10 @@ export function MessageBubble({
       } ${showAvatar ? "mt-3" : "mt-0.5"}`}
     >
       {showAvatar ? (
-        <Avatar className="h-8 w-8 flex-shrink-0">
+        <Avatar
+          className={`h-8 w-8 flex-shrink-0 ${!isOwn && onUserClick ? "cursor-pointer" : ""}`}
+          onClick={!isOwn && onUserClick ? () => onUserClick(message.user.id) : undefined}
+        >
           <AvatarImage src={message.user.avatar || undefined} alt={message.user.name || ""} />
           <AvatarFallback className="text-xs">
             {(message.user.name || "?").slice(0, 2).toUpperCase()}
@@ -119,7 +125,12 @@ export function MessageBubble({
       <div className={`max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
         {showAvatar && (
           <div className={`mb-0.5 flex items-center gap-1.5 text-xs text-muted-foreground ${isOwn ? "justify-end" : ""}`}>
-            <span className="font-medium">{message.user.name || "Unknown"}</span>
+            <span
+              className={`font-medium ${!isOwn && onUserClick ? "cursor-pointer hover:underline" : ""}`}
+              onClick={!isOwn && onUserClick ? () => onUserClick(message.user.id) : undefined}
+            >
+              {message.user.name || "Unknown"}
+            </span>
             <TraderBadge role={message.user.role} />
             <span>
               {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -184,7 +195,12 @@ export function MessageBubble({
             {message.isPinned && (
               <Pin className="absolute -top-1 -end-1 h-3 w-3 text-yellow-500" />
             )}
-            <p className="whitespace-pre-wrap break-words">{formatContent(message.content)}</p>
+            {message.images && message.images.length > 0 && (
+              <ChatImageGrid images={message.images} />
+            )}
+            {message.content.trim() && (
+              <p className="whitespace-pre-wrap break-words">{formatContent(message.content)}</p>
+            )}
           </div>
         )}
 
@@ -257,6 +273,7 @@ export function MessageBubble({
           )}
         </div>
       </div>
+
     </div>
   );
 }

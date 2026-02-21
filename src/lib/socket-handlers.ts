@@ -62,6 +62,7 @@ interface SerializableTradeCard {
 interface SerializableMessage {
   id: string;
   content: string;
+  images?: string[];
   type?: string;
   isPinned: boolean;
   isEdited: boolean;
@@ -79,6 +80,7 @@ function serializeMessage(message: SerializableMessage, clanId: string) {
     clanId,
     topicId: message.topicId || null,
     content: message.content,
+    images: message.images || [],
     type: message.type || "TEXT",
     isPinned: message.isPinned,
     isEdited: message.isEdited,
@@ -185,7 +187,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
   // --- SEND MESSAGE ---
   socket.on(
     SOCKET_EVENTS.SEND_MESSAGE,
-    async (data: { clanId: string; topicId: string; content: string; replyToId?: string }) => {
+    async (data: { clanId: string; topicId: string; content: string; replyToId?: string; images?: string[] }) => {
       try {
         const parsed = sendMessageSchema.safeParse(data);
         if (!parsed.success) {
@@ -196,7 +198,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
           return;
         }
 
-        const { clanId, topicId, content, replyToId } = parsed.data;
+        const { clanId, topicId, content, replyToId, images } = parsed.data;
 
         const isLimited = await checkRateLimit(user.id);
         if (isLimited) {
@@ -209,7 +211,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
 
         await requireClanMembership(user.id, clanId);
 
-        const message = await createMessage(clanId, user.id, content, topicId, { replyToId });
+        const message = await createMessage(clanId, user.id, content, topicId, { replyToId, images });
 
         io.to(topicRoom(clanId, topicId)).emit(
           SOCKET_EVENTS.RECEIVE_MESSAGE,
@@ -701,10 +703,10 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
   // --- DM: SEND MESSAGE ---
   socket.on(
     SOCKET_EVENTS.SEND_DM,
-    async (data: { recipientId: string; content: string; replyToId?: string }) => {
+    async (data: { recipientId: string; content: string; replyToId?: string; images?: string[] }) => {
       try {
-        const { recipientId, content, replyToId } = data;
-        if (!recipientId || !content || content.length > DM_CONTENT_MAX) {
+        const { recipientId, content, replyToId, images } = data;
+        if (!recipientId || (!content && (!images || images.length === 0)) || (content && content.length > DM_CONTENT_MAX)) {
           socket.emit(SOCKET_EVENTS.ERROR, {
             event: SOCKET_EVENTS.SEND_DM,
             message: "Invalid message",
@@ -730,8 +732,9 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         const message = await sendDirectMessage(
           conversation.id,
           user.id,
-          content,
-          replyToId
+          content || "",
+          replyToId,
+          images
         );
 
         const sorted = [user.id, recipientId].sort();
@@ -745,6 +748,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
           isEdited: message.isEdited,
           isRead: message.isRead,
           replyTo: message.replyTo,
+          images: message.images || [],
           createdAt: message.createdAt.toISOString(),
           sender: message.sender,
         });

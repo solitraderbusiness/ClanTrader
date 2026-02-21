@@ -89,6 +89,17 @@ export function FilterBar({ mode }: FilterBarProps) {
         </div>
 
         <div className="space-y-1">
+          <Label className="text-xs">Pair</Label>
+          <input
+            type="text"
+            className={selectClass}
+            placeholder="e.g. XAUUSD"
+            value={searchParams.get("preferredPair") || ""}
+            onChange={(e) => updateParam("preferredPair", e.target.value.toUpperCase())}
+          />
+        </div>
+
+        <div className="space-y-1">
           <Label className="text-xs">Sort by</Label>
           <select
             className={selectClass}

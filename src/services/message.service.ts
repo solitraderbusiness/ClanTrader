@@ -54,7 +54,7 @@ export async function createMessage(
   userId: string,
   content: string,
   topicId: string,
-  options?: { replyToId?: string; type?: MessageType }
+  options?: { replyToId?: string; type?: MessageType; images?: string[] }
 ) {
   return db.message.create({
     data: {
@@ -64,6 +64,7 @@ export async function createMessage(
       topicId,
       type: options?.type || "TEXT",
       ...(options?.replyToId ? { replyToId: options.replyToId } : {}),
+      ...(options?.images?.length ? { images: options.images } : {}),
     },
     include: messageInclude,
   });

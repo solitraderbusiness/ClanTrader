@@ -37,7 +37,8 @@ export async function sendDirectMessage(
   conversationId: string,
   senderId: string,
   content: string,
-  replyToId?: string
+  replyToId?: string,
+  images?: string[]
 ) {
   const conversation = await db.conversation.findUnique({
     where: { id: conversationId },
@@ -57,6 +58,7 @@ export async function sendDirectMessage(
       senderId,
       content,
       replyToId: replyToId || null,
+      ...(images?.length ? { images } : {}),
     },
     include: {
       sender: {
@@ -206,6 +208,7 @@ export async function getUserConversations(userId: string) {
           senderId: true,
           createdAt: true,
           isRead: true,
+          images: true,
         },
       },
     },
@@ -241,6 +244,7 @@ export async function getUserConversations(userId: string) {
             content: lastMessage.content,
             senderId: lastMessage.senderId,
             createdAt: lastMessage.createdAt.toISOString(),
+            images: lastMessage.images,
           }
         : null,
       unreadCount: unreadMap.get(conv.id) || 0,

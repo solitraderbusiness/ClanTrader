@@ -18,7 +18,9 @@
     "test:e2e": "playwright test",
     "test:e2e:smoke": "playwright test --project=smoke",
     "test:e2e:headed": "TEST_RUN_MODE=HEADED playwright test",
-    "pwa:icons": "tsx scripts/generate-pwa-icons.ts"
+    "pwa:icons": "tsx scripts/generate-pwa-icons.ts",
+    "test:schedule": "tsx scripts/schedule-test-runs.ts",
+    "test:simulator": "TEST_WORKERS=1 playwright test --project=simulator"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

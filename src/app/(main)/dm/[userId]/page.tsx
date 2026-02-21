@@ -59,6 +59,7 @@ export default async function DmConversationPage({
     id: m.id,
     conversationId: m.conversationId,
     content: m.content,
+    images: m.images || [],
     senderId: m.senderId,
     isEdited: m.isEdited,
     isRead: m.isRead,
