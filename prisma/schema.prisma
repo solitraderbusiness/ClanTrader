@@ -36,6 +36,11 @@ model User {
   createdTopics   ChatTopic[]
   trades          Trade[]
   watchlists      Watchlist[]
+  joinRequests        ClanJoinRequest[]  @relation("JoinRequestUser")
+  reviewedJoinRequests ClanJoinRequest[] @relation("JoinRequestReviewer")
+  dmConversations1    Conversation[]     @relation("ConversationParticipant1")
+  dmConversations2    Conversation[]     @relation("ConversationParticipant2")
+  sentDirectMessages  DirectMessage[]    @relation("DirectMessageSender")
 
   @@index([email])
 }
@@ -101,6 +106,7 @@ model Clan {
   trades            Trade[]
   watchlists        Watchlist[]
   traderStatements  TraderStatement[]
+  joinRequests      ClanJoinRequest[]
 
   @@index([name])
 }
@@ -581,4 +587,70 @@ model TestRun {
 
   @@index([status, createdAt])
   @@index([queuedById])
+}
+
+// --- Join Requests ---
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ClanJoinRequest {
+  id           String            @id @default(cuid())
+  clanId       String
+  clan         Clan              @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User              @relation("JoinRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+  message      String?
+  status       JoinRequestStatus @default(PENDING)
+  reviewedById String?
+  reviewedBy   User?             @relation("JoinRequestReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  rejectReason String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@unique([clanId, userId])
+  @@index([clanId, status])
+  @@index([userId])
+}
+
+// --- Direct Messages ---
+
+model Conversation {
+  id             String    @id @default(cuid())
+  participant1Id String
+  participant1   User      @relation("ConversationParticipant1", fields: [participant1Id], references: [id], onDelete: Cascade)
+  participant2Id String
+  participant2   User      @relation("ConversationParticipant2", fields: [participant2Id], references: [id], onDelete: Cascade)
+  lastMessageAt  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  messages DirectMessage[]
+
+  @@unique([participant1Id, participant2Id])
+  @@index([participant1Id])
+  @@index([participant2Id])
+}
+
+model DirectMessage {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation("DirectMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  content        String
+  isEdited       Boolean      @default(false)
+  isRead         Boolean      @default(false)
+  replyToId      String?
+  replyTo        DirectMessage?  @relation("DmReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies        DirectMessage[] @relation("DmReplies")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
 }

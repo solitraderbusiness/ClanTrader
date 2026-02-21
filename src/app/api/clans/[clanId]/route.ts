@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { updateClanSchema } from "@/lib/validators";
+import { updateClanSchema, clanSettingsSchema } from "@/lib/validators";
 import {
   getClan,
   updateClan,
   deleteClan,
   ClanServiceError,
 } from "@/services/clan.service";
+import { db } from "@/lib/db";
 
 export async function GET(
   _request: Request,
@@ -43,7 +44,10 @@ export async function PATCH(
 
     const { clanId } = await params;
     const body = await request.json();
-    const parsed = updateClanSchema.safeParse(body);
+
+    // Extract settings separately
+    const { settings: settingsInput, ...clanData } = body;
+    const parsed = updateClanSchema.safeParse(clanData);
 
     if (!parsed.success) {
       return NextResponse.json(
@@ -53,7 +57,23 @@ export async function PATCH(
     }
 
     const clan = await updateClan(clanId, session.user.id, parsed.data);
-    return NextResponse.json(clan);
+
+    // Handle settings update if provided
+    if (settingsInput) {
+      const settingsParsed = clanSettingsSchema.safeParse(settingsInput);
+      if (settingsParsed.success) {
+        const existingSettings = (clan.settings as Record<string, unknown>) || {};
+        await db.clan.update({
+          where: { id: clanId },
+          data: {
+            settings: { ...existingSettings, ...settingsParsed.data },
+          },
+        });
+      }
+    }
+
+    const updatedClan = await getClan(clanId);
+    return NextResponse.json(updatedClan);
   } catch (error) {
     if (error instanceof ClanServiceError) {
       return NextResponse.json(

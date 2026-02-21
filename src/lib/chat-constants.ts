@@ -43,9 +43,14 @@ export const TRADE_STATUSES = [
   "OPEN", "TP1_HIT", "TP2_HIT", "SL_HIT", "BE", "CLOSED",
 ] as const;
 
+// DM constraints
+export const DM_CONTENT_MAX = 2000;
+export const DM_CONTENT_MIN = 1;
+export const DMS_PER_PAGE = 50;
+
 // Socket events
 export const SOCKET_EVENTS = {
-  // Client -> Server
+  // Client -> Server (Clan Chat)
   JOIN_CLAN: "join_clan",
   LEAVE_CLAN: "leave_clan",
   SWITCH_TOPIC: "switch_topic",
@@ -63,7 +68,16 @@ export const SOCKET_EVENTS = {
   UPDATE_TRADE_STATUS: "update_trade_status",
   EXECUTE_TRADE_ACTION: "execute_trade_action",
 
-  // Server -> Client
+  // Client -> Server (DMs)
+  JOIN_DM: "join_dm",
+  SEND_DM: "send_dm",
+  EDIT_DM: "edit_dm",
+  DELETE_DM: "delete_dm",
+  DM_TYPING: "dm_typing",
+  DM_STOP_TYPING: "dm_stop_typing",
+  DM_READ: "dm_read",
+
+  // Server -> Client (Clan Chat)
   RECEIVE_MESSAGE: "receive_message",
   MESSAGE_EDITED: "message_edited",
   MESSAGE_DELETED: "message_deleted",
@@ -78,5 +92,14 @@ export const SOCKET_EVENTS = {
   TOPIC_ARCHIVED: "topic_archived",
   TRADE_STATUS_UPDATED: "trade_status_updated",
   TRADE_ACTION_EXECUTED: "trade_action_executed",
+
+  // Server -> Client (DMs)
+  RECEIVE_DM: "receive_dm",
+  DM_EDITED: "dm_edited",
+  DM_DELETED: "dm_deleted",
+  DM_USER_TYPING: "dm_user_typing",
+  DM_USER_STOP_TYPING: "dm_user_stop_typing",
+  DM_MARKED_READ: "dm_marked_read",
+
   ERROR: "error",
 } as const;

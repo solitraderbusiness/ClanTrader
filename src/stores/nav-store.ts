@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-type NavTab = "chats" | "channels";
+type NavTab = "chats" | "channels" | "dms";
 
 interface ChatItem {
   clanId: string;
@@ -36,6 +36,23 @@ interface ChannelItem {
   lastActivityAt: string;
 }
 
+interface DmConvItem {
+  id: string;
+  otherUser: {
+    id: string;
+    name: string | null;
+    avatar: string | null;
+  };
+  lastMessage: {
+    id: string;
+    content: string;
+    senderId: string;
+    createdAt: string;
+  } | null;
+  unreadCount: number;
+  lastMessageAt: string;
+}
+
 interface NavStore {
   activeTab: NavTab;
   setActiveTab: (tab: NavTab) => void;
@@ -48,6 +65,9 @@ interface NavStore {
 
   channels: ChannelItem[];
   setChannels: (channels: ChannelItem[]) => void;
+
+  dmConversations: DmConvItem[];
+  setDmConversations: (dms: DmConvItem[]) => void;
 
   loading: boolean;
   setLoading: (v: boolean) => void;
@@ -66,8 +86,11 @@ export const useNavStore = create<NavStore>((set) => ({
   channels: [],
   setChannels: (channels) => set({ channels }),
 
+  dmConversations: [],
+  setDmConversations: (dmConversations) => set({ dmConversations }),
+
   loading: true,
   setLoading: (loading) => set({ loading }),
 }));
 
-export type { ChatItem, ChannelItem, NavTab };
+export type { ChatItem, ChannelItem, DmConvItem, NavTab };

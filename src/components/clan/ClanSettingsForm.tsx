@@ -23,6 +23,7 @@ interface ClanSettingsFormProps {
     avatar: string | null;
     tradingFocus: string | null;
     isPublic: boolean;
+    settings: Record<string, unknown> | null;
   };
 }
 
@@ -30,6 +31,9 @@ export function ClanSettingsForm({ clan }: ClanSettingsFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [isPublic, setIsPublic] = useState(clan.isPublic);
+  const [joinRequestsEnabled, setJoinRequestsEnabled] = useState(
+    !!(clan.settings as Record<string, unknown> | null)?.joinRequestsEnabled
+  );
   const [avatarUrl, setAvatarUrl] = useState(clan.avatar);
 
   const {
@@ -80,7 +84,7 @@ export function ClanSettingsForm({ clan }: ClanSettingsFormProps) {
       const res = await fetch(`/api/clans/${clan.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...data, isPublic }),
+        body: JSON.stringify({ ...data, isPublic, settings: { joinRequestsEnabled } }),
       });
 
       if (res.ok) {
@@ -167,7 +171,20 @@ export function ClanSettingsForm({ clan }: ClanSettingsFormProps) {
           onCheckedChange={setIsPublic}
         />
         <Label htmlFor="isPublic">
-          {isPublic ? "Public — anyone can join" : "Private — invite only"}
+          {isPublic ? "Public — discoverable in search" : "Private — hidden from search"}
+        </Label>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Switch
+          id="joinRequestsEnabled"
+          checked={joinRequestsEnabled}
+          onCheckedChange={setJoinRequestsEnabled}
+        />
+        <Label htmlFor="joinRequestsEnabled">
+          {joinRequestsEnabled
+            ? "Join requests enabled — users can request to join"
+            : "Join requests disabled — invite only"}
         </Label>
       </div>
 

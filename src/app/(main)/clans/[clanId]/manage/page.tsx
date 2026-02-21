@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { getClan } from "@/services/clan.service";
+import { getPendingRequestCount } from "@/services/join-request.service";
 import { db } from "@/lib/db";
 import { ClanManagementPanel } from "@/components/clan/ClanManagementPanel";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,8 @@ export default async function ManageClanPage({
     redirect(`/clans/${clanId}`);
   }
 
+  const pendingCount = await getPendingRequestCount(clanId);
+
   const members = await db.clanMember.findMany({
     where: { clanId },
     include: {
@@ -71,10 +74,14 @@ export default async function ManageClanPage({
       </div>
 
       <ClanManagementPanel
-        clan={clan}
+        clan={{
+          ...clan,
+          settings: (clan.settings as Record<string, unknown>) || null,
+        }}
         members={serializedMembers}
         currentUserRole={membership.role}
         currentUserId={session.user.id}
+        pendingRequestCount={pendingCount}
       />
     </div>
   );

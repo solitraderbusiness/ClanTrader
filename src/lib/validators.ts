@@ -315,9 +315,46 @@ export type AuditLogQueryInput = z.infer<typeof auditLogQuerySchema>;
 export const clanSettingsSchema = z.object({
   publicTags: z.array(z.string().max(30)).max(10).optional(),
   autoPostEnabled: z.boolean().optional(),
+  joinRequestsEnabled: z.boolean().optional(),
 });
 
 export type ClanSettingsInput = z.infer<typeof clanSettingsSchema>;
+
+// --- Join Request schemas ---
+
+export const createJoinRequestSchema = z.object({
+  message: z.string().max(500, "Message must be at most 500 characters").optional(),
+});
+
+export type CreateJoinRequestInput = z.infer<typeof createJoinRequestSchema>;
+
+export const reviewJoinRequestSchema = z.object({
+  action: z.enum(["APPROVED", "REJECTED"]),
+  rejectReason: z.string().max(500).optional(),
+});
+
+export type ReviewJoinRequestInput = z.infer<typeof reviewJoinRequestSchema>;
+
+// --- Direct Message schemas ---
+
+export const sendDirectMessageSchema = z.object({
+  content: z
+    .string()
+    .min(1, "Message cannot be empty")
+    .max(2000, "Message must be at most 2000 characters"),
+  replyToId: z.string().optional(),
+});
+
+export type SendDirectMessageInput = z.infer<typeof sendDirectMessageSchema>;
+
+export const editDirectMessageSchema = z.object({
+  content: z
+    .string()
+    .min(1, "Message cannot be empty")
+    .max(2000, "Message must be at most 2000 characters"),
+});
+
+export type EditDirectMessageInput = z.infer<typeof editDirectMessageSchema>;
 
 // --- Trade Action schemas ---
 

@@ -17,6 +17,7 @@ import {
   MESSAGE_RATE_LIMIT,
   MESSAGE_RATE_WINDOW,
   PRESENCE_TTL,
+  DM_CONTENT_MAX,
 } from "./chat-constants";
 import {
   createMessage,
@@ -683,6 +684,180 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
     socket.to(clanRoom(clanId)).emit(SOCKET_EVENTS.USER_STOP_TYPING, {
       userId: user.id,
     });
+  });
+
+  // --- DM: JOIN DM ROOMS ---
+  socket.on(SOCKET_EVENTS.JOIN_DM, async (recipientId: string) => {
+    try {
+      if (!recipientId) return;
+      const sorted = [user.id, recipientId].sort();
+      const roomName = `dm:${sorted[0]}:${sorted[1]}`;
+      socket.join(roomName);
+    } catch (error) {
+      console.error("join_dm error:", error);
+    }
+  });
+
+  // --- DM: SEND MESSAGE ---
+  socket.on(
+    SOCKET_EVENTS.SEND_DM,
+    async (data: { recipientId: string; content: string; replyToId?: string }) => {
+      try {
+        const { recipientId, content, replyToId } = data;
+        if (!recipientId || !content || content.length > DM_CONTENT_MAX) {
+          socket.emit(SOCKET_EVENTS.ERROR, {
+            event: SOCKET_EVENTS.SEND_DM,
+            message: "Invalid message",
+          });
+          return;
+        }
+
+        const isLimited = await checkRateLimit(user.id);
+        if (isLimited) {
+          socket.emit(SOCKET_EVENTS.ERROR, {
+            event: SOCKET_EVENTS.SEND_DM,
+            message: "You are sending messages too fast. Please slow down.",
+          });
+          return;
+        }
+
+        const {
+          getOrCreateConversation,
+          sendDirectMessage,
+        } = await import("@/services/dm.service");
+
+        const conversation = await getOrCreateConversation(user.id, recipientId);
+        const message = await sendDirectMessage(
+          conversation.id,
+          user.id,
+          content,
+          replyToId
+        );
+
+        const sorted = [user.id, recipientId].sort();
+        const roomName = `dm:${sorted[0]}:${sorted[1]}`;
+
+        io.to(roomName).emit(SOCKET_EVENTS.RECEIVE_DM, {
+          id: message.id,
+          conversationId: conversation.id,
+          content: message.content,
+          senderId: message.senderId,
+          isEdited: message.isEdited,
+          isRead: message.isRead,
+          replyTo: message.replyTo,
+          createdAt: message.createdAt.toISOString(),
+          sender: message.sender,
+        });
+      } catch (error) {
+        console.error("send_dm error:", error);
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          event: SOCKET_EVENTS.SEND_DM,
+          message: "Failed to send message",
+        });
+      }
+    }
+  );
+
+  // --- DM: EDIT MESSAGE ---
+  socket.on(
+    SOCKET_EVENTS.EDIT_DM,
+    async (data: { messageId: string; recipientId: string; content: string }) => {
+      try {
+        const { messageId, recipientId, content } = data;
+        if (!messageId || !content || content.length > DM_CONTENT_MAX) {
+          socket.emit(SOCKET_EVENTS.ERROR, {
+            event: SOCKET_EVENTS.EDIT_DM,
+            message: "Invalid request",
+          });
+          return;
+        }
+
+        const { editDirectMessage } = await import("@/services/dm.service");
+        const message = await editDirectMessage(messageId, user.id, content);
+
+        const sorted = [user.id, recipientId].sort();
+        const roomName = `dm:${sorted[0]}:${sorted[1]}`;
+
+        io.to(roomName).emit(SOCKET_EVENTS.DM_EDITED, {
+          id: message.id,
+          content: message.content,
+          isEdited: true,
+        });
+      } catch (error) {
+        console.error("edit_dm error:", error);
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          event: SOCKET_EVENTS.EDIT_DM,
+          message: "Failed to edit message",
+        });
+      }
+    }
+  );
+
+  // --- DM: DELETE MESSAGE ---
+  socket.on(
+    SOCKET_EVENTS.DELETE_DM,
+    async (data: { messageId: string; recipientId: string }) => {
+      try {
+        const { messageId, recipientId } = data;
+        if (!messageId) return;
+
+        const { deleteDirectMessage } = await import("@/services/dm.service");
+        await deleteDirectMessage(messageId, user.id);
+
+        const sorted = [user.id, recipientId].sort();
+        const roomName = `dm:${sorted[0]}:${sorted[1]}`;
+
+        io.to(roomName).emit(SOCKET_EVENTS.DM_DELETED, {
+          id: messageId,
+        });
+      } catch (error) {
+        console.error("delete_dm error:", error);
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          event: SOCKET_EVENTS.DELETE_DM,
+          message: "Failed to delete message",
+        });
+      }
+    }
+  );
+
+  // --- DM: TYPING ---
+  socket.on(SOCKET_EVENTS.DM_TYPING, (recipientId: string) => {
+    const sorted = [user.id, recipientId].sort();
+    const roomName = `dm:${sorted[0]}:${sorted[1]}`;
+    socket.to(roomName).emit(SOCKET_EVENTS.DM_USER_TYPING, {
+      userId: user.id,
+      name: user.name,
+    });
+  });
+
+  // --- DM: STOP TYPING ---
+  socket.on(SOCKET_EVENTS.DM_STOP_TYPING, (recipientId: string) => {
+    const sorted = [user.id, recipientId].sort();
+    const roomName = `dm:${sorted[0]}:${sorted[1]}`;
+    socket.to(roomName).emit(SOCKET_EVENTS.DM_USER_STOP_TYPING, {
+      userId: user.id,
+    });
+  });
+
+  // --- DM: MARK READ ---
+  socket.on(SOCKET_EVENTS.DM_READ, async (recipientId: string) => {
+    try {
+      const {
+        getOrCreateConversation,
+        markConversationRead,
+      } = await import("@/services/dm.service");
+      const conversation = await getOrCreateConversation(user.id, recipientId);
+      await markConversationRead(conversation.id, user.id);
+
+      const sorted = [user.id, recipientId].sort();
+      const roomName = `dm:${sorted[0]}:${sorted[1]}`;
+      io.to(roomName).emit(SOCKET_EVENTS.DM_MARKED_READ, {
+        userId: user.id,
+        conversationId: conversation.id,
+      });
+    } catch (error) {
+      console.error("dm_read error:", error);
+    }
   });
 
   // --- DISCONNECT ---

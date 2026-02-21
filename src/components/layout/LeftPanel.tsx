@@ -12,6 +12,7 @@ import {
   Search,
   MessageSquare,
   Megaphone,
+  Mail,
   Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useNavStore, type ChatItem, type ChannelItem } from "@/stores/nav-store";
+import { useNavStore, type ChatItem, type ChannelItem, type DmConvItem } from "@/stores/nav-store";
 import { useSidebarStore } from "@/stores/sidebar-store";
 
 function timeAgo(dateStr: string): string {
@@ -57,6 +58,8 @@ export function LeftPanel() {
     setChats,
     channels,
     setChannels,
+    dmConversations,
+    setDmConversations,
     loading,
     setLoading,
   } = useNavStore();
@@ -67,9 +70,10 @@ export function LeftPanel() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [chatsRes, channelsRes] = await Promise.all([
+      const [chatsRes, channelsRes, dmsRes] = await Promise.all([
         fetch("/api/me/chats"),
         fetch("/api/me/channels"),
+        fetch("/api/me/dms"),
       ]);
       if (chatsRes.ok) {
         const data = await chatsRes.json();
@@ -79,12 +83,16 @@ export function LeftPanel() {
         const data = await channelsRes.json();
         setChannels(data.channels || []);
       }
+      if (dmsRes.ok) {
+        const data = await dmsRes.json();
+        setDmConversations(data.conversations || []);
+      }
     } catch {
       // Silent fail
     } finally {
       setLoading(false);
     }
-  }, [setChats, setChannels, setLoading]);
+  }, [setChats, setChannels, setDmConversations, setLoading]);
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -114,6 +122,12 @@ export function LeftPanel() {
       )
     : channels;
 
+  const filteredDms = search
+    ? dmConversations.filter((d) =>
+        d.otherUser.name?.toLowerCase().includes(search.toLowerCase())
+      )
+    : dmConversations;
+
   function navigateTo(href: string) {
     closeSidebar();
     router.push(href);
@@ -121,6 +135,7 @@ export function LeftPanel() {
 
   const totalUnreadChats = chats.reduce((s, c) => s + c.unreadCount, 0);
   const totalUnreadChannels = channels.reduce((s, c) => s + c.unreadCount, 0);
+  const totalUnreadDms = dmConversations.reduce((s, d) => s + d.unreadCount, 0);
 
   return (
     <div className="flex h-full flex-col">
@@ -231,6 +246,31 @@ export function LeftPanel() {
             <span className="absolute bottom-0 inset-x-0 h-0.5 bg-primary" />
           )}
         </button>
+        <button
+          onClick={() => setActiveTab("dms")}
+          className={cn(
+            "relative flex-1 py-2.5 text-center text-sm font-medium transition-colors",
+            activeTab === "dms"
+              ? "text-primary"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <span className="flex items-center justify-center gap-1.5">
+            <Mail className="h-4 w-4" />
+            DMs
+            {totalUnreadDms > 0 && (
+              <Badge
+                variant="destructive"
+                className="h-5 min-w-5 px-1 text-[10px] leading-none"
+              >
+                {totalUnreadDms > 99 ? "99+" : totalUnreadDms}
+              </Badge>
+            )}
+          </span>
+          {activeTab === "dms" && (
+            <span className="absolute bottom-0 inset-x-0 h-0.5 bg-primary" />
+          )}
+        </button>
       </div>
 
       {/* List */}
@@ -261,23 +301,45 @@ export function LeftPanel() {
               ))}
             </div>
           )
-        ) : filteredChannels.length === 0 ? (
+        ) : activeTab === "channels" ? (
+          filteredChannels.length === 0 ? (
+            <EmptyState
+              icon={Megaphone}
+              title="No channels yet"
+              description="Follow clans to see their channel posts here."
+              ctaLabel="Explore"
+              ctaHref="/explore"
+              onNavigate={navigateTo}
+            />
+          ) : (
+            <div className="py-1">
+              {filteredChannels.map((ch) => (
+                <ChannelListItem
+                  key={ch.clanId}
+                  channel={ch}
+                  active={pathname === `/clans/${ch.clanId}`}
+                  onClick={() => navigateTo(`/clans/${ch.clanId}?tab=channel`)}
+                />
+              ))}
+            </div>
+          )
+        ) : filteredDms.length === 0 ? (
           <EmptyState
-            icon={Megaphone}
-            title="No channels yet"
-            description="Follow clans to see their channel posts here."
+            icon={Mail}
+            title="No messages yet"
+            description="Send a direct message to another trader."
             ctaLabel="Explore"
             ctaHref="/explore"
             onNavigate={navigateTo}
           />
         ) : (
           <div className="py-1">
-            {filteredChannels.map((ch) => (
-              <ChannelListItem
-                key={ch.clanId}
-                channel={ch}
-                active={pathname === `/clans/${ch.clanId}`}
-                onClick={() => navigateTo(`/clans/${ch.clanId}?tab=channel`)}
+            {filteredDms.map((dm) => (
+              <DmListItem
+                key={dm.id}
+                dm={dm}
+                active={pathname === `/dm/${dm.otherUser.id}`}
+                onClick={() => navigateTo(`/dm/${dm.otherUser.id}`)}
               />
             ))}
           </div>
@@ -444,6 +506,72 @@ function ChannelListItem({
               className="ms-2 h-5 min-w-5 flex-shrink-0 px-1 text-[10px] leading-none"
             >
               {channel.unreadCount}
+            </Badge>
+          )}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function DmListItem({
+  dm,
+  active,
+  onClick,
+}: {
+  dm: DmConvItem;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const hasUnread = dm.unreadCount > 0;
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-3 px-3 py-2.5 text-start transition-colors",
+        active ? "bg-accent" : "hover:bg-accent/50"
+      )}
+    >
+      <Avatar className="h-10 w-10 flex-shrink-0">
+        <AvatarImage
+          src={dm.otherUser.avatar || undefined}
+          alt={dm.otherUser.name || ""}
+        />
+        <AvatarFallback className="text-xs">
+          {(dm.otherUser.name || "?").slice(0, 2).toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between">
+          <span
+            className={cn(
+              "truncate text-sm",
+              hasUnread ? "font-semibold" : "font-medium"
+            )}
+          >
+            {dm.otherUser.name || "Unknown"}
+          </span>
+          {dm.lastMessage && (
+            <span className="flex-shrink-0 text-[11px] text-muted-foreground">
+              {timeAgo(dm.lastMessage.createdAt)}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center justify-between">
+          <p
+            className={cn(
+              "truncate text-xs",
+              hasUnread ? "text-foreground" : "text-muted-foreground"
+            )}
+          >
+            {dm.lastMessage?.content || "No messages yet"}
+          </p>
+          {hasUnread && (
+            <Badge
+              variant="destructive"
+              className="ms-2 h-5 min-w-5 flex-shrink-0 px-1 text-[10px] leading-none"
+            >
+              {dm.unreadCount}
             </Badge>
           )}
         </div>

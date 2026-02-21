@@ -12,6 +12,9 @@ interface JoinClanButtonProps {
   isFull: boolean;
   isPublic: boolean;
   currentUserId: string;
+  joinRequestsEnabled: boolean;
+  existingRequestStatus: string | null;
+  isInAnotherClan: boolean;
 }
 
 export function JoinClanButton({
@@ -19,25 +22,30 @@ export function JoinClanButton({
   isMember,
   isLeader,
   isFull,
-  isPublic,
+  isPublic: _isPublic,
   currentUserId,
+  joinRequestsEnabled,
+  existingRequestStatus,
+  isInAnotherClan,
 }: JoinClanButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  async function handleJoin() {
+  async function handleRequestJoin() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/clans/${clanId}/members`, {
+      const res = await fetch(`/api/clans/${clanId}/join-requests`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
       });
 
       if (res.ok) {
-        toast.success("Joined clan!");
+        toast.success("Join request sent!");
         router.refresh();
       } else {
         const data = await res.json();
-        toast.error(data.error || "Failed to join clan");
+        toast.error(data.error || "Failed to send request");
       }
     } catch {
       toast.error("Something went wrong");
@@ -85,6 +93,14 @@ export function JoinClanButton({
     );
   }
 
+  if (isInAnotherClan) {
+    return (
+      <Button variant="outline" disabled>
+        Leave your clan first
+      </Button>
+    );
+  }
+
   if (isFull) {
     return (
       <Button variant="outline" disabled>
@@ -93,17 +109,26 @@ export function JoinClanButton({
     );
   }
 
-  if (!isPublic) {
+  if (existingRequestStatus === "PENDING") {
     return (
       <Button variant="outline" disabled>
-        Invite Only
+        Request Pending
       </Button>
     );
   }
 
+  if (joinRequestsEnabled) {
+    return (
+      <Button onClick={handleRequestJoin} disabled={loading}>
+        {loading ? "Sending..." : "Request to Join"}
+      </Button>
+    );
+  }
+
+  // Not public and no join requests — invite only
   return (
-    <Button onClick={handleJoin} disabled={loading}>
-      {loading ? "Joining..." : "Join Clan"}
+    <Button variant="outline" disabled>
+      Invite Only
     </Button>
   );
 }

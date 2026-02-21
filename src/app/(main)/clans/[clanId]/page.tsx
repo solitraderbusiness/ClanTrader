@@ -4,6 +4,7 @@ import { getClan, getMemberLimit } from "@/services/clan.service";
 import { isFollowing } from "@/services/follow.service";
 import { getChannelPosts } from "@/services/channel.service";
 import { getTopics } from "@/services/topic.service";
+import { getUserJoinRequestStatus } from "@/services/join-request.service";
 import { db } from "@/lib/db";
 import { ClanProfileHeader } from "@/components/clan/ClanProfileHeader";
 import { ClanProfileTabs } from "@/components/clan/ClanProfileTabs";
@@ -16,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { TraderBadge } from "@/components/shared/TraderBadge";
-import { Settings } from "lucide-react";
+import { Settings, Mail } from "lucide-react";
 import type { ClanTier } from "@prisma/client";
 
 export async function generateMetadata({
@@ -84,6 +85,20 @@ export default async function ClanPage({
     membership?.role === "LEADER" || membership?.role === "CO_LEADER";
   const memberLimit = getMemberLimit(clan.tier as ClanTier);
   const isFull = clan._count.members >= memberLimit;
+
+  // Join request & one-clan data for non-members
+  const [joinRequestStatus, existingClanMembership] = await Promise.all([
+    !isMember
+      ? getUserJoinRequestStatus(clanId, session.user.id)
+      : Promise.resolve(null),
+    !isMember
+      ? db.clanMember.findFirst({ where: { userId: session.user.id } })
+      : Promise.resolve(null),
+  ]);
+
+  const clanSettings = (clan.settings as Record<string, unknown>) || {};
+  const joinRequestsEnabled = !!clanSettings.joinRequestsEnabled;
+  const isInAnotherClan = !!existingClanMembership;
 
   // Serialize for client components
   const serializedPosts = channelData.posts.map((p) => ({
@@ -154,6 +169,15 @@ export default async function ClanPage({
                 </p>
               )}
             </div>
+            {member.user.id !== session.user.id && (
+              <Link
+                href={`/dm/${member.user.id}`}
+                className="flex-shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                title="Message"
+              >
+                <Mail className="h-4 w-4" />
+              </Link>
+            )}
           </div>
         ))}
       </div>
@@ -193,6 +217,9 @@ export default async function ClanPage({
           isFull={isFull}
           isPublic={clan.isPublic}
           currentUserId={session.user.id}
+          joinRequestsEnabled={joinRequestsEnabled}
+          existingRequestStatus={joinRequestStatus}
+          isInAnotherClan={isInAnotherClan}
         />
         {isLeaderOrCoLeader && (
           <Button variant="outline" size="icon" asChild>

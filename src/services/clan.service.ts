@@ -15,15 +15,15 @@ export class ClanServiceError extends Error {
 }
 
 export async function createClan(userId: string, data: CreateClanInput) {
-  // Check if user is already a LEADER of another clan
-  const existingLeadership = await db.clanMember.findFirst({
-    where: { userId, role: "LEADER" },
+  // Check if user is already in any clan
+  const existingMembership = await db.clanMember.findFirst({
+    where: { userId },
   });
 
-  if (existingLeadership) {
+  if (existingMembership) {
     throw new ClanServiceError(
-      "You are already a leader of another clan",
-      "ALREADY_LEADER",
+      "You must leave your current clan before creating a new one",
+      "ALREADY_IN_CLAN",
       409
     );
   }
@@ -145,8 +145,27 @@ export async function deleteClan(clanId: string, userId: string) {
   await db.clan.delete({ where: { id: clanId } });
 }
 
-export async function addMember(clanId: string, userId: string) {
-  const clan = await db.clan.findUnique({
+export async function addMember(
+  clanId: string,
+  userId: string,
+  txClient?: Parameters<Parameters<typeof db.$transaction>[0]>[0]
+) {
+  const client = txClient || db;
+
+  // One-clan-per-user check
+  const existingClan = await client.clanMember.findFirst({
+    where: { userId },
+  });
+
+  if (existingClan) {
+    throw new ClanServiceError(
+      "You must leave your current clan before joining another",
+      "ALREADY_IN_CLAN",
+      409
+    );
+  }
+
+  const clan = await client.clan.findUnique({
     where: { id: clanId },
     include: { _count: { select: { members: true } } },
   });
@@ -156,7 +175,7 @@ export async function addMember(clanId: string, userId: string) {
   }
 
   // Check if already a member
-  const existing = await db.clanMember.findUnique({
+  const existing = await client.clanMember.findUnique({
     where: { userId_clanId: { userId, clanId } },
   });
 
@@ -178,7 +197,7 @@ export async function addMember(clanId: string, userId: string) {
     );
   }
 
-  return db.clanMember.create({
+  return client.clanMember.create({
     data: {
       userId,
       clanId,

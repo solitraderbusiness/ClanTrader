@@ -84,6 +84,19 @@ export async function getInviteByCode(code: string) {
 export async function redeemInvite(code: string, userId: string) {
   const invite = await getInviteByCode(code);
 
+  // One-clan-per-user check (addMember also checks, but fail fast with clear message)
+  const existingMembership = await db.clanMember.findFirst({
+    where: { userId },
+  });
+
+  if (existingMembership) {
+    throw new InviteServiceError(
+      "You must leave your current clan before joining another",
+      "ALREADY_IN_CLAN",
+      409
+    );
+  }
+
   // addMember handles duplicate check and tier limits
   await addMember(invite.clanId, userId);
 
