@@ -24,14 +24,16 @@ export async function authenticateSocket(
     const cookies = parseCookies(cookieHeader);
 
     let token: string | undefined;
+    let cookieName: string | undefined;
     for (const name of COOKIE_NAMES) {
       if (cookies[name]) {
         token = cookies[name];
+        cookieName = name;
         break;
       }
     }
 
-    if (!token) {
+    if (!token || !cookieName) {
       return next(new Error("Authentication required"));
     }
 
@@ -43,7 +45,7 @@ export async function authenticateSocket(
     const decoded = await decode({
       token,
       secret,
-      salt: COOKIE_NAMES[0],
+      salt: cookieName,
     });
 
     if (!decoded || !decoded.id) {
