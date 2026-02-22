@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { profileUpdateSchema, type ProfileUpdateInput } from "@/lib/validators";
@@ -52,6 +53,7 @@ interface ProfileEditFormProps {
 
 export function ProfileEditForm({ user }: ProfileEditFormProps) {
   const router = useRouter();
+  const { update: updateSession } = useSession();
   const [loading, setLoading] = useState(false);
   const [selectedPairs, setSelectedPairs] = useState<string[]>(
     user.preferredPairs
@@ -136,6 +138,8 @@ export function ProfileEditForm({ user }: ProfileEditFormProps) {
 
     if (res.ok) {
       toast.success("Profile updated");
+      // Refresh JWT so session reflects username/name changes
+      await updateSession();
       router.refresh();
     } else {
       const result = await res.json();

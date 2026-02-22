@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -27,6 +28,7 @@ type SetUsernameForm = z.infer<typeof setUsernameFormSchema>;
 
 export function SetUsernameDialog() {
   const { isOpen, close } = useUsernamePromptStore();
+  const { update } = useSession();
   const [loading, setLoading] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<
     "idle" | "checking" | "available" | "taken" | "invalid"
@@ -84,9 +86,9 @@ export function SetUsernameDialog() {
 
     if (res.ok) {
       toast.success("Username set!");
+      // Refresh the JWT so session.user.username is updated
+      await update();
       close();
-      // Hard refresh to update JWT with new username
-      window.location.reload();
     } else {
       const result = await res.json();
       toast.error(result.error || "Failed to set username");

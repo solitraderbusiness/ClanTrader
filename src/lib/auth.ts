@@ -38,13 +38,29 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   session: { strategy: "jwt" },
   callbacks: {
-    jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.id = user.id as string;
         token.role = (user as { role: string }).role;
         token.isPro = (user as { isPro: boolean }).isPro;
         token.username = (user as { username?: string | null }).username ?? null;
       }
+
+      // Refresh token from DB when client calls update()
+      if (trigger === "update" && token.id) {
+        const freshUser = await db.user.findUnique({
+          where: { id: token.id as string },
+          select: { username: true, name: true, role: true, isPro: true, avatar: true },
+        });
+        if (freshUser) {
+          token.username = freshUser.username;
+          token.name = freshUser.name;
+          token.role = freshUser.role;
+          token.isPro = freshUser.isPro;
+          token.picture = freshUser.avatar;
+        }
+      }
+
       return token;
     },
     session({ session, token }) {
