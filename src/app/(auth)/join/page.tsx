@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import { createHash } from "crypto";
 import { db } from "@/lib/db";
+import { trackEvent } from "@/services/referral.service";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,12 +22,21 @@ interface JoinPageProps {
 export default async function JoinPage({ searchParams }: JoinPageProps) {
   const { ref } = await searchParams;
 
-  let referrer: { name: string | null; username: string | null; avatar: string | null } | null = null;
+  let referrer: { id: string; name: string | null; username: string | null; avatar: string | null } | null = null;
   if (ref) {
     referrer = await db.user.findUnique({
       where: { username: ref },
-      select: { name: true, username: true, avatar: true },
+      select: { id: true, name: true, username: true, avatar: true },
     });
+
+    // Track click event
+    if (referrer) {
+      const headersList = await headers();
+      const ip = headersList.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+      const ipHash = createHash("sha256").update(ip).digest("hex").slice(0, 16);
+      const userAgent = headersList.get("user-agent") || undefined;
+      trackEvent("LINK_CLICKED", referrer.id, undefined, { ipHash, userAgent });
+    }
   }
 
   const initials = referrer?.name

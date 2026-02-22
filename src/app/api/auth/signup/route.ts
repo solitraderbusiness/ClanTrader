@@ -4,6 +4,7 @@ import { hashPassword, generateToken } from "@/lib/auth-utils";
 import { sendVerificationEmail } from "@/lib/email";
 import { signupSchema } from "@/lib/validators";
 import { RESERVED_USERNAMES } from "@/lib/reserved-usernames";
+import { trackEvent } from "@/services/referral.service";
 
 export async function POST(request: Request) {
   try {
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
     const verifyToken = generateToken();
     const hasSmtp = !!process.env.SMTP_HOST?.trim();
 
-    await db.user.create({
+    const newUser = await db.user.create({
       data: {
         email,
         username,
@@ -73,6 +74,11 @@ export async function POST(request: Request) {
         ...(!hasSmtp && { emailVerified: new Date() }),
       },
     });
+
+    // Track referral signup event
+    if (referredBy) {
+      trackEvent("SIGNUP", referredBy, newUser.id);
+    }
 
     if (hasSmtp) {
       await sendVerificationEmail(email, verifyToken);

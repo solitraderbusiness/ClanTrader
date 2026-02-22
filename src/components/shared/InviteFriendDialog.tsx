@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import {
   Dialog,
@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Copy, Check, Share2 } from "lucide-react";
+import { Copy, Check, Share2, MousePointerClick, UserPlus, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { useUsernamePromptStore } from "@/stores/username-prompt-store";
 
@@ -20,10 +20,26 @@ interface InviteFriendDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+interface ReferralStats {
+  shares: number;
+  clicks: number;
+  signups: number;
+}
+
 export function InviteFriendDialog({ open, onOpenChange }: InviteFriendDialogProps) {
   const { data: session } = useSession();
   const [copied, setCopied] = useState(false);
+  const [stats, setStats] = useState<ReferralStats | null>(null);
   const openUsernamePrompt = useUsernamePromptStore((s) => s.open);
+
+  useEffect(() => {
+    if (open && session?.user?.username) {
+      fetch("/api/users/me/referrals")
+        .then((res) => res.json())
+        .then((data) => setStats(data.stats))
+        .catch(() => {});
+    }
+  }, [open, session?.user?.username]);
 
   const username = session?.user?.username;
   const origin = typeof window !== "undefined" ? window.location.origin : "https://clantrader.com";
@@ -36,6 +52,14 @@ export function InviteFriendDialog({ open, onOpenChange }: InviteFriendDialogPro
     return null;
   }
 
+  function trackReferralEvent(type: string) {
+    fetch("/api/referrals/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type }),
+    }).catch(() => {});
+  }
+
   async function handleCopy() {
     if (!inviteLink) return;
 
@@ -43,6 +67,7 @@ export function InviteFriendDialog({ open, onOpenChange }: InviteFriendDialogPro
       await navigator.clipboard.writeText(inviteLink);
       setCopied(true);
       toast.success("Link copied!");
+      trackReferralEvent("LINK_COPIED");
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Failed to copy link");
@@ -59,6 +84,7 @@ export function InviteFriendDialog({ open, onOpenChange }: InviteFriendDialogPro
           text: "Join me on ClanTrader — the competitive social trading platform!",
           url: inviteLink,
         });
+        trackReferralEvent("LINK_SHARED");
       } catch {
         // User cancelled share
       }
@@ -116,6 +142,31 @@ export function InviteFriendDialog({ open, onOpenChange }: InviteFriendDialogPro
               </Button>
             )}
           </div>
+
+          {stats && (stats.shares > 0 || stats.clicks > 0 || stats.signups > 0) && (
+            <div className="rounded-lg border bg-muted/30 p-3">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">
+                Your Stats
+              </p>
+              <div className="flex gap-4 text-sm">
+                <div className="flex items-center gap-1.5">
+                  <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="font-medium">{stats.shares}</span>
+                  <span className="text-muted-foreground">shares</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <MousePointerClick className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="font-medium">{stats.clicks}</span>
+                  <span className="text-muted-foreground">clicks</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="font-medium">{stats.signups}</span>
+                  <span className="text-muted-foreground">signups</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

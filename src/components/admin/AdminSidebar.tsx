@@ -11,6 +11,7 @@ import {
   Trophy,
   Award,
   MessageSquare,
+  Link2,
   Database,
   FlaskConical,
   UserCheck,
@@ -59,6 +60,12 @@ const NAV_ITEMS = [
     label: "Clans",
     desc: "Manage & feature clans",
     icon: MessageSquare,
+  },
+  {
+    href: "/admin/referrals",
+    label: "Referrals",
+    desc: "Invite analytics",
+    icon: Link2,
   },
   {
     href: "/admin/audit-logs",

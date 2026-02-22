@@ -47,6 +47,8 @@ model User {
   sentDirectMessages  DirectMessage[]    @relation("DirectMessageSender")
   badges              UserBadge[]
   badgeAdminChanges   BadgeAdminChange[] @relation("BadgeAdminChanges")
+  referralEvents      ReferralEvent[]    @relation("ReferralEvents")
+  referredEvents      ReferralEvent[]    @relation("ReferredEvents")
 
   @@index([email])
 }
@@ -580,6 +582,24 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([action, createdAt])
   @@index([actorId])
+}
+
+// --- Referral Analytics ---
+
+model ReferralEvent {
+  id         String   @id @default(cuid())
+  type       String   // LINK_COPIED, LINK_SHARED, LINK_CLICKED, SIGNUP, SUBSCRIPTION
+  referrerId String
+  referrer   User     @relation("ReferralEvents", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredId String?
+  referred   User?    @relation("ReferredEvents", fields: [referredId], references: [id], onDelete: SetNull)
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([referrerId])
+  @@index([referredId])
+  @@index([type])
+  @@index([createdAt])
 }
 
 // --- Test Runner ---

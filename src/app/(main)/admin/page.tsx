@@ -9,7 +9,7 @@ import {
   Users,
   MessageSquare,
   TrendingUp,
-  BarChart3,
+  Link2,
 } from "lucide-react";
 
 export default async function AdminDashboardPage() {
@@ -22,6 +22,7 @@ export default async function AdminDashboardPage() {
     userCount,
     clanCount,
     tradeCount,
+    referralSignups,
   ] = await Promise.all([
     db.featureFlag.count(),
     db.featureFlag.count({ where: { enabled: true } }),
@@ -31,6 +32,7 @@ export default async function AdminDashboardPage() {
     db.user.count(),
     db.clan.count(),
     db.trade.count(),
+    db.referralEvent.count({ where: { type: "SIGNUP" } }),
   ]);
 
   const recentLogs = await db.auditLog.findMany({
@@ -82,10 +84,10 @@ export default async function AdminDashboardPage() {
       desc: "Activity entries",
     },
     {
-      label: "Analytics",
-      value: "—",
-      icon: BarChart3,
-      desc: "Coming soon",
+      label: "Referrals",
+      value: referralSignups,
+      icon: Link2,
+      desc: "Signups from invites",
     },
   ];
 
