@@ -1,10 +1,115 @@
 import { test, expect } from "@playwright/test";
 import { ADMIN, TRADER1 } from "../helpers/seed-accounts";
-import { createAgent } from "../helpers/test-utils";
+import { createAgent, createStandaloneAgent } from "../helpers/test-utils";
+import type { TestAgent } from "../helpers/test-agent";
 
 const BASE = process.env.TEST_BASE_URL || "http://localhost:3000";
 
+// ---------------------------------------------------------------------------
+// Badge seed data — same as prisma/seed.ts
+// ---------------------------------------------------------------------------
+const RANK_BADGES = [
+  { key: "rank-bronze", name: "Bronze", displayOrder: 0, min_closed_trades: 10 },
+  { key: "rank-silver", name: "Silver", displayOrder: 1, min_closed_trades: 25 },
+  { key: "rank-gold", name: "Gold", displayOrder: 2, min_closed_trades: 50 },
+  { key: "rank-platinum", name: "Platinum", displayOrder: 3, min_closed_trades: 100 },
+  { key: "rank-a", name: "A", displayOrder: 4, min_closed_trades: 250 },
+  { key: "rank-s", name: "S", displayOrder: 5, min_closed_trades: 500 },
+  { key: "rank-ss", name: "SS", displayOrder: 6, min_closed_trades: 1000 },
+  { key: "rank-sss", name: "SSS", displayOrder: 7, min_closed_trades: 2500 },
+  { key: "rank-divine", name: "Divine", displayOrder: 8, min_closed_trades: 5000 },
+];
+
+const PERF_BADGES = [
+  {
+    key: "perf-sharpshooter", name: "Sharpshooter",
+    description: "Win rate >= 60% over 100 trades",
+    requirementsJson: { type: "performance", metric: "win_rate", window: 100, op: ">=", value: 0.6 },
+  },
+  {
+    key: "perf-r-machine", name: "R-Machine",
+    description: "Net R >= 10 over 50 trades",
+    requirementsJson: { type: "performance", metric: "net_r", window: 50, op: ">=", value: 10 },
+  },
+  {
+    key: "perf-steady-hands", name: "Steady Hands",
+    description: "Max drawdown R <= 8 over 100 trades",
+    requirementsJson: { type: "performance", metric: "max_drawdown_r", window: 100, op: "<=", value: 8 },
+  },
+  {
+    key: "perf-consistent", name: "Consistent",
+    description: "Avg R >= 0.2 over 100 trades",
+    requirementsJson: { type: "performance", metric: "avg_r", window: 100, op: ">=", value: 0.2 },
+  },
+];
+
+const TROPHY_BADGES = [
+  {
+    key: "trophy-champion", name: "Season Champion",
+    description: "1st place in season composite ranking",
+    requirementsJson: { type: "trophy", season_id: "*", lens: "composite", rank_min: 1, rank_max: 1 },
+  },
+  {
+    key: "trophy-top3", name: "Podium Finish",
+    description: "Top 3 in season composite ranking",
+    requirementsJson: { type: "trophy", season_id: "*", lens: "composite", rank_min: 1, rank_max: 3 },
+  },
+];
+
+const TOTAL_SEED_BADGES = RANK_BADGES.length + PERF_BADGES.length + TROPHY_BADGES.length; // 15
+
 test.describe("15 — Badges & Ranking System", () => {
+  let seedAdmin: TestAgent;
+
+  // Ensure badge definitions exist before any tests run
+  test.beforeAll(async () => {
+    seedAdmin = await createStandaloneAgent(ADMIN, BASE);
+
+    const listRes = await seedAdmin.get("/api/admin/badges?includeDeleted=true");
+    const { badges } = await listRes.json();
+
+    if (!badges || badges.length < TOTAL_SEED_BADGES) {
+      // Seed rank badges
+      for (const b of RANK_BADGES) {
+        await seedAdmin.post("/api/admin/badges", {
+          key: b.key,
+          category: "RANK",
+          name: b.name,
+          description: `Awarded for closing ${b.min_closed_trades} valid trades`,
+          requirementsJson: { type: "rank", min_closed_trades: b.min_closed_trades },
+          displayOrder: b.displayOrder,
+          enabled: true,
+        });
+      }
+      // Seed performance badges
+      for (const b of PERF_BADGES) {
+        await seedAdmin.post("/api/admin/badges", {
+          key: b.key,
+          category: "PERFORMANCE",
+          name: b.name,
+          description: b.description,
+          requirementsJson: b.requirementsJson,
+          enabled: true,
+        });
+      }
+      // Seed trophy badges
+      for (const b of TROPHY_BADGES) {
+        await seedAdmin.post("/api/admin/badges", {
+          key: b.key,
+          category: "TROPHY",
+          name: b.name,
+          description: b.description,
+          requirementsJson: b.requirementsJson,
+          enabled: true,
+        });
+      }
+    }
+  });
+
+  test.afterAll(async () => {
+    await seedAdmin?.dispose();
+  });
+
   test.describe("Admin Badge CRUD", () => {
     test("admin can list badge definitions", async ({ request }) => {
       const agent = await createAgent(request, ADMIN, BASE);
@@ -14,7 +119,7 @@ test.describe("15 — Badges & Ranking System", () => {
       expect(body.badges).toBeDefined();
       expect(Array.isArray(body.badges)).toBe(true);
       // Seed should have created at least 9 rank + 4 perf + 2 trophy = 15 badges
-      expect(body.badges.length).toBeGreaterThanOrEqual(15);
+      expect(body.badges.length).toBeGreaterThanOrEqual(TOTAL_SEED_BADGES);
     });
 
     test("admin can filter badges by category", async ({ request }) => {
@@ -22,7 +127,7 @@ test.describe("15 — Badges & Ranking System", () => {
       const res = await agent.get("/api/admin/badges?category=RANK");
       expect(res.status()).toBe(200);
       const body = await res.json();
-      expect(body.badges.length).toBe(9);
+      expect(body.badges.length).toBe(RANK_BADGES.length);
       for (const badge of body.badges) {
         expect(badge.category).toBe("RANK");
       }
@@ -47,19 +152,23 @@ test.describe("15 — Badges & Ranking System", () => {
     test("admin can update a badge", async ({ request }) => {
       const agent = await createAgent(request, ADMIN, BASE);
 
-      // Get badges and update the first one
-      const listRes = await agent.get("/api/admin/badges?category=OTHER");
-      const listBody = await listRes.json();
-      const badge = listBody.badges[0];
+      // Create a badge to update
+      const createRes = await agent.post("/api/admin/badges", {
+        key: `update-test-${Date.now()}`,
+        category: "OTHER",
+        name: "Before Update",
+        requirementsJson: { type: "manual" },
+        enabled: true,
+      });
+      expect(createRes.status()).toBe(201);
+      const { badge } = await createRes.json();
 
-      if (badge) {
-        const res = await agent.put(`/api/admin/badges/${badge.id}`, {
-          name: "Updated Test Badge",
-        });
-        expect(res.status()).toBe(200);
-        const body = await res.json();
-        expect(body.badge.name).toBe("Updated Test Badge");
-      }
+      const res = await agent.put(`/api/admin/badges/${badge.id}`, {
+        name: "Updated Test Badge",
+      });
+      expect(res.status()).toBe(200);
+      const body = await res.json();
+      expect(body.badge.name).toBe("Updated Test Badge");
     });
 
     test("admin can soft-delete a badge", async ({ request }) => {
@@ -148,18 +257,24 @@ test.describe("15 — Badges & Ranking System", () => {
   });
 
   test.describe("Recompute & Dry-run", () => {
-    test("admin can recompute badges for a user", async ({ request }) => {
-      const traderAgent = await createAgent(request, TRADER1, BASE);
-      const agent = await createAgent(request, ADMIN, BASE);
+    test("admin can recompute badges for a user", async () => {
+      // Use standalone agents to avoid shared request context cookie collision
+      const traderAgent = await createStandaloneAgent(TRADER1, BASE);
+      const agent = await createStandaloneAgent(ADMIN, BASE);
 
-      const res = await agent.post("/api/admin/badges/recompute", {
-        scope: "user",
-        targetId: traderAgent.userId,
-      });
-      expect(res.status()).toBe(200);
-      const body = await res.json();
-      expect(body.result).toBeDefined();
-      expect(body.result.userId).toBe(traderAgent.userId);
+      try {
+        const res = await agent.post("/api/admin/badges/recompute", {
+          scope: "user",
+          targetId: traderAgent.userId,
+        });
+        expect(res.status()).toBe(200);
+        const body = await res.json();
+        expect(body.result).toBeDefined();
+        expect(body.result.userId).toBe(traderAgent.userId);
+      } finally {
+        await traderAgent.dispose();
+        await agent.dispose();
+      }
     });
 
     test("admin can start a global recompute", async ({ request }) => {

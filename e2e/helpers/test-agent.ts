@@ -147,6 +147,13 @@ export class TestAgent {
     });
   }
 
+  async put(path: string, data?: unknown): Promise<APIResponse> {
+    return this._request.put(`${this.baseURL}${path}`, {
+      headers: { cookie: this._cookies, "content-type": "application/json" },
+      data: data ?? {},
+    });
+  }
+
   async patch(path: string, data?: unknown): Promise<APIResponse> {
     return this._request.patch(`${this.baseURL}${path}`, {
       headers: { cookie: this._cookies, "content-type": "application/json" },
@@ -154,10 +161,14 @@ export class TestAgent {
     });
   }
 
-  async del(path: string): Promise<APIResponse> {
+  async delete(path: string): Promise<APIResponse> {
     return this._request.delete(`${this.baseURL}${path}`, {
       headers: { cookie: this._cookies },
     });
+  }
+
+  async del(path: string): Promise<APIResponse> {
+    return this.delete(path);
   }
 
   // =========================================================================
