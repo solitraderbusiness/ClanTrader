@@ -27,9 +27,10 @@ interface ProfileCardProps {
       verificationMethod: string;
     }[];
   };
+  isOwnProfile?: boolean;
 }
 
-export function ProfileCard({ user }: ProfileCardProps) {
+export function ProfileCard({ user, isOwnProfile }: ProfileCardProps) {
   const initials = user.name
     ? user.name
         .split(" ")
@@ -39,9 +40,10 @@ export function ProfileCard({ user }: ProfileCardProps) {
         .slice(0, 2)
     : "U";
 
-  const isVerified =
-    user.role === "TRADER" && (user.statements?.length ?? 0) > 0;
+  const isVerified = (user.statements?.length ?? 0) > 0;
   const clan = user.clanMemberships?.[0];
+  const hasTradeDetails =
+    user.tradingStyle || user.sessionPreference || user.preferredPairs.length > 0;
 
   return (
     <div className="space-y-6">
@@ -77,56 +79,70 @@ export function ProfileCard({ user }: ProfileCardProps) {
       {/* Badges */}
       <ProfileBadgeSection userId={user.id} />
 
-      {/* Details */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {user.tradingStyle && (
-          <div className="rounded-lg border p-3">
-            <p className="text-xs text-muted-foreground">Trading Style</p>
-            <p className="font-medium">
-              <Link
-                href={`/explore?tab=agents&tradingStyle=${user.tradingStyle}`}
-                className="text-primary hover:underline"
-              >
-                {user.tradingStyle}
-              </Link>
-            </p>
-          </div>
-        )}
-        {user.sessionPreference && (
-          <div className="rounded-lg border p-3">
-            <p className="text-xs text-muted-foreground">Preferred Session</p>
-            <p className="font-medium">
-              <Link
-                href={`/explore?tab=agents&sessionPreference=${user.sessionPreference}`}
-                className="text-primary hover:underline"
-              >
-                {user.sessionPreference}
-              </Link>
-            </p>
-          </div>
-        )}
-        {user.preferredPairs.length > 0 && (
-          <div className="rounded-lg border p-3 sm:col-span-2">
-            <p className="text-xs text-muted-foreground">Preferred Pairs</p>
-            <div className="mt-1 flex flex-wrap gap-1">
-              {user.preferredPairs.map((pair) => (
+      {/* Trading Details */}
+      {hasTradeDetails ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {user.tradingStyle && (
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Trading Style</p>
+              <p className="font-medium">
                 <Link
-                  key={pair}
-                  href={`/explore?tab=agents&preferredPair=${pair}`}
+                  href={`/explore?tab=agents&tradingStyle=${user.tradingStyle}`}
                   className="text-primary hover:underline"
                 >
-                  <Badge variant="outline" className="text-xs">
-                    {pair}
-                  </Badge>
+                  {user.tradingStyle}
                 </Link>
-              ))}
+              </p>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+          {user.sessionPreference && (
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Preferred Session</p>
+              <p className="font-medium">
+                <Link
+                  href={`/explore?tab=agents&sessionPreference=${user.sessionPreference}`}
+                  className="text-primary hover:underline"
+                >
+                  {user.sessionPreference}
+                </Link>
+              </p>
+            </div>
+          )}
+          {user.preferredPairs.length > 0 && (
+            <div className="rounded-lg border p-3 sm:col-span-2">
+              <p className="text-xs text-muted-foreground">Preferred Pairs</p>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {user.preferredPairs.map((pair) => (
+                  <Link
+                    key={pair}
+                    href={`/explore?tab=agents&preferredPair=${pair}`}
+                    className="text-primary hover:underline"
+                  >
+                    <Badge variant="outline" className="text-xs">
+                      {pair}
+                    </Badge>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : isOwnProfile ? (
+        <div className="rounded-lg border border-dashed p-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            Your trading profile is empty.
+          </p>
+          <Link
+            href="/settings/profile"
+            className="mt-1 inline-block text-sm text-primary hover:underline"
+          >
+            Set up your trading style, session, and pairs
+          </Link>
+        </div>
+      ) : null}
 
       {/* Clan */}
-      {clan && (
+      {clan ? (
         <div className="rounded-lg border p-3">
           <p className="text-xs text-muted-foreground">Clan</p>
           <p className="font-medium">
@@ -141,10 +157,22 @@ export function ProfileCard({ user }: ProfileCardProps) {
             </span>
           </p>
         </div>
-      )}
+      ) : isOwnProfile ? (
+        <div className="rounded-lg border border-dashed p-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            You&apos;re not in a clan yet.
+          </p>
+          <Link
+            href="/discover"
+            className="mt-1 inline-block text-sm text-primary hover:underline"
+          >
+            Discover and join a clan
+          </Link>
+        </div>
+      ) : null}
 
       {/* Verified Trading Stats */}
-      {isVerified && user.statements?.[0]?.extractedMetrics && (
+      {isVerified && user.statements?.[0]?.extractedMetrics ? (
         <div className="rounded-lg border p-4">
           <h3 className="mb-3 font-medium">Verified Trading Stats</h3>
           <MetricsDisplay
@@ -153,7 +181,19 @@ export function ProfileCard({ user }: ProfileCardProps) {
             verificationMethod={user.statements[0].verificationMethod}
           />
         </div>
-      )}
+      ) : isOwnProfile ? (
+        <div className="rounded-lg border border-dashed p-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            No verified trading statement yet.
+          </p>
+          <Link
+            href="/statements/upload"
+            className="mt-1 inline-block text-sm text-primary hover:underline"
+          >
+            Upload your MetaTrader statement to get verified
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
 }

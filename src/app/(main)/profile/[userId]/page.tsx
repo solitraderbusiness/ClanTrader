@@ -73,7 +73,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <ProfileCard user={serialized} />
+      <ProfileCard user={serialized} isOwnProfile={isOwnProfile} />
       {!isOwnProfile && session?.user?.id && (
         <div className="mt-4">
           <Button asChild variant="outline" size="sm">
