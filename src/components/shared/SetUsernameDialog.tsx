@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useUsernamePromptStore } from "@/stores/username-prompt-store";
 
 const setUsernameFormSchema = z.object({
   username: usernameSchema,
@@ -25,6 +26,7 @@ const setUsernameFormSchema = z.object({
 type SetUsernameForm = z.infer<typeof setUsernameFormSchema>;
 
 export function SetUsernameDialog() {
+  const { isOpen, close } = useUsernamePromptStore();
   const [loading, setLoading] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<
     "idle" | "checking" | "available" | "taken" | "invalid"
@@ -82,6 +84,7 @@ export function SetUsernameDialog() {
 
     if (res.ok) {
       toast.success("Username set!");
+      close();
       // Hard refresh to update JWT with new username
       window.location.reload();
     } else {
@@ -91,12 +94,8 @@ export function SetUsernameDialog() {
   }
 
   return (
-    <Dialog open onOpenChange={() => {/* Cannot dismiss */}}>
-      <DialogContent
-        className="sm:max-w-md"
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
-      >
+    <Dialog open={isOpen} onOpenChange={(open) => !open && close()}>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Choose your username</DialogTitle>
           <DialogDescription>

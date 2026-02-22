@@ -1,6 +1,5 @@
 "use client";
 
-import { useSession } from "next-auth/react";
 import { LeftPanel } from "./LeftPanel";
 import { TopBar } from "./TopBar";
 import { MobileNav } from "./MobileNav";
@@ -15,9 +14,6 @@ import { SetUsernameDialog } from "@/components/shared/SetUsernameDialog";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { isOpen, close } = useSidebarStore();
-  const { data: session } = useSession();
-
-  const needsUsername = session?.user && !session.user.username;
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -47,8 +43,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Mobile bottom nav */}
       <MobileNav />
 
-      {/* Prompt existing users to set username */}
-      {needsUsername && <SetUsernameDialog />}
+      {/* Username prompt — triggered by actions that need it */}
+      <SetUsernameDialog />
     </div>
   );
 }

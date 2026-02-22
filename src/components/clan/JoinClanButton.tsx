@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useUsernamePromptStore } from "@/stores/username-prompt-store";
 
 interface JoinClanButtonProps {
   clanId: string;
@@ -29,9 +31,17 @@ export function JoinClanButton({
   isInAnotherClan,
 }: JoinClanButtonProps) {
   const router = useRouter();
+  const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
+  const openUsernamePrompt = useUsernamePromptStore((s) => s.open);
 
   async function handleRequestJoin() {
+    // Require username before joining a clan
+    if (!session?.user?.username) {
+      openUsernamePrompt();
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch(`/api/clans/${clanId}/join-requests`, {

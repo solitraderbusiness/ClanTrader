@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Copy, Check, Share2 } from "lucide-react";
 import { toast } from "sonner";
+import { useUsernamePromptStore } from "@/stores/username-prompt-store";
 
 interface InviteFriendDialogProps {
   open: boolean;
@@ -22,10 +23,18 @@ interface InviteFriendDialogProps {
 export function InviteFriendDialog({ open, onOpenChange }: InviteFriendDialogProps) {
   const { data: session } = useSession();
   const [copied, setCopied] = useState(false);
+  const openUsernamePrompt = useUsernamePromptStore((s) => s.open);
 
   const username = session?.user?.username;
   const origin = typeof window !== "undefined" ? window.location.origin : "https://clantrader.com";
   const inviteLink = username ? `${origin}/join?ref=${username}` : "";
+
+  // If no username, close this dialog and open the username prompt instead
+  if (open && !username) {
+    onOpenChange(false);
+    openUsernamePrompt();
+    return null;
+  }
 
   async function handleCopy() {
     if (!inviteLink) return;
@@ -56,21 +65,6 @@ export function InviteFriendDialog({ open, onOpenChange }: InviteFriendDialogPro
     } else {
       handleCopy();
     }
-  }
-
-  if (!username) {
-    return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Invite a Friend</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            You need to set a username before you can invite friends.
-          </p>
-        </DialogContent>
-      </Dialog>
-    );
   }
 
   return (
