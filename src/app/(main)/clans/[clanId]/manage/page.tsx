@@ -48,6 +48,7 @@ export default async function ManageClanPage({
         select: {
           id: true,
           name: true,
+          username: true,
           avatar: true,
           tradingStyle: true,
         },

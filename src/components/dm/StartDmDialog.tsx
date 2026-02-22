@@ -15,6 +15,7 @@ import { Search } from "lucide-react";
 interface SearchUser {
   id: string;
   name: string | null;
+  username: string | null;
   avatar: string | null;
   tradingStyle: string | null;
 }
@@ -108,6 +109,11 @@ export function StartDmDialog({ open, onOpenChange }: StartDmDialogProps) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">
                   {user.name || "Unknown"}
+                  {user.username && (
+                    <span className="ms-1 font-normal text-muted-foreground">
+                      @{user.username}
+                    </span>
+                  )}
                 </p>
                 {user.tradingStyle && (
                   <p className="truncate text-xs text-muted-foreground">

@@ -1,11 +1,26 @@
 import { z } from "zod";
+import { RESERVED_USERNAMES } from "./reserved-usernames";
+
+export const usernameSchema = z
+  .string()
+  .min(3, "Username must be at least 3 characters")
+  .max(30, "Username must be at most 30 characters")
+  .regex(
+    /^[a-z][a-z0-9_]*$/,
+    "Username must start with a letter and contain only lowercase letters, numbers, and underscores"
+  )
+  .refine((val) => !RESERVED_USERNAMES.has(val), {
+    message: "This username is reserved",
+  });
 
 export const signupSchema = z
   .object({
     name: z.string().min(2, "Name must be at least 2 characters").max(50),
+    username: usernameSchema,
     email: z.string().email("Invalid email address"),
     password: z.string().min(8, "Password must be at least 8 characters"),
     confirmPassword: z.string(),
+    ref: z.string().optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
@@ -34,6 +49,7 @@ export const resetPasswordSchema = z
 
 export const profileUpdateSchema = z.object({
   name: z.string().min(2).max(50).optional(),
+  username: usernameSchema.optional(),
   bio: z.string().max(500).optional(),
   tradingStyle: z.string().max(50).optional(),
   sessionPreference: z.string().max(50).optional(),

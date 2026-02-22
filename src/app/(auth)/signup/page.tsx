@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,11 +17,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const refParam = searchParams.get("ref") || "";
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [usernameStatus, setUsernameStatus] = useState<
+    "idle" | "checking" | "available" | "taken" | "invalid"
+  >("idle");
+  const [usernameError, setUsernameError] = useState<string | null>(null);
 
   const {
     register,
@@ -29,7 +36,40 @@ export default function SignupPage() {
     formState: { errors },
   } = useForm<SignupInput>({
     resolver: zodResolver(signupSchema),
+    defaultValues: {
+      ref: refParam,
+    },
   });
+
+  const checkUsername = useCallback(async (username: string) => {
+    if (!username || username.length < 3) {
+      setUsernameStatus("idle");
+      setUsernameError(null);
+      return;
+    }
+
+    setUsernameStatus("checking");
+    setUsernameError(null);
+
+    try {
+      const res = await fetch(
+        `/api/users/check-username?username=${encodeURIComponent(username)}`
+      );
+      const data = await res.json();
+
+      if (data.error) {
+        setUsernameStatus("invalid");
+        setUsernameError(data.error);
+      } else if (data.available) {
+        setUsernameStatus("available");
+      } else {
+        setUsernameStatus("taken");
+        setUsernameError("This username is already taken");
+      }
+    } catch {
+      setUsernameStatus("idle");
+    }
+  }, []);
 
   async function onSubmit(data: SignupInput) {
     setLoading(true);
@@ -38,7 +78,7 @@ export default function SignupPage() {
     const res = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, ref: refParam || undefined }),
     });
 
     const result = await res.json();
@@ -76,6 +116,39 @@ export default function SignupPage() {
             />
             {errors.name && (
               <p className="text-sm text-destructive">{errors.name.message}</p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="username">Username</Label>
+            <div className="relative">
+              <span className="absolute start-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                @
+              </span>
+              <Input
+                id="username"
+                placeholder="alitrader"
+                className="ps-7"
+                {...register("username", {
+                  onBlur: (e) => checkUsername(e.target.value),
+                })}
+              />
+              <span className="absolute end-3 top-1/2 -translate-y-1/2">
+                {usernameStatus === "checking" && (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                )}
+                {usernameStatus === "available" && (
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                )}
+                {(usernameStatus === "taken" || usernameStatus === "invalid") && (
+                  <XCircle className="h-4 w-4 text-destructive" />
+                )}
+              </span>
+            </div>
+            {errors.username && (
+              <p className="text-sm text-destructive">{errors.username.message}</p>
+            )}
+            {!errors.username && usernameError && (
+              <p className="text-sm text-destructive">{usernameError}</p>
             )}
           </div>
           <div className="space-y-2">
@@ -131,5 +204,13 @@ export default function SignupPage() {
         </CardFooter>
       </form>
     </Card>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense>
+      <SignupForm />
+    </Suspense>
   );
 }

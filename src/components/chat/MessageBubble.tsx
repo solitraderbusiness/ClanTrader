@@ -131,6 +131,9 @@ export function MessageBubble({
             >
               {message.user.name || "Unknown"}
             </span>
+            {message.user.username && (
+              <span className="text-muted-foreground/70">@{message.user.username}</span>
+            )}
             <TraderBadge role={message.user.role} rankBadge={message.user.rankBadge} />
             <span>
               {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}

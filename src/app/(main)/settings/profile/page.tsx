@@ -12,6 +12,7 @@ export default async function SettingsProfilePage() {
     select: {
       id: true,
       name: true,
+      username: true,
       bio: true,
       avatar: true,
       tradingStyle: true,

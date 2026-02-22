@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AvatarUpload } from "./AvatarUpload";
 import { toast } from "sonner";
+import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 
 const TRADING_STYLES = [
   "Scalping",
@@ -40,6 +41,7 @@ interface ProfileEditFormProps {
   user: {
     id: string;
     name: string | null;
+    username: string | null;
     bio: string | null;
     avatar: string | null;
     tradingStyle: string | null;
@@ -54,6 +56,10 @@ export function ProfileEditForm({ user }: ProfileEditFormProps) {
   const [selectedPairs, setSelectedPairs] = useState<string[]>(
     user.preferredPairs
   );
+  const [usernameStatus, setUsernameStatus] = useState<
+    "idle" | "checking" | "available" | "taken" | "invalid"
+  >("idle");
+  const [usernameError, setUsernameError] = useState<string | null>(null);
 
   const {
     register,
@@ -63,12 +69,53 @@ export function ProfileEditForm({ user }: ProfileEditFormProps) {
     resolver: zodResolver(profileUpdateSchema),
     defaultValues: {
       name: user.name || "",
+      username: user.username || "",
       bio: user.bio || "",
       tradingStyle: user.tradingStyle || "",
       sessionPreference: user.sessionPreference || "",
       preferredPairs: user.preferredPairs,
     },
   });
+
+  const checkUsername = useCallback(
+    async (username: string) => {
+      if (!username || username.length < 3) {
+        setUsernameStatus("idle");
+        setUsernameError(null);
+        return;
+      }
+
+      // Don't check if it's the same as current
+      if (username === user.username) {
+        setUsernameStatus("idle");
+        setUsernameError(null);
+        return;
+      }
+
+      setUsernameStatus("checking");
+      setUsernameError(null);
+
+      try {
+        const res = await fetch(
+          `/api/users/check-username?username=${encodeURIComponent(username)}`
+        );
+        const data = await res.json();
+
+        if (data.error) {
+          setUsernameStatus("invalid");
+          setUsernameError(data.error);
+        } else if (data.available) {
+          setUsernameStatus("available");
+        } else {
+          setUsernameStatus("taken");
+          setUsernameError("This username is already taken");
+        }
+      } catch {
+        setUsernameStatus("idle");
+      }
+    },
+    [user.username]
+  );
 
   function togglePair(pair: string) {
     setSelectedPairs((prev) =>
@@ -91,7 +138,8 @@ export function ProfileEditForm({ user }: ProfileEditFormProps) {
       toast.success("Profile updated");
       router.refresh();
     } else {
-      toast.error("Failed to update profile");
+      const result = await res.json();
+      toast.error(result.error || "Failed to update profile");
     }
   }
 
@@ -108,6 +156,40 @@ export function ProfileEditForm({ user }: ProfileEditFormProps) {
         <Input id="name" {...register("name")} />
         {errors.name && (
           <p className="text-sm text-destructive">{errors.name.message}</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="username">Username</Label>
+        <div className="relative">
+          <span className="absolute start-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+            @
+          </span>
+          <Input
+            id="username"
+            placeholder="alitrader"
+            className="ps-7"
+            {...register("username", {
+              onBlur: (e) => checkUsername(e.target.value),
+            })}
+          />
+          <span className="absolute end-3 top-1/2 -translate-y-1/2">
+            {usernameStatus === "checking" && (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            )}
+            {usernameStatus === "available" && (
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+            )}
+            {(usernameStatus === "taken" || usernameStatus === "invalid") && (
+              <XCircle className="h-4 w-4 text-destructive" />
+            )}
+          </span>
+        </div>
+        {errors.username && (
+          <p className="text-sm text-destructive">{errors.username.message}</p>
+        )}
+        {!errors.username && usernameError && (
+          <p className="text-sm text-destructive">{usernameError}</p>
         )}
       </div>
 

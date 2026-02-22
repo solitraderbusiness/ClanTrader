@@ -4,7 +4,7 @@ import { evaluateUserBadges } from "@/services/badge-engine.service";
 import type { TradeDirection } from "@prisma/client";
 
 const messageInclude = {
-  user: { select: { id: true, name: true, avatar: true, role: true } },
+  user: { select: { id: true, name: true, username: true, avatar: true, role: true } },
   replyTo: {
     select: {
       id: true,

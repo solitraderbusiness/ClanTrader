@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { profileUpdateSchema } from "@/lib/validators";
+import { RESERVED_USERNAMES } from "@/lib/reserved-usernames";
 
 export async function PATCH(request: Request) {
   try {
@@ -20,12 +21,40 @@ export async function PATCH(request: Request) {
       );
     }
 
+    const { username, ...rest } = parsed.data;
+
+    // If username is being changed, check uniqueness + reserved
+    if (username) {
+      if (RESERVED_USERNAMES.has(username)) {
+        return NextResponse.json(
+          { error: "This username is reserved" },
+          { status: 400 }
+        );
+      }
+
+      const existing = await db.user.findUnique({
+        where: { username },
+        select: { id: true },
+      });
+
+      if (existing && existing.id !== session.user.id) {
+        return NextResponse.json(
+          { error: "This username is already taken" },
+          { status: 409 }
+        );
+      }
+    }
+
     const updated = await db.user.update({
       where: { id: session.user.id },
-      data: parsed.data,
+      data: {
+        ...rest,
+        ...(username && { username }),
+      },
       select: {
         id: true,
         name: true,
+        username: true,
         bio: true,
         avatar: true,
         tradingStyle: true,

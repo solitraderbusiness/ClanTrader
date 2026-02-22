@@ -9,6 +9,7 @@ interface ProfileCardProps {
   user: {
     id: string;
     name: string | null;
+    username: string | null;
     bio: string | null;
     avatar: string | null;
     role: string;
@@ -64,6 +65,9 @@ export function ProfileCard({ user }: ProfileCardProps) {
               </Badge>
             )}
           </div>
+          {user.username && (
+            <p className="text-sm text-muted-foreground">@{user.username}</p>
+          )}
           {user.bio && (
             <p className="text-muted-foreground">{user.bio}</p>
           )}

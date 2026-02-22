@@ -14,7 +14,7 @@ export class MessageServiceError extends Error {
 }
 
 const messageInclude = {
-  user: { select: { id: true, name: true, avatar: true, role: true } },
+  user: { select: { id: true, name: true, username: true, avatar: true, role: true } },
   replyTo: {
     select: {
       id: true,
@@ -284,7 +284,7 @@ export async function getClanMembers(clanId: string) {
     where: { clanId },
     select: {
       role: true,
-      user: { select: { id: true, name: true, avatar: true, role: true } },
+      user: { select: { id: true, name: true, username: true, avatar: true, role: true } },
     },
   });
 }

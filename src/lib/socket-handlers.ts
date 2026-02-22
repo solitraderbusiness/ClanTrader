@@ -70,7 +70,7 @@ interface SerializableMessage {
   createdAt: Date;
   topicId?: string | null;
   replyTo: { id: string; content: string; user: { id: string; name: string | null } } | null;
-  user: { id: string; name: string | null; avatar: string | null; role?: string };
+  user: { id: string; name: string | null; username?: string | null; avatar: string | null; role?: string };
   tradeCard?: SerializableTradeCard | null;
 }
 

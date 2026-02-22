@@ -112,7 +112,7 @@ export async function generateTopicSummary(
       type: "SYSTEM_SUMMARY",
     },
     include: {
-      user: { select: { id: true, name: true, avatar: true, role: true } },
+      user: { select: { id: true, name: true, username: true, avatar: true, role: true } },
       replyTo: {
         select: {
           id: true,

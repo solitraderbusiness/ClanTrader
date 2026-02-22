@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -14,6 +14,7 @@ import {
   Megaphone,
   Mail,
   Shield,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useNavStore, type ChatItem, type ChannelItem, type DmConvItem } from "@/stores/nav-store";
 import { useSidebarStore } from "@/stores/sidebar-store";
+import { InviteFriendDialog } from "@/components/shared/InviteFriendDialog";
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -49,6 +51,7 @@ export function LeftPanel() {
   const pathname = usePathname();
   const router = useRouter();
   const { close: closeSidebar } = useSidebarStore();
+  const [inviteOpen, setInviteOpen] = useState(false);
   const {
     activeTab,
     setActiveTab,
@@ -176,6 +179,12 @@ export function LeftPanel() {
               onClick={() => navigateTo("/admin")}
             />
           )}
+          <NavIcon
+            icon={UserPlus}
+            label="Invite"
+            active={false}
+            onClick={() => setInviteOpen(true)}
+          />
         </div>
       </div>
 
@@ -345,6 +354,8 @@ export function LeftPanel() {
           </div>
         )}
       </div>
+
+      <InviteFriendDialog open={inviteOpen} onOpenChange={setInviteOpen} />
     </div>
   );
 }

@@ -23,6 +23,7 @@ interface UserProfileSheetProps {
 type ProfileUser = {
   id: string;
   name: string | null;
+  username: string | null;
   bio: string | null;
   avatar: string | null;
   role: string;

@@ -39,6 +39,7 @@ export interface ChatMessage {
   user: {
     id: string;
     name: string | null;
+    username?: string | null;
     avatar: string | null;
     role?: string;
     rankBadge?: { name: string; key: string; iconUrl?: string | null } | null;

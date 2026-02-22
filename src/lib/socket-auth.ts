@@ -12,6 +12,7 @@ export interface SocketUser {
   email: string;
   role: string;
   isPro: boolean;
+  username: string | null;
 }
 
 export async function authenticateSocket(
@@ -55,6 +56,7 @@ export async function authenticateSocket(
       email: decoded.email as string,
       role: decoded.role as string,
       isPro: decoded.isPro as boolean,
+      username: (decoded.username as string) || null,
     };
 
     next();

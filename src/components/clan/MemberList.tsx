@@ -16,6 +16,7 @@ interface Member {
   user: {
     id: string;
     name: string | null;
+    username: string | null;
     avatar: string | null;
     tradingStyle: string | null;
   };
@@ -133,6 +134,11 @@ export function MemberList({
                 {member.role}
               </Badge>
             </div>
+            {member.user.username && (
+              <p className="text-xs text-muted-foreground">
+                @{member.user.username}
+              </p>
+            )}
             {member.user.tradingStyle && (
               <p className="text-xs text-muted-foreground">
                 {member.user.tradingStyle}

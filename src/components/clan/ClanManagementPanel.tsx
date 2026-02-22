@@ -16,6 +16,7 @@ interface Member {
   user: {
     id: string;
     name: string | null;
+    username: string | null;
     avatar: string | null;
     tradingStyle: string | null;
   };

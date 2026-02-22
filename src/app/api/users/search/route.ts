@@ -16,14 +16,21 @@ export async function GET(request: Request) {
       return NextResponse.json({ users: [] });
     }
 
+    // Strip leading @ for username search
+    const cleanQuery = query.startsWith("@") ? query.slice(1) : query;
+
     const users = await db.user.findMany({
       where: {
         id: { not: session.user.id },
-        name: { contains: query, mode: "insensitive" },
+        OR: [
+          { name: { contains: cleanQuery, mode: "insensitive" } },
+          { username: { contains: cleanQuery, mode: "insensitive" } },
+        ],
       },
       select: {
         id: true,
         name: true,
+        username: true,
         avatar: true,
         tradingStyle: true,
       },
