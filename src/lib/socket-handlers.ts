@@ -1,5 +1,6 @@
 import type { Server, Socket } from "socket.io";
 import type { SocketUser } from "./socket-auth";
+import { log } from "./audit";
 import { redis } from "./redis";
 import {
   sendMessageSchema,
@@ -7,7 +8,6 @@ import {
   deleteMessageSchema,
   pinMessageSchema,
   reactMessageSchema,
-  sendTradeCardSchema,
   editTradeCardSchema,
   updateTradeStatusSchema,
   tradeActionSchema,
@@ -30,11 +30,11 @@ import {
   MessageServiceError,
 } from "@/services/message.service";
 import { getDefaultTopic } from "@/services/topic.service";
-import { createTradeCardMessage, editTradeCard } from "@/services/trade-card.service";
+import { editTradeCard } from "@/services/trade-card.service";
 import { trackTrade, updateTradeStatus } from "@/services/trade.service";
 import { executeTradeAction } from "@/services/trade-action.service";
-import { maybeAutoPost } from "@/services/auto-post.service";
 import type { TradeActionKey } from "@/lib/trade-action-constants";
+import { db } from "@/lib/db";
 
 function getUser(socket: Socket): SocketUser {
   return (socket as Socket & { user: SocketUser }).user;
@@ -106,6 +106,104 @@ function serializeMessage(message: SerializableMessage, clanId: string) {
   };
 }
 
+async function sendInitialPnl(socket: Socket, clanId: string, topicId: string) {
+  try {
+    const openTrades = await db.trade.findMany({
+      where: { clanId, status: "OPEN" },
+      select: {
+        id: true,
+        initialEntry: true,
+        initialRiskAbs: true,
+        riskStatus: true,
+        mtTradeMatches: {
+          where: { isOpen: true },
+          select: { symbol: true },
+          take: 1,
+        },
+        tradeCard: {
+          select: {
+            entry: true,
+            stopLoss: true,
+            direction: true,
+            instrument: true,
+            targets: true,
+            message: { select: { id: true, topicId: true } },
+          },
+        },
+      },
+    });
+
+    const topicTrades = openTrades.filter(
+      (t) => t.tradeCard?.message?.topicId === topicId
+    );
+    if (topicTrades.length === 0) return;
+
+    // Collect MT symbols to look up cached prices
+    const symbolSet = new Set<string>();
+    for (const t of topicTrades) {
+      const mtSymbol = t.mtTradeMatches[0]?.symbol?.toUpperCase();
+      if (mtSymbol) symbolSet.add(mtSymbol);
+    }
+
+    // Read cached prices from Redis using the broker symbol (e.g. XAUUSD_L)
+    const symbols = [...symbolSet];
+    const priceMap = new Map<string, number>();
+    if (symbols.length > 0) {
+      const priceKeys = symbols.map((s) => `price:${s}`);
+      const priceValues = await redis.mget(...priceKeys);
+      for (let i = 0; i < symbols.length; i++) {
+        if (priceValues[i]) {
+          try {
+            const parsed = JSON.parse(priceValues[i]!) as { price: number };
+            priceMap.set(symbols[i], parsed.price);
+          } catch { /* skip */ }
+        }
+      }
+    }
+
+    const updates: { tradeId: string; messageId: string; currentRR: number; currentPrice: number; targetRR: number | null; riskStatus: string }[] = [];
+
+    for (const trade of topicTrades) {
+      if (!trade.tradeCard) continue;
+
+      // Compute risk: prefer initialRiskAbs, fall back to card entry/SL
+      const entry = trade.initialEntry ?? trade.tradeCard.entry;
+      const riskAbs = (trade.initialRiskAbs && trade.initialRiskAbs > 0)
+        ? trade.initialRiskAbs
+        : Math.abs(entry - trade.tradeCard.stopLoss);
+      if (riskAbs <= 0) continue;
+
+      // Look up cached price from Redis using broker symbol
+      const mtSymbol = trade.mtTradeMatches[0]?.symbol?.toUpperCase();
+      const currentPrice = mtSymbol ? priceMap.get(mtSymbol) : undefined;
+      if (!currentPrice) continue;
+
+      const dir = trade.tradeCard.direction === "LONG" ? 1 : -1;
+      const currentRR = (dir * (currentPrice - entry)) / riskAbs;
+
+      const tp = trade.tradeCard.targets[0];
+      const targetRR = tp && tp > 0
+        ? Math.round((Math.abs(tp - entry) / riskAbs) * 100) / 100
+        : null;
+
+      updates.push({
+        tradeId: trade.id,
+        messageId: trade.tradeCard.message.id,
+        currentRR: Math.round(currentRR * 100) / 100,
+        currentPrice,
+        targetRR,
+        riskStatus: trade.riskStatus,
+      });
+    }
+
+    if (updates.length > 0) {
+      socket.emit(SOCKET_EVENTS.TRADE_PNL_UPDATE, { updates });
+    }
+  } catch {
+    // Non-critical — PnL will arrive on next heartbeat
+  }
+}
+
 export function registerSocketHandlers(io: Server, socket: Socket) {
   const user = getUser(socket);
   const joinedClans = new Set<string>();
@@ -113,7 +211,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
 
   // Ensure Redis is connected (lazyConnect: true requires explicit connect)
   if (redis.status === "wait") {
-    redis.connect().catch((err: unknown) => console.error("Redis connect error:", err));
+    redis.connect().catch((err: unknown) => log("chat.redis_connect_error", "ERROR", "CHAT", { error: String(err) }));
   }
 
   // --- JOIN CLAN CHAT ---
@@ -142,8 +240,11 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
 
       const onlineUsers = await getOnlineUsers(clanId);
       io.to(clanRoom(clanId)).emit(SOCKET_EVENTS.PRESENCE_UPDATE, onlineUsers);
+
+      // Send initial PnL snapshot so trade cards show Live R:R immediately
+      sendInitialPnl(socket, clanId, topicId).catch(() => {});
     } catch (error) {
-      console.error("join_clan error:", error);
+      log("chat.join_clan_error", "ERROR", "CHAT", { error: String(error) }, user.id);
       socket.emit(SOCKET_EVENTS.ERROR, {
         event: SOCKET_EVENTS.JOIN_CLAN,
         message:
@@ -178,8 +279,10 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         socket.leave(topicRoom(clanId, fromTopicId));
         socket.join(topicRoom(clanId, toTopicId));
         joinedTopics.set(clanId, toTopicId);
+
+        sendInitialPnl(socket, clanId, toTopicId).catch(() => {});
       } catch (error) {
-        console.error("switch_topic error:", error);
+        log("chat.switch_topic_error", "ERROR", "CHAT", { error: String(error) }, user.id);
       }
     }
   );
@@ -218,7 +321,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
           serializeMessage(message, clanId)
         );
       } catch (error) {
-        console.error("send_message error:", error);
+        log("chat.send_message_error", "ERROR", "CHAT", { error: String(error) }, user.id);
         socket.emit(SOCKET_EVENTS.ERROR, {
           event: SOCKET_EVENTS.SEND_MESSAGE,
           message:
@@ -262,7 +365,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
           isEdited: true,
         });
       } catch (error) {
-        console.error("edit_message error:", error);
+        log("chat.edit_message_error", "ERROR", "CHAT", { error: String(error) }, user.id);
         socket.emit(SOCKET_EVENTS.ERROR, {
           event: SOCKET_EVENTS.EDIT_MESSAGE,
           message:
@@ -299,7 +402,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
           clanId: parsed.data.clanId,
         });
       } catch (error) {
-        console.error("delete_message error:", error);
+        log("chat.delete_message_error", "ERROR", "CHAT", { error: String(error) }, user.id);
         socket.emit(SOCKET_EVENTS.ERROR, {
           event: SOCKET_EVENTS.DELETE_MESSAGE,
           message:
@@ -342,7 +445,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
           reactions: (message.reactions as Record<string, string[]>) || null,
         });
       } catch (error) {
-        console.error("react_message error:", error);
+        log("chat.react_message_error", "ERROR", "CHAT", { error: String(error) }, user.id);
         socket.emit(SOCKET_EVENTS.ERROR, {
           event: SOCKET_EVENTS.REACT_MESSAGE,
           message:
@@ -434,57 +537,6 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
     }
   );
 
-  // --- SEND TRADE CARD ---
-  socket.on(SOCKET_EVENTS.SEND_TRADE_CARD, async (data: unknown) => {
-    try {
-      const parsed = sendTradeCardSchema.safeParse(data);
-      if (!parsed.success) {
-        console.error("Trade card validation failed:", parsed.error.flatten());
-        socket.emit(SOCKET_EVENTS.ERROR, {
-          event: SOCKET_EVENTS.SEND_TRADE_CARD,
-          message: `Invalid trade card data: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
-        });
-        return;
-      }
-
-      const { clanId, topicId, ...tradeCardData } = parsed.data;
-
-      const isLimited = await checkRateLimit(user.id);
-      if (isLimited) {
-        socket.emit(SOCKET_EVENTS.ERROR, {
-          event: SOCKET_EVENTS.SEND_TRADE_CARD,
-          message: "You are sending messages too fast. Please slow down.",
-        });
-        return;
-      }
-
-      await requireClanMembership(user.id, clanId);
-
-      const message = await createTradeCardMessage(clanId, topicId, user.id, tradeCardData);
-
-      io.to(topicRoom(clanId, topicId)).emit(
-        SOCKET_EVENTS.RECEIVE_MESSAGE,
-        serializeMessage(message, clanId)
-      );
-
-      // Auto-post to channel if enabled
-      if (message.tradeCard) {
-        maybeAutoPost(message.tradeCard.id, clanId, user.id).catch((err: unknown) =>
-          console.error("Auto-post error:", err)
-        );
-      }
-    } catch (error) {
-      console.error("send_trade_card error:", error);
-      socket.emit(SOCKET_EVENTS.ERROR, {
-        event: SOCKET_EVENTS.SEND_TRADE_CARD,
-        message:
-          error instanceof MessageServiceError
-            ? error.message
-            : "Failed to send trade card",
-      });
-    }
-  });
-
   // --- EDIT TRADE CARD ---
   socket.on(SOCKET_EVENTS.EDIT_TRADE_CARD, async (data: unknown) => {
     try {
@@ -509,7 +561,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
 
       io.to(tRoom).emit(SOCKET_EVENTS.MESSAGE_EDITED, serializeMessage(message, clanId));
     } catch (error) {
-      console.error("edit_trade_card error:", error);
+      log("chat.edit_trade_card_error", "ERROR", "CHAT", { error: String(error) }, user.id);
       socket.emit(SOCKET_EVENTS.ERROR, {
         event: SOCKET_EVENTS.EDIT_TRADE_CARD,
         message:
@@ -549,7 +601,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
           trade: { id: trade.id, status: trade.status, userId: trade.userId },
         });
       } catch (error) {
-        console.error("track_trade error:", error);
+        log("chat.track_trade_error", "ERROR", "CHAT", { error: String(error) }, user.id);
         socket.emit(SOCKET_EVENTS.ERROR, {
           event: SOCKET_EVENTS.TRACK_TRADE,
           message:
@@ -591,7 +643,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         history: result.history,
       });
     } catch (error) {
-      console.error("update_trade_status error:", error);
+      log("chat.update_trade_status_error", "ERROR", "CHAT", { error: String(error) }, user.id);
       socket.emit(SOCKET_EVENTS.ERROR, {
         event: SOCKET_EVENTS.UPDATE_TRADE_STATUS,
         message:
@@ -626,6 +678,20 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         newValue,
         note
       );
+
+      // MT-linked pending action: emit pending event and return early
+      if (result.mtPending && result.pendingAction) {
+        const topicId = result.tradeCard.message.topicId;
+        if (topicId) {
+          io.to(topicRoom(clanId, topicId)).emit(SOCKET_EVENTS.EA_ACTION_PENDING, {
+            tradeId,
+            actionType,
+            actionId: result.pendingAction.id,
+            expiresAt: result.pendingAction.expiresAt.toISOString(),
+          });
+        }
+        return;
+      }
 
       // Broadcast the TRADE_ACTION message to topic room
       if (result.systemMessage) {
@@ -662,7 +728,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         });
       }
     } catch (error) {
-      console.error("execute_trade_action error:", error);
+      log("chat.execute_trade_action_error", "ERROR", "CHAT", { error: String(error) }, user.id);
       socket.emit(SOCKET_EVENTS.ERROR, {
         event: SOCKET_EVENTS.EXECUTE_TRADE_ACTION,
         message:
@@ -696,7 +762,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
       const roomName = `dm:${sorted[0]}:${sorted[1]}`;
       socket.join(roomName);
     } catch (error) {
-      console.error("join_dm error:", error);
+      log("chat.join_dm_error", "ERROR", "CHAT", { error: String(error) }, user.id);
     }
   });
 
@@ -753,7 +819,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
           sender: message.sender,
         });
       } catch (error) {
-        console.error("send_dm error:", error);
+        log("chat.send_dm_error", "ERROR", "CHAT", { error: String(error) }, user.id);
         socket.emit(SOCKET_EVENTS.ERROR, {
           event: SOCKET_EVENTS.SEND_DM,
           message: "Failed to send message",
@@ -788,7 +854,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
           isEdited: true,
         });
       } catch (error) {
-        console.error("edit_dm error:", error);
+        log("chat.edit_dm_error", "ERROR", "CHAT", { error: String(error) }, user.id);
         socket.emit(SOCKET_EVENTS.ERROR, {
           event: SOCKET_EVENTS.EDIT_DM,
           message: "Failed to edit message",
@@ -815,7 +881,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
           id: messageId,
         });
       } catch (error) {
-        console.error("delete_dm error:", error);
+        log("chat.delete_dm_error", "ERROR", "CHAT", { error: String(error) }, user.id);
         socket.emit(SOCKET_EVENTS.ERROR, {
           event: SOCKET_EVENTS.DELETE_DM,
           message: "Failed to delete message",
@@ -860,7 +926,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         conversationId: conversation.id,
       });
     } catch (error) {
-      console.error("dm_read error:", error);
+      log("chat.dm_read_error", "ERROR", "CHAT", { error: String(error) }, user.id);
     }
   });
 
