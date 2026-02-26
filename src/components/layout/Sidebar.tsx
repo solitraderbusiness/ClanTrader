@@ -8,26 +8,28 @@ import {
   Compass,
   Trophy,
   Settings,
-  FileCheck,
   ShieldCheck,
   UserCheck,
+  BookOpen,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
-
-const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/statements", label: "Statements", icon: FileCheck },
-  { href: "/clans", label: "Clans", icon: Shield },
-  { href: "/discover", label: "Discover", icon: Compass },
-  { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
-];
+import { useTranslation } from "@/lib/i18n";
 
 export function Sidebar() {
+  const { t } = useTranslation();
   const pathname = usePathname();
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "ADMIN";
+
+  const navItems = [
+    { href: "/dashboard", label: t("nav.dashboard"), icon: LayoutDashboard },
+    { href: "/journal", label: t("nav.journal"), icon: BookOpen },
+    { href: "/clans", label: t("nav.clans"), icon: Shield },
+    { href: "/discover", label: t("nav.discover"), icon: Compass },
+    { href: "/leaderboard", label: t("nav.leaderboard"), icon: Trophy },
+  ];
 
   return (
     <div className="flex h-full flex-col">
@@ -79,7 +81,7 @@ export function Sidebar() {
               )}
             >
               <ShieldCheck className="h-4 w-4" />
-              Admin
+              {t("nav.admin")}
             </Link>
             <Link
               href="/admin/impersonate"
@@ -91,7 +93,7 @@ export function Sidebar() {
               )}
             >
               <UserCheck className="h-4 w-4" />
-              Switch User
+              {t("nav.switchUser")}
             </Link>
           </>
         )}
@@ -105,7 +107,7 @@ export function Sidebar() {
           )}
         >
           <Settings className="h-4 w-4" />
-          Settings
+          {t("nav.settings")}
         </Link>
       </div>
     </div>

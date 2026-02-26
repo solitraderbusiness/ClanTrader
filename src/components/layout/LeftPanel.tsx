@@ -15,6 +15,7 @@ import {
   Mail,
   Shield,
   UserPlus,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { useNavStore, type ChatItem, type ChannelItem, type DmConvItem } from "@/stores/nav-store";
 import { useSidebarStore } from "@/stores/sidebar-store";
 import { InviteFriendDialog } from "@/components/shared/InviteFriendDialog";
+import { useTranslation } from "@/lib/i18n";
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -47,6 +49,7 @@ function getInitials(name: string): string {
 }
 
 export function LeftPanel() {
+  const { t } = useTranslation();
   const { data: session } = useSession();
   const pathname = usePathname();
   const router = useRouter();
@@ -155,33 +158,39 @@ export function LeftPanel() {
         <div className="flex items-center gap-0.5">
           <NavIcon
             icon={Home}
-            label="Home"
+            label={t("nav.home")}
             active={pathname === "/home"}
             onClick={() => navigateTo("/home")}
           />
           <NavIcon
+            icon={BookOpen}
+            label={t("nav.journal")}
+            active={pathname.startsWith("/journal")}
+            onClick={() => navigateTo("/journal")}
+          />
+          <NavIcon
             icon={Compass}
-            label="Explore"
+            label={t("nav.explore")}
             active={pathname.startsWith("/explore")}
             onClick={() => navigateTo("/explore")}
           />
           <NavIcon
             icon={Settings}
-            label="Settings"
+            label={t("nav.settings")}
             active={pathname.startsWith("/settings")}
             onClick={() => navigateTo("/settings")}
           />
           {isAdmin && (
             <NavIcon
               icon={ShieldCheck}
-              label="Admin"
+              label={t("nav.admin")}
               active={pathname.startsWith("/admin")}
               onClick={() => navigateTo("/admin")}
             />
           )}
           <NavIcon
             icon={UserPlus}
-            label="Invite"
+            label={t("nav.invite")}
             active={false}
             onClick={() => setInviteOpen(true)}
           />
@@ -193,7 +202,7 @@ export function LeftPanel() {
         <div className="relative">
           <Search className="absolute start-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search..."
+            placeholder={t("common.search")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="ps-8 h-9 text-sm"
@@ -215,7 +224,7 @@ export function LeftPanel() {
           >
             <span className="flex items-center justify-center gap-1.5">
               <MessageSquare className="h-4 w-4" />
-              Chats
+              {t("nav.chats")}
               {totalUnreadChats > 0 && (
                 <Badge
                   variant="destructive"
@@ -241,7 +250,7 @@ export function LeftPanel() {
         >
           <span className="flex items-center justify-center gap-1.5">
             <Megaphone className="h-4 w-4" />
-            Channels
+            {t("nav.channels")}
             {totalUnreadChannels > 0 && (
               <Badge
                 variant="destructive"
@@ -266,7 +275,7 @@ export function LeftPanel() {
         >
           <span className="flex items-center justify-center gap-1.5">
             <Mail className="h-4 w-4" />
-            DMs
+            {t("nav.dms")}
             {totalUnreadDms > 0 && (
               <Badge
                 variant="destructive"
@@ -286,15 +295,15 @@ export function LeftPanel() {
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <p className="text-sm text-muted-foreground">Loading...</p>
+            <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
           </div>
         ) : activeTab === "chats" ? (
           filteredChats.length === 0 ? (
             <EmptyState
               icon={MessageSquare}
-              title="No chats yet"
-              description="Join a clan to start chatting with other traders."
-              ctaLabel="Explore Clans"
+              title={t("chat.noChatsYet")}
+              description={t("chat.noChatsDesc")}
+              ctaLabel={t("chat.exploreClans")}
               ctaHref="/explore"
               onNavigate={navigateTo}
             />
@@ -314,9 +323,9 @@ export function LeftPanel() {
           filteredChannels.length === 0 ? (
             <EmptyState
               icon={Megaphone}
-              title="No channels yet"
-              description="Follow clans to see their channel posts here."
-              ctaLabel="Explore"
+              title={t("chat.noChannelsYet")}
+              description={t("chat.noChannelsDesc")}
+              ctaLabel={t("common.explore")}
               ctaHref="/explore"
               onNavigate={navigateTo}
             />
@@ -335,9 +344,9 @@ export function LeftPanel() {
         ) : filteredDms.length === 0 ? (
           <EmptyState
             icon={Mail}
-            title="No messages yet"
-            description="Send a direct message to another trader."
-            ctaLabel="Explore"
+            title={t("chat.noDmsYet")}
+            description={t("chat.noDmsDesc")}
+            ctaLabel={t("common.explore")}
             ctaHref="/explore"
             onNavigate={navigateTo}
           />
