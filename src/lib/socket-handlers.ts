@@ -56,7 +56,20 @@ interface SerializableTradeCard {
   riskPct: number | null;
   note: string | null;
   tags: string[];
-  trade: { id: string; status: string; userId: string } | null;
+  trade: {
+    id: string;
+    status: string;
+    userId: string;
+    mtLinked?: boolean;
+    riskStatus?: string;
+    finalRR?: number | null;
+    netProfit?: number | null;
+    closePrice?: number | null;
+    initialRiskAbs?: number | null;
+    initialEntry?: number | null;
+    integrityStatus?: string;
+    statementEligible?: boolean;
+  } | null;
 }
 
 interface SerializableMessage {

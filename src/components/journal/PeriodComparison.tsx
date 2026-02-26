@@ -35,10 +35,10 @@ export function PeriodComparison({ data }: Props) {
     },
     {
       label: t("journal.profitFactor"),
-      cur: isFinite(current.profitFactor)
+      cur: (current.profitFactor != null && isFinite(current.profitFactor) && current.profitFactor < 9999)
         ? current.profitFactor.toFixed(2)
         : "\u221E",
-      prev: isFinite(previous.profitFactor)
+      prev: (previous.profitFactor != null && isFinite(previous.profitFactor) && previous.profitFactor < 9999)
         ? previous.profitFactor.toFixed(2)
         : "\u221E",
       curVal: current.profitFactor,

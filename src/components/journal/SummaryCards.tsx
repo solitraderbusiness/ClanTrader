@@ -18,8 +18,9 @@ function formatPct(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
-function formatPF(value: number): string {
-  if (!isFinite(value)) return "\u221E";
+function formatPF(value: number | null): string {
+  if (value == null) return "\u221E";
+  if (!isFinite(value) || value >= 9999) return "\u221E";
   return value.toFixed(2);
 }
 

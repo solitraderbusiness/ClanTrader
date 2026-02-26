@@ -38,6 +38,7 @@ interface TradeRow {
   initialStopLoss: number | null;
   initialTakeProfit: number | null;
   initialRiskAbs: number | null;
+  mtClosePrice: number | null; // from matched MtTrade
   tradeCard: {
     instrument: string;
     direction: string;
@@ -51,28 +52,35 @@ interface TradeRow {
 function getR(trade: TradeRow): number | null {
   if (trade.finalRR !== null) return trade.finalRR;
 
-  const entry = trade.initialEntry ?? trade.tradeCard.entry;
-  const sl = trade.initialStopLoss ?? trade.tradeCard.stopLoss;
-  const riskAbs = trade.initialRiskAbs ?? Math.abs(entry - sl);
+  const entry = trade.initialEntry || trade.tradeCard.entry;
+  const sl = trade.initialStopLoss || trade.tradeCard.stopLoss;
+  const riskAbs = (trade.initialRiskAbs && trade.initialRiskAbs > 0)
+    ? trade.initialRiskAbs
+    : Math.abs(entry - sl);
   if (riskAbs === 0) return null;
 
+  // Use closePrice from Trade or from matched MtTrade
+  const closePrice = trade.closePrice ?? trade.mtClosePrice ?? null;
+
   // If we have a closePrice, compute actual R regardless of status
-  if (trade.closePrice != null) {
+  if (closePrice != null) {
     const dir = trade.tradeCard.direction === "LONG" ? 1 : -1;
-    return Math.round((dir * (trade.closePrice - entry)) / riskAbs * 100) / 100;
+    return Math.round((dir * (closePrice - entry)) / riskAbs * 100) / 100;
   }
 
   switch (trade.status) {
     case "TP_HIT": {
       const tp =
-        trade.initialTakeProfit ?? trade.tradeCard.targets[0] ?? entry;
-      return Math.abs(tp - entry) / riskAbs;
+        (trade.initialTakeProfit || trade.tradeCard.targets[0]) ?? entry;
+      return Math.round(Math.abs(tp - entry) / riskAbs * 100) / 100;
     }
     case "SL_HIT":
       return -1;
     case "BE":
-    case "CLOSED":
       return 0;
+    case "CLOSED":
+      // Without close price, we can't know actual R — mark unknown
+      return null;
     default:
       return null;
   }
@@ -140,8 +148,9 @@ function computeSummary(
   const sumLossR = Math.abs(
     knownR.filter((r) => r < 0).reduce((a, b) => a + b, 0)
   );
+  // Use 9999 as sentinel for "infinity" since JSON.stringify(Infinity) → null
   const profitFactor =
-    sumLossR === 0 ? (sumWinR > 0 ? Infinity : 0) : sumWinR / sumLossR;
+    sumLossR === 0 ? (sumWinR > 0 ? 9999 : 0) : sumWinR / sumLossR;
 
   const totalR = knownR.reduce((a, b) => a + b, 0);
   const expectancy = knownR.length > 0 ? totalR / knownR.length : 0;
@@ -517,7 +526,7 @@ async function fetchTrades(
   }
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
-  return db.trade.findMany({
+  const raw = await db.trade.findMany({
     where,
     select: {
       id: true,
@@ -531,6 +540,11 @@ async function fetchTrades(
       initialStopLoss: true,
       initialTakeProfit: true,
       initialRiskAbs: true,
+      mtTradeMatches: {
+        select: { closePrice: true },
+        orderBy: { openTime: "desc" as const },
+        take: 1,
+      },
       tradeCard: {
         select: {
           instrument: true,
@@ -543,7 +557,13 @@ async function fetchTrades(
       },
     },
     orderBy: { closedAt: "asc" },
-  }) as unknown as TradeRow[];
+  });
+
+  // Flatten MtTrade closePrice into TradeRow
+  return raw.map((t) => ({
+    ...t,
+    mtClosePrice: t.mtTradeMatches[0]?.closePrice ?? null,
+  })) as unknown as TradeRow[];
 }
 
 // ────────────────────────────────────────────
