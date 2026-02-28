@@ -20,6 +20,15 @@ export async function getOrCreateConversation(userId1: string, userId2: string) 
     throw new DmServiceError("Cannot message yourself", "SELF_MESSAGE", 400);
   }
 
+  // Validate both users exist
+  const users = await db.user.findMany({
+    where: { id: { in: [userId1, userId2] } },
+    select: { id: true },
+  });
+  if (users.length !== 2) {
+    throw new DmServiceError("User not found", "USER_NOT_FOUND", 404);
+  }
+
   const [p1, p2] = sortParticipants(userId1, userId2);
 
   const existing = await db.conversation.findUnique({

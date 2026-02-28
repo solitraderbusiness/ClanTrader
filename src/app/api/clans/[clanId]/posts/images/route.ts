@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import sharp from "sharp";
-import { writeFile, mkdir } from "fs/promises";
+import { mkdir } from "fs/promises";
 import path from "path";
 import { nanoid } from "nanoid";
 import { CHANNEL_POST_IMAGES_MAX } from "@/lib/clan-constants";
+import { processAndSaveImage } from "@/lib/image-utils";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
@@ -76,17 +76,16 @@ export async function POST(
 
     for (const file of files) {
       const buffer = Buffer.from(await file.arrayBuffer());
+      const basename = `${clanId}-${nanoid(8)}`;
 
-      const processed = await sharp(buffer)
-        .resize(1200, undefined, { fit: "inside", withoutEnlargement: true })
-        .webp({ quality: 80 })
-        .toBuffer();
+      const { fullUrl } = await processAndSaveImage(
+        buffer,
+        uploadDir,
+        basename,
+        "/uploads/post-images"
+      );
 
-      const filename = `${clanId}-${nanoid(8)}.webp`;
-      const filepath = path.join(uploadDir, filename);
-      await writeFile(filepath, processed);
-
-      imageUrls.push(`/uploads/post-images/${filename}`);
+      imageUrls.push(fullUrl);
     }
 
     return NextResponse.json({ images: imageUrls });

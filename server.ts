@@ -5,6 +5,7 @@ import next from "next";
 import { Server, type Socket } from "socket.io";
 import { authenticateSocket } from "@/lib/socket-auth";
 import { registerSocketHandlers } from "@/lib/socket-handlers";
+import { setIO } from "@/lib/socket-io-global";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "0.0.0.0";
@@ -36,6 +37,7 @@ app.prepare().then(() => {
     transports: ["websocket", "polling"],
   });
 
+  setIO(io);
   io.use(authenticateSocket);
 
   io.on("connection", (socket) => {

@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useSession } from "next-auth/react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
 import { LENS_LABELS } from "@/lib/ranking-constants";
 import { toast } from "sonner";
+import { BarChart3 } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 import type { LeaderboardLens } from "@/types/ranking";
 import type { TraderStatementMetrics } from "@/types/trader-statement";
 
@@ -27,6 +31,8 @@ const LENSES: LeaderboardLens[] = [
 ];
 
 export function LeaderboardClient() {
+  const { t } = useTranslation();
+  const { data: session } = useSession();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [lens, setLens] = useState<LeaderboardLens>("composite");
@@ -48,8 +54,24 @@ export function LeaderboardClient() {
     fetchLeaderboard();
   }, [fetchLeaderboard]);
 
+  const isSpectator = session?.user?.role === "SPECTATOR";
+
   return (
     <div className="space-y-4">
+      {isSpectator && (
+        <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
+          <BarChart3 className="h-5 w-5 shrink-0 text-primary" />
+          <div className="flex-1">
+            <p className="text-sm font-medium">
+              {t("leaderboard.viewerHint")}
+            </p>
+          </div>
+          <Button asChild size="sm" variant="default">
+            <Link href="/settings/mt-accounts">{t("leaderboard.connectMt")}</Link>
+          </Button>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-1">
         {LENSES.map((l) => (
           <Button
@@ -64,7 +86,7 @@ export function LeaderboardClient() {
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-muted-foreground">{t("common.loading")}</p>
       ) : (
         <LeaderboardTable entries={entries} lens={lens} />
       )}

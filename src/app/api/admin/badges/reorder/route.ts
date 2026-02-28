@@ -46,7 +46,7 @@ export async function PUT(request: Request) {
 
     audit("badge.reorder", "BadgeDefinition", "batch", session.user.id, {
       count: parsed.data.items.length,
-    });
+    }, { category: "ADMIN" });
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -103,7 +103,7 @@ export async function PUT(
 
     audit("badge.update", "BadgeDefinition", badgeId, session.user.id, {
       changeType,
-    });
+    }, { category: "ADMIN" });
 
     return NextResponse.json({ badge });
   } catch (error) {
@@ -150,7 +150,7 @@ export async function DELETE(
       },
     });
 
-    audit("badge.delete", "BadgeDefinition", badgeId, session.user.id);
+    audit("badge.delete", "BadgeDefinition", badgeId, session.user.id, undefined, { category: "ADMIN" });
 
     return NextResponse.json({ success: true });
   } catch (error) {

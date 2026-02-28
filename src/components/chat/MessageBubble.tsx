@@ -13,6 +13,7 @@ import { Pin, Reply, Pencil, Trash2, MoreHorizontal, SmilePlus } from "lucide-re
 import { getSocket } from "@/lib/socket-client";
 import { SOCKET_EVENTS, MESSAGE_REACTION_EMOJIS } from "@/lib/chat-constants";
 import { useChatStore, type ChatMessage } from "@/stores/chat-store";
+
 import { TraderBadge } from "@/components/shared/TraderBadge";
 import { ChatImageGrid } from "@/components/shared/ChatImageGrid";
 import { TradeCardInline } from "./TradeCardInline";
@@ -104,6 +105,7 @@ export function MessageBubble({
 
   return (
     <div
+      data-testid="message-bubble"
       className={`group flex items-start gap-2 ${
         isOwn ? "flex-row-reverse" : ""
       } ${showAvatar ? "mt-3" : "mt-0.5"}`}
@@ -142,17 +144,28 @@ export function MessageBubble({
           </div>
         )}
 
-        {/* Reply preview */}
+        {/* Reply preview — clickable to scroll to original */}
         {message.replyTo && (
-          <div className={`mb-1 flex items-center gap-1 rounded-lg border-s-2 border-primary/50 bg-muted/30 px-2.5 py-1.5 text-xs ${isOwn ? "ms-auto" : ""}`}>
-            <Reply className="h-3 w-3 text-muted-foreground" />
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById(`msg-${message.replyTo!.id}`);
+              if (el) {
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                el.classList.add("animate-highlight");
+                setTimeout(() => el.classList.remove("animate-highlight"), 2000);
+              }
+            }}
+            className={`mb-1 flex items-center gap-1 rounded-lg border-s-2 border-primary/50 bg-muted/30 px-2.5 py-1.5 text-xs cursor-pointer hover:bg-muted/50 transition-colors ${isOwn ? "ms-auto" : ""}`}
+          >
+            <Reply className="h-3 w-3 shrink-0 text-muted-foreground" />
             <span className="font-medium">{message.replyTo.user.name}:</span>
             <span className="truncate text-muted-foreground">
               {message.replyTo.content.length > 50
                 ? message.replyTo.content.slice(0, 50) + "..."
                 : message.replyTo.content}
             </span>
-          </div>
+          </button>
         )}
 
         {/* Trade Action event line */}
@@ -228,7 +241,7 @@ export function MessageBubble({
         )}
 
         {/* Actions (hover) */}
-        <div className="mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+        <div data-testid="message-actions" className="mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
           <div className="relative">
             <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setShowReactions(!showReactions)}>
               <SmilePlus className="h-3 w-3" />

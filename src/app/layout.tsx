@@ -6,6 +6,9 @@ import { Toaster } from "@/components/ui/sonner";
 import { type Locale, getDirection } from "@/lib/locale";
 import { ServiceWorkerRegistration } from "@/components/pwa/ServiceWorkerRegistration";
 import { FontApplier } from "@/components/providers/FontApplier";
+import { ZoomApplier } from "@/components/providers/ZoomApplier";
+import { LocaleApplier } from "@/components/providers/LocaleApplier";
+import { cookies } from "next/headers";
 
 const inter = localFont({
   src: "../fonts/InterVariable.woff2",
@@ -35,11 +38,41 @@ const vazirmatn = localFont({
   weight: "100 900",
 });
 
-const sahel = localFont({
-  src: "../fonts/SahelVariable.woff2",
-  variable: "--font-sahel",
+const yekanbakh = localFont({
+  src: [
+    { path: "../fonts/YekanBakh.woff2", weight: "400", style: "normal" },
+    { path: "../fonts/YekanBakh-Bold.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-yekanbakh",
+  display: "swap",
+});
+
+const shabnam = localFont({
+  src: [
+    { path: "../fonts/Shabnam-Light.woff2", weight: "300", style: "normal" },
+    { path: "../fonts/Shabnam.woff2", weight: "400", style: "normal" },
+    { path: "../fonts/Shabnam-Medium.woff2", weight: "500", style: "normal" },
+    { path: "../fonts/Shabnam-Bold.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-shabnam",
+  display: "swap",
+});
+
+const estedad = localFont({
+  src: "../fonts/Estedad-Variable.woff2",
+  variable: "--font-estedad",
   display: "swap",
   weight: "100 900",
+});
+
+const samim = localFont({
+  src: [
+    { path: "../fonts/Samim.woff2", weight: "400", style: "normal" },
+    { path: "../fonts/Samim-Medium.woff2", weight: "500", style: "normal" },
+    { path: "../fonts/Samim-Bold.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-samim",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -82,24 +115,25 @@ export const viewport: Viewport = {
   maximumScale: 1,
 };
 
-// TODO: read locale from cookie/header when full i18n is implemented
-const locale: Locale = "en";
-
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const locale: Locale = (cookieStore.get("NEXT_LOCALE")?.value as Locale) || "fa";
   return (
     <html
       lang={locale}
       dir={getDirection(locale)}
       suppressHydrationWarning
-      className={`${inter.variable} ${geist.variable} ${jakarta.variable} ${vazirmatn.variable} ${sahel.variable}`}
+      className={`${inter.variable} ${geist.variable} ${jakarta.variable} ${vazirmatn.variable} ${yekanbakh.variable} ${shabnam.variable} ${estedad.variable} ${samim.variable}`}
     >
       <body className="font-sans antialiased">
         <ServiceWorkerRegistration />
+        <LocaleApplier />
         <FontApplier />
+        <ZoomApplier />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

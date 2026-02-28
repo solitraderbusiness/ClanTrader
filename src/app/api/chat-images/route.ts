@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import sharp from "sharp";
-import { writeFile, mkdir } from "fs/promises";
+import { mkdir } from "fs/promises";
 import path from "path";
 import { nanoid } from "nanoid";
 import { CHAT_IMAGES_MAX } from "@/lib/chat-constants";
+import { processAndSaveImage } from "@/lib/image-utils";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
@@ -61,17 +61,16 @@ export async function POST(request: Request) {
 
     for (const file of files) {
       const buffer = Buffer.from(await file.arrayBuffer());
+      const basename = `${session.user.id}-${nanoid(8)}`;
 
-      const processed = await sharp(buffer)
-        .resize(1200, undefined, { fit: "inside", withoutEnlargement: true })
-        .webp({ quality: 80 })
-        .toBuffer();
+      const { fullUrl } = await processAndSaveImage(
+        buffer,
+        uploadDir,
+        basename,
+        "/uploads/chat-images"
+      );
 
-      const filename = `${session.user.id}-${nanoid(8)}.webp`;
-      const filepath = path.join(uploadDir, filename);
-      await writeFile(filepath, processed);
-
-      imageUrls.push(`/uploads/chat-images/${filename}`);
+      imageUrls.push(fullUrl);
     }
 
     return NextResponse.json({ images: imageUrls });

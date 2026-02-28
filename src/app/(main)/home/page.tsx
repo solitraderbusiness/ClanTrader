@@ -18,9 +18,10 @@ export default async function HomePage() {
   });
 
   // Get user stats for quick glance
-  const [clanCount, followCount] = await Promise.all([
+  const [clanCount, followCount, user] = await Promise.all([
     db.clanMember.count({ where: { userId } }),
     db.follow.count({ where: { followerId: userId, followingType: "CLAN" } }),
+    db.user.findUnique({ where: { id: userId }, select: { email: true } }),
   ]);
 
   return (
@@ -38,6 +39,8 @@ export default async function HomePage() {
       }
       clanCount={clanCount}
       followCount={followCount}
+      hasEmail={!!user?.email}
+      role={session.user.role}
     />
   );
 }

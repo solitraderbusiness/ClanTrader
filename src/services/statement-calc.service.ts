@@ -19,6 +19,7 @@ export async function getEligibleTrades(
       status: { in: ["TP_HIT", "SL_HIT", "BE", "CLOSED"] },
       integrityStatus: "VERIFIED",
       statementEligible: true,
+      cardType: "SIGNAL",
       tradeCard: {
         tags: { hasSome: ["signal"] },
       },
@@ -45,9 +46,10 @@ function calculateRMultiple(
   status: string,
   entry: number,
   stopLoss: number,
-  targets: number[]
+  targets: number[],
+  initialRiskAbs?: number | null
 ): number {
-  const risk = Math.abs(entry - stopLoss);
+  const risk = initialRiskAbs && initialRiskAbs > 0 ? initialRiskAbs : Math.abs(entry - stopLoss);
   if (risk === 0) return 0;
 
   switch (status) {
@@ -115,7 +117,8 @@ export async function calculateStatement(
       trade.status,
       card.entry,
       card.stopLoss,
-      card.targets
+      card.targets,
+      trade.initialRiskAbs
     );
 
     rValues.push(r);

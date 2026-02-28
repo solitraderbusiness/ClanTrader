@@ -26,7 +26,7 @@ export async function PATCH(
     }
 
     const plan = await updatePlan(id, parsed.data);
-    audit("plan.update", "SubscriptionPlan", id, session.user.id, { changes: parsed.data });
+    audit("plan.update", "SubscriptionPlan", id, session.user.id, { changes: parsed.data }, { category: "ADMIN" });
 
     return NextResponse.json({ plan });
   } catch (error) {
@@ -47,7 +47,7 @@ export async function DELETE(
 
     const { id } = await params;
     await deletePlan(id);
-    audit("plan.delete", "SubscriptionPlan", id, session.user.id);
+    audit("plan.delete", "SubscriptionPlan", id, session.user.id, undefined, { category: "ADMIN" });
 
     return NextResponse.json({ success: true });
   } catch (error) {

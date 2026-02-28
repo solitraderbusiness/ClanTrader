@@ -29,8 +29,14 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
     {
+      name: "setup",
+      testMatch: /e2e\/global-setup\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
       name: "full-e2e",
-      testMatch: /e2e\/.+\.spec\.ts/,
+      testMatch: /e2e\/(?!global-setup).+\.spec\.ts/,
+      dependencies: ["setup"],
       use: { ...devices["Desktop Chrome"] },
     },
     {

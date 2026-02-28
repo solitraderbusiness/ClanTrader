@@ -7,6 +7,9 @@ declare module "next-auth" {
       role: string;
       isPro: boolean;
       username?: string | null;
+      phone?: string | null;
+      phoneVerified?: string | null;
+      onboardingComplete?: boolean;
     } & DefaultSession["user"];
   }
 
@@ -14,6 +17,9 @@ declare module "next-auth" {
     role: string;
     isPro: boolean;
     username?: string | null;
+    phone?: string | null;
+    phoneVerified?: string | null;
+    onboardingComplete?: boolean;
   }
 }
 
@@ -23,5 +29,8 @@ declare module "next-auth/jwt" {
     role: string;
     isPro: boolean;
     username?: string | null;
+    phone?: string | null;
+    phoneVerified?: string | null;
+    onboardingComplete?: boolean;
   }
 }

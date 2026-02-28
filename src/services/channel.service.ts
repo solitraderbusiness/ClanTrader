@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { redis } from "@/lib/redis";
 import { CHANNEL_POSTS_PER_PAGE } from "@/lib/clan-constants";
 import type {
   CreateChannelPostInput,
@@ -170,7 +171,26 @@ export async function getChannelPosts(
       include: {
         author: { select: { id: true, name: true, avatar: true } },
         tradeCard: {
-          select: { id: true, instrument: true, direction: true, entry: true, stopLoss: true, targets: true, timeframe: true, tags: true },
+          select: {
+            id: true, instrument: true, direction: true, entry: true, stopLoss: true, targets: true, timeframe: true, tags: true,
+            trade: {
+              select: {
+                id: true,
+                status: true,
+                finalRR: true,
+                netProfit: true,
+                closePrice: true,
+                initialEntry: true,
+                initialRiskAbs: true,
+                riskStatus: true,
+                mtTradeMatches: {
+                  where: { isOpen: true },
+                  select: { symbol: true },
+                  take: 1,
+                },
+              },
+            },
+          },
         },
       },
       orderBy: { createdAt: "desc" },
@@ -196,8 +216,57 @@ export async function getChannelPosts(
     return { ...post, locked: false };
   });
 
+  // Compute Live R:R for open trades from Redis-cached prices
+  const openTrades = processedPosts.flatMap((p) => {
+    const trade = p.tradeCard?.trade;
+    if (!trade || trade.status !== "OPEN") return [];
+    const symbol = trade.mtTradeMatches[0]?.symbol?.toUpperCase();
+    if (!symbol) return [];
+    return [{ tradeId: trade.id, symbol, trade, card: p.tradeCard! }];
+  });
+
+  const livePnlMap = new Map<string, { currentRR: number; currentPrice: number; targetRR: number | null }>();
+
+  if (openTrades.length > 0) {
+    try {
+      const symbols = [...new Set(openTrades.map((t) => t.symbol))];
+      const priceKeys = symbols.map((s) => `price:${s}`);
+      const priceValues = await redis.mget(...priceKeys);
+      const priceMap = new Map<string, number>();
+      for (let i = 0; i < symbols.length; i++) {
+        if (priceValues[i]) {
+          try {
+            const parsed = JSON.parse(priceValues[i]!) as { price: number };
+            priceMap.set(symbols[i], parsed.price);
+          } catch { /* skip */ }
+        }
+      }
+
+      for (const { tradeId, symbol, trade, card } of openTrades) {
+        const currentPrice = priceMap.get(symbol);
+        if (!currentPrice) continue;
+        const entry = trade.initialEntry ?? card.entry;
+        const riskAbs =
+          trade.initialRiskAbs && trade.initialRiskAbs > 0
+            ? trade.initialRiskAbs
+            : Math.abs(entry - card.stopLoss);
+        if (riskAbs <= 0) continue;
+        const dir = card.direction === "LONG" ? 1 : -1;
+        const currentRR = Math.round((dir * (currentPrice - entry)) / riskAbs * 100) / 100;
+        const tp = (card.targets as number[])[0];
+        const targetRR = tp && tp > 0
+          ? Math.round((Math.abs(tp - entry) / riskAbs) * 100) / 100
+          : null;
+        livePnlMap.set(tradeId, { currentRR, currentPrice, targetRR });
+      }
+    } catch {
+      // Non-critical — Live R:R just won't show
+    }
+  }
+
   return {
     posts: processedPosts,
+    livePnlMap: Object.fromEntries(livePnlMap),
     pagination: {
       page,
       limit,

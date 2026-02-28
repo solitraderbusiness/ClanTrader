@@ -7,26 +7,41 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { toThumbUrl, isThumbUrl } from "@/lib/image-urls";
 
 interface ChatImageGridProps {
   images: string[];
 }
 
+/** Get the best URL for grid display (prefer thumbnail). */
+function gridSrc(url: string): string {
+  if (isThumbUrl(url)) return url;
+  return toThumbUrl(url);
+}
+
 export function ChatImageGrid({ images }: ChatImageGridProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [failedSrcs, setFailedSrcs] = useState<Set<string>>(() => new Set());
 
   if (images.length === 0) return null;
+
+  const visibleImages = images.filter((src) => !failedSrcs.has(src));
+  if (visibleImages.length === 0) return null;
+
+  function handleError(src: string) {
+    setFailedSrcs((prev) => new Set(prev).add(src));
+  }
 
   return (
     <>
       <div
         className={`mb-1 grid gap-1 ${
-          images.length === 1
+          visibleImages.length === 1
             ? "grid-cols-1"
             : "grid-cols-2"
         }`}
       >
-        {images.map((src, i) => (
+        {visibleImages.map((src, i) => (
           <button
             key={i}
             type="button"
@@ -37,13 +52,14 @@ export function ChatImageGrid({ images }: ChatImageGridProps) {
             }}
           >
             <img
-              src={src}
+              src={gridSrc(src)}
               alt={`Image ${i + 1}`}
-              className={images.length === 1 ? "max-w-full rounded-lg" : "w-full object-cover"}
+              className={visibleImages.length === 1 ? "max-w-full rounded-lg" : "w-full object-cover"}
               style={{
-                maxHeight: images.length === 1 ? 300 : 150,
+                maxHeight: visibleImages.length === 1 ? 300 : 150,
               }}
               loading="lazy"
+              onError={() => handleError(src)}
             />
           </button>
         ))}
@@ -60,7 +76,7 @@ export function ChatImageGrid({ images }: ChatImageGridProps) {
           {lightboxIndex !== null && (
             <div className="relative flex items-center justify-center">
               <img
-                src={images[lightboxIndex]}
+                src={visibleImages[lightboxIndex]}
                 alt={`Image ${lightboxIndex + 1}`}
                 className="max-h-[85vh] max-w-full object-contain"
               />
@@ -72,7 +88,7 @@ export function ChatImageGrid({ images }: ChatImageGridProps) {
               >
                 <X className="h-5 w-5" />
               </Button>
-              {images.length > 1 && (
+              {visibleImages.length > 1 && (
                 <>
                   <Button
                     variant="ghost"
@@ -80,7 +96,7 @@ export function ChatImageGrid({ images }: ChatImageGridProps) {
                     className="absolute start-2 top-1/2 -translate-y-1/2 text-white hover:bg-white/20"
                     onClick={() =>
                       setLightboxIndex(
-                        (lightboxIndex - 1 + images.length) % images.length
+                        (lightboxIndex - 1 + visibleImages.length) % visibleImages.length
                       )
                     }
                   >
@@ -91,7 +107,7 @@ export function ChatImageGrid({ images }: ChatImageGridProps) {
                     size="icon"
                     className="absolute end-2 top-1/2 -translate-y-1/2 text-white hover:bg-white/20"
                     onClick={() =>
-                      setLightboxIndex((lightboxIndex + 1) % images.length)
+                      setLightboxIndex((lightboxIndex + 1) % visibleImages.length)
                     }
                   >
                     <ChevronRight className="h-6 w-6" />

@@ -20,12 +20,14 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { TRADE_ACTIONS, type TradeActionKey } from "@/lib/trade-action-constants";
+import { useTranslation } from "@/lib/i18n";
 
 interface TradeActionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   actionType: TradeActionKey;
   onConfirm: (newValue?: string, note?: string) => void;
+  mtLinked?: boolean;
 }
 
 export function TradeActionDialog({
@@ -33,7 +35,9 @@ export function TradeActionDialog({
   onOpenChange,
   actionType,
   onConfirm,
+  mtLinked,
 }: TradeActionDialogProps) {
+  const { t } = useTranslation();
   const [value, setValue] = useState("");
   const [note, setNote] = useState("");
 
@@ -52,25 +56,45 @@ export function TradeActionDialog({
 
   const requiresValue = action.requiresInput && actionType !== "ADD_NOTE";
   const isInputOptional = "inputOptional" in action && action.inputOptional;
+  const isMtExecution = mtLinked && actionType !== "ADD_NOTE";
+  const isClose = actionType === "CLOSE";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
-          <DialogTitle>{action.label}</DialogTitle>
+          <DialogTitle>{t(action.labelKey)}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <p className="text-sm text-muted-foreground">
-            {action.description}
+            {t(action.descriptionKey)}
           </p>
+
+          {isMtExecution && (
+            <div className={`rounded-md border p-3 text-sm ${
+              isClose
+                ? "border-red-500/30 bg-red-500/5 text-red-600 dark:text-red-400"
+                : "border-blue-500/30 bg-blue-500/5 text-blue-600 dark:text-blue-400"
+            }`}>
+              {isClose
+                ? t("trade.closeWarning")
+                : t("trade.mtUpdateWarning")}
+            </div>
+          )}
+
+          {actionType === "ADD_NOTE" && mtLinked && (
+            <div className="rounded-md border border-muted p-3 text-xs text-muted-foreground">
+              {t("trade.noteChatOnly")}
+            </div>
+          )}
 
           {actionType === "ADD_NOTE" && (
             <div className="space-y-2">
-              <Label>Note</Label>
+              <Label>{t("trade.noteLabel")}</Label>
               <Textarea
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
-                placeholder="Add your note..."
+                placeholder={t("trade.addYourNote")}
                 maxLength={500}
               />
             </div>
@@ -78,10 +102,10 @@ export function TradeActionDialog({
 
           {"inputType" in action && action.inputType === "select" && "options" in action && (
             <div className="space-y-2">
-              <Label>{action.inputLabel}</Label>
+              <Label>{t(action.inputLabelKey)}</Label>
               <Select value={value} onValueChange={setValue}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select status..." />
+                  <SelectValue placeholder={t("trade.selectStatus")} />
                 </SelectTrigger>
                 <SelectContent>
                   {action.options.map((opt: string) => (
@@ -97,9 +121,9 @@ export function TradeActionDialog({
           {"inputType" in action && action.inputType === "number" && (
             <div className="space-y-2">
               <Label>
-                {action.inputLabel}
+                {t(action.inputLabelKey)}
                 {isInputOptional && (
-                  <span className="ms-1 text-xs text-muted-foreground">(optional)</span>
+                  <span className="ms-1 text-xs text-muted-foreground">{t("common.optional")}</span>
                 )}
               </Label>
               <Input
@@ -107,18 +131,18 @@ export function TradeActionDialog({
                 step="any"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
-                placeholder="Enter value..."
+                placeholder={t("trade.enterValue")}
               />
             </div>
           )}
 
           {"inputType" in action && action.inputType === "text" && actionType !== "ADD_NOTE" && (
             <div className="space-y-2">
-              <Label>{action.inputLabel}</Label>
+              <Label>{t(action.inputLabelKey)}</Label>
               <Input
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
-                placeholder="Enter value..."
+                placeholder={t("trade.enterValue")}
               />
             </div>
           )}
@@ -126,12 +150,12 @@ export function TradeActionDialog({
           {actionType !== "ADD_NOTE" && (
             <div className="space-y-2">
               <Label>
-                Note <span className="text-xs text-muted-foreground">(optional)</span>
+                {t("trade.noteLabel")} <span className="text-xs text-muted-foreground">{t("common.optional")}</span>
               </Label>
               <Input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Optional note..."
+                placeholder={t("trade.optionalNote")}
                 maxLength={500}
               />
             </div>
@@ -139,16 +163,21 @@ export function TradeActionDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
+            variant={isMtExecution && isClose ? "destructive" : "default"}
             onClick={handleConfirm}
             disabled={
               (requiresValue && !isInputOptional && !value) ||
               (actionType === "ADD_NOTE" && !value)
             }
           >
-            Confirm
+            {isMtExecution
+              ? isClose
+                ? t("trade.closeInMt")
+                : t("trade.sendToMt")
+              : t("common.confirm")}
           </Button>
         </DialogFooter>
       </DialogContent>

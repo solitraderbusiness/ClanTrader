@@ -29,7 +29,7 @@ export async function PATCH(
       ...parsed.data,
       freePreview: parsed.data.freePreview as Record<string, boolean> | undefined,
     });
-    audit("paywall_rule.update", "PaywallRule", id, session.user.id, { changes: parsed.data });
+    audit("paywall_rule.update", "PaywallRule", id, session.user.id, { changes: parsed.data }, { category: "ADMIN" });
 
     return NextResponse.json({ rule });
   } catch (error) {
@@ -50,7 +50,7 @@ export async function DELETE(
 
     const { id } = await params;
     await deletePaywallRule(id);
-    audit("paywall_rule.delete", "PaywallRule", id, session.user.id);
+    audit("paywall_rule.delete", "PaywallRule", id, session.user.id, undefined, { category: "ADMIN" });
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       ...parsed.data,
       freePreview: parsed.data.freePreview as Record<string, boolean> | undefined,
     });
-    audit("paywall_rule.create", "PaywallRule", rule.id, session.user.id);
+    audit("paywall_rule.create", "PaywallRule", rule.id, session.user.id, undefined, { category: "ADMIN" });
 
     return NextResponse.json({ rule }, { status: 201 });
   } catch (error) {

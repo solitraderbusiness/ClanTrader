@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     audit("statement.recalculate", "TraderStatement", clanId, session.user.id, {
       periodType,
       count: statements.length,
-    });
+    }, { category: "ADMIN" });
 
     return NextResponse.json({
       count: statements.length,

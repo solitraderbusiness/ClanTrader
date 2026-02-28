@@ -13,6 +13,10 @@ import {
   Eye,
   ArrowRight,
 } from "lucide-react";
+import { AddEmailBanner } from "@/components/shared/AddEmailBanner";
+import { MissionDashboard } from "@/components/home/MissionDashboard";
+import { BarChart3 } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 interface FeedPost {
   id: string;
@@ -44,6 +48,8 @@ interface HomeFeedProps {
   } | null;
   clanCount: number;
   followCount: number;
+  hasEmail: boolean;
+  role: string;
 }
 
 function timeAgo(dateStr: string): string {
@@ -62,7 +68,10 @@ export function HomeFeed({
   activeSeason,
   clanCount,
   followCount,
+  hasEmail,
+  role,
 }: HomeFeedProps) {
+  const { t } = useTranslation();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -97,11 +106,33 @@ export function HomeFeed({
     <div className="space-y-4 max-w-2xl mx-auto">
       {/* Greeting */}
       <div>
-        <h1 className="text-xl font-bold">Hey, {userName}</h1>
+        <h1 className="text-xl font-bold">{t("home.greeting", { name: userName })}</h1>
         <p className="text-sm text-muted-foreground">
-          Here&apos;s what&apos;s new from your clans and channels.
+          {t("home.feedSubtitle")}
         </p>
       </div>
+
+      {/* Add email banner for EA-only users */}
+      <AddEmailBanner hasEmail={hasEmail} />
+
+      {/* Upgrade to Verified Trader */}
+      {role === "SPECTATOR" && (
+        <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
+          <BarChart3 className="h-5 w-5 shrink-0 text-primary" />
+          <div className="flex-1">
+            <p className="text-sm font-medium">{t("home.becomeVerified")}</p>
+            <p className="text-xs text-muted-foreground">
+              {t("home.becomeVerifiedDesc")}
+            </p>
+          </div>
+          <Button asChild size="sm" variant="default">
+            <Link href="/settings/mt-accounts">Connect</Link>
+          </Button>
+        </div>
+      )}
+
+      {/* Mission dashboard for new users */}
+      <MissionDashboard />
 
       {/* Season widget */}
       {activeSeason && (
@@ -112,13 +143,13 @@ export function HomeFeed({
               <div>
                 <p className="text-sm font-medium">{activeSeason.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  Active season
+                  {t("home.activeSeason")}
                 </p>
               </div>
             </div>
             <Button variant="ghost" size="sm" asChild>
               <Link href="/explore?tab=leaderboard">
-                View Rankings <ArrowRight className="ms-1 h-3 w-3" />
+                {t("home.viewRankings")} <ArrowRight className="ms-1 h-3 w-3" />
               </Link>
             </Button>
           </CardContent>
@@ -130,29 +161,29 @@ export function HomeFeed({
         <div className="flex flex-col items-center gap-4 py-16 text-center">
           <Compass className="h-12 w-12 text-muted-foreground/40" />
           <div>
-            <h2 className="text-lg font-semibold">Your feed is empty</h2>
+            <h2 className="text-lg font-semibold">{t("home.emptyFeed")}</h2>
             <p className="text-sm text-muted-foreground">
-              Follow some clans or join one to see posts here.
+              {t("home.emptyFeedDesc")}
             </p>
           </div>
           <Button asChild>
             <Link href="/explore">
               <Compass className="me-2 h-4 w-4" />
-              Explore Clans
+              {t("home.exploreClans")}
             </Link>
           </Button>
         </div>
       ) : loading ? (
         <p className="text-sm text-muted-foreground py-8 text-center">
-          Loading feed...
+          {t("home.loadingFeed")}
         </p>
       ) : posts.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-12 text-center">
           <Megaphone className="h-10 w-10 text-muted-foreground/40" />
           <div>
-            <p className="text-sm font-medium">No posts yet</p>
+            <p className="text-sm font-medium">{t("home.noPostsYet")}</p>
             <p className="text-xs text-muted-foreground">
-              The clans you follow haven&apos;t posted anything yet.
+              {t("home.noPostsDesc")}
             </p>
           </div>
         </div>
@@ -173,7 +204,7 @@ export function HomeFeed({
                   fetchFeed(next);
                 }}
               >
-                Load more
+                {t("common.loadMore")}
               </Button>
             </div>
           )}
@@ -184,6 +215,7 @@ export function HomeFeed({
 }
 
 function FeedPostCard({ post }: { post: FeedPost }) {
+  const { t } = useTranslation();
   return (
     <Link href={`/clans/${post.clanId}/posts/${post.id}`}>
       <Card className="glass-card transition-all hover:-translate-y-0.5 hover:shadow-lg">
@@ -253,7 +285,7 @@ function FeedPostCard({ post }: { post: FeedPost }) {
             )}
             {post.sourceType === "AUTO_TAG" && (
               <Badge variant="outline" className="text-[10px]">
-                Auto-posted
+                {t("home.autoPosted")}
               </Badge>
             )}
           </div>

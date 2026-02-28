@@ -24,7 +24,7 @@ export async function POST(request: Request) {
 
     audit("ranking.calculate", "LeaderboardEntry", seasonId, session.user.id, {
       entriesCount: entries.length,
-    });
+    }, { category: "ADMIN" });
 
     return NextResponse.json({
       count: entries.length,

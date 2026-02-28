@@ -259,18 +259,22 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
     }
   }
 
-  // Cache latest prices per symbol for watchlist
+  // Cache latest prices per symbol for watchlist + live R:R
   if (data.openTrades.length > 0) {
+    const ttl = priceCacheTTL();
     const seen = new Set<string>();
     for (const trade of data.openTrades) {
       const sym = trade.symbol?.toUpperCase();
       if (sym && trade.currentPrice && trade.currentPrice > 0 && !seen.has(sym)) {
         seen.add(sym);
-        redis.set(
-          `price:${sym}`,
-          JSON.stringify({ price: trade.currentPrice, ts: Date.now() }),
-          "EX", 300
-        ).catch(() => {});
+        const priceJson = JSON.stringify({ price: trade.currentPrice, ts: Date.now() });
+        redis.set(`price:${sym}`, priceJson, "EX", ttl).catch(() => {});
+        // Also cache under normalized symbol so unlinked trade cards can find prices
+        const norm = normalizeSymbol(sym);
+        if (norm !== sym && !seen.has(norm)) {
+          seen.add(norm);
+          redis.set(`price:${norm}`, priceJson, "EX", ttl).catch(() => {});
+        }
       }
     }
   }
@@ -279,6 +283,13 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
   if (linkedTrades.length > 0) {
     broadcastTradePnl(linkedTrades).catch((err) =>
       log("ea.broadcast_pnl_error", "ERROR", "EA", { error: String(err) }, account.userId)
+    );
+  }
+
+  // Broadcast live R:R for unlinked trades in the user's clans using heartbeat prices
+  if (data.openTrades.length > 0) {
+    broadcastUnlinkedTradePnl(account.userId, data.openTrades).catch((err) =>
+      log("ea.broadcast_unlinked_pnl_error", "ERROR", "EA", { error: String(err) }, account.userId)
     );
   }
 
@@ -422,6 +433,56 @@ export async function disconnectAccount(userId: string, accountId: string) {
 
 // --- Internal helpers ---
 
+/**
+ * Return a TTL for cached prices.
+ * During market hours (Sun 22:00 UTC – Fri 22:00 UTC): 300s (5 min).
+ * Outside market hours: seconds until next Sunday 22:00 UTC so the
+ * last Friday close price persists through the weekend.
+ */
+function priceCacheTTL(): number {
+  const now = new Date();
+  const day = now.getUTCDay(); // 0=Sun … 6=Sat
+  const hour = now.getUTCHours();
+
+  const marketOpen =
+    (day === 0 && hour >= 22) ||  // Sunday after 22:00
+    (day >= 1 && day <= 4) ||      // Mon–Thu all day
+    (day === 5 && hour < 22);      // Friday before 22:00
+
+  if (marketOpen) return 300;
+
+  // Market is closed — compute seconds until Sunday 22:00 UTC
+  let daysUntilSunday: number;
+  if (day === 5) {
+    // Friday 22:00+ → 2 days to Sunday
+    daysUntilSunday = 2;
+  } else if (day === 6) {
+    // Saturday → 1 day to Sunday
+    daysUntilSunday = 1;
+  } else {
+    // Sunday before 22:00 → 0 days (same day)
+    daysUntilSunday = 0;
+  }
+
+  const nextOpen = new Date(now);
+  nextOpen.setUTCDate(now.getUTCDate() + daysUntilSunday);
+  // If we're on Saturday or Friday, target the upcoming Sunday
+  // Adjust to Sunday if needed
+  while (nextOpen.getUTCDay() !== 0) {
+    nextOpen.setUTCDate(nextOpen.getUTCDate() + 1);
+  }
+  nextOpen.setUTCHours(22, 0, 0, 0);
+
+  const seconds = Math.ceil((nextOpen.getTime() - now.getTime()) / 1000);
+  // Minimum 300s, maximum ~3 days
+  return Math.max(300, Math.min(seconds, 259200));
+}
+
+/** Strip common broker suffixes like _L, _l, .i, _m, _M etc. */
+function normalizeSymbol(symbol: string): string {
+  return symbol.toUpperCase().replace(/[._][A-Z]$/i, "");
+}
+
 async function broadcastTradePnl(
   linkedTrades: { matchedTradeId: string; currentPrice: number }[]
 ) {
@@ -479,23 +540,159 @@ async function broadcastTradePnl(
 
   // Group by topic room and emit
   const byRoom = new Map<string, typeof updates>();
+  const byClan = new Map<string, typeof updates>();
   for (const update of updates) {
     const room = `topic:${update.clanId}:${update.topicId}`;
     const arr = byRoom.get(room) || [];
     arr.push(update);
     byRoom.set(room, arr);
+
+    // Also group by clan for channel tab subscribers
+    const clanArr = byClan.get(update.clanId) || [];
+    clanArr.push(update);
+    byClan.set(update.clanId, clanArr);
   }
+
+  const mapUpdate = (u: (typeof updates)[number]) => ({
+    tradeId: u.tradeId,
+    messageId: u.messageId,
+    currentRR: u.currentRR,
+    currentPrice: u.currentPrice,
+    targetRR: u.targetRR,
+    riskStatus: u.riskStatus,
+  });
 
   for (const [room, roomUpdates] of byRoom) {
     io.to(room).emit(SOCKET_EVENTS.TRADE_PNL_UPDATE, {
-      updates: roomUpdates.map((u) => ({
-        tradeId: u.tradeId,
-        messageId: u.messageId,
-        currentRR: u.currentRR,
-        currentPrice: u.currentPrice,
-        targetRR: u.targetRR,
-        riskStatus: u.riskStatus,
-      })),
+      updates: roomUpdates.map(mapUpdate),
+    });
+  }
+
+  // Broadcast to clan room so channel tab gets live R:R updates
+  for (const [clanId, clanUpdates] of byClan) {
+    io.to(`clan:${clanId}`).emit(SOCKET_EVENTS.TRADE_PNL_UPDATE, {
+      updates: clanUpdates.map(mapUpdate),
+    });
+  }
+}
+
+/**
+ * Broadcast live R:R for open trades that have NO linked MT trade.
+ * Uses prices from the heartbeat sender's open trades to update
+ * any unlinked trade cards in the sender's clans.
+ */
+async function broadcastUnlinkedTradePnl(
+  userId: string,
+  openTrades: EaHeartbeatInput["openTrades"]
+) {
+  // Build price map from heartbeat: normalized symbol → currentPrice
+  const priceMap = new Map<string, number>();
+  for (const t of openTrades) {
+    const sym = t.symbol?.toUpperCase();
+    if (!sym || !t.currentPrice || t.currentPrice <= 0) continue;
+    priceMap.set(sym, t.currentPrice);
+    const norm = normalizeSymbol(sym);
+    if (norm !== sym) priceMap.set(norm, t.currentPrice);
+  }
+  if (priceMap.size === 0) return;
+
+  // Find clans this user belongs to
+  const memberships = await db.clanMember.findMany({
+    where: { userId },
+    select: { clanId: true },
+  });
+  if (memberships.length === 0) return;
+  const clanIds = memberships.map((m) => m.clanId);
+
+  // Find open trades in those clans with NO open MT trade match
+  const unlinkedTrades = await db.trade.findMany({
+    where: {
+      clanId: { in: clanIds },
+      status: "OPEN",
+      mtTradeMatches: { none: { isOpen: true } },
+    },
+    include: {
+      tradeCard: {
+        include: {
+          message: { select: { id: true, topicId: true, clanId: true } },
+        },
+      },
+    },
+  });
+  if (unlinkedTrades.length === 0) return;
+
+  const updates: { tradeId: string; messageId: string; currentRR: number; currentPrice: number; targetRR: number | null; riskStatus: string; clanId: string; topicId: string }[] = [];
+
+  for (const trade of unlinkedTrades) {
+    const card = trade.tradeCard;
+    if (!card) continue;
+
+    const instrument = card.instrument?.toUpperCase();
+    if (!instrument) continue;
+    const currentPrice = priceMap.get(instrument);
+    if (!currentPrice) continue;
+
+    const entry = trade.initialEntry ?? card.entry;
+    const riskDistance = (trade.initialRiskAbs && trade.initialRiskAbs > 0)
+      ? trade.initialRiskAbs
+      : Math.abs(entry - card.stopLoss);
+    if (riskDistance <= 0) continue;
+
+    const dir = card.direction === "LONG" ? 1 : -1;
+    const currentRR = (dir * (currentPrice - entry)) / riskDistance;
+
+    const { clanId, topicId } = card.message;
+    if (!topicId) continue;
+
+    updates.push({
+      tradeId: trade.id,
+      messageId: card.message.id,
+      currentRR: Math.round(currentRR * 100) / 100,
+      currentPrice,
+      targetRR: calculateTargetRR(card.targets[0], entry, riskDistance),
+      riskStatus: trade.riskStatus,
+      clanId,
+      topicId,
+    });
+  }
+
+  if (updates.length === 0) return;
+
+  const io = getIO();
+  if (!io) return;
+
+  // Group by topic room and clan room, emit TRADE_PNL_UPDATE
+  const byRoom = new Map<string, typeof updates>();
+  const byClan = new Map<string, typeof updates>();
+  for (const update of updates) {
+    const room = `topic:${update.clanId}:${update.topicId}`;
+    const arr = byRoom.get(room) || [];
+    arr.push(update);
+    byRoom.set(room, arr);
+
+    const clanArr = byClan.get(update.clanId) || [];
+    clanArr.push(update);
+    byClan.set(update.clanId, clanArr);
+  }
+
+  const mapUpdate = (u: (typeof updates)[number]) => ({
+    tradeId: u.tradeId,
+    messageId: u.messageId,
+    currentRR: u.currentRR,
+    currentPrice: u.currentPrice,
+    targetRR: u.targetRR,
+    riskStatus: u.riskStatus,
+  });
+
+  for (const [room, roomUpdates] of byRoom) {
+    io.to(room).emit(SOCKET_EVENTS.TRADE_PNL_UPDATE, {
+      updates: roomUpdates.map(mapUpdate),
+    });
+  }
+
+  for (const [clanId, clanUpdates] of byClan) {
+    io.to(`clan:${clanId}`).emit(SOCKET_EVENTS.TRADE_PNL_UPDATE, {
+      updates: clanUpdates.map(mapUpdate),
     });
   }
 }

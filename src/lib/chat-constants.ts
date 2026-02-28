@@ -28,6 +28,7 @@ export const TRADE_TIMEFRAMES = [
   "M1", "M5", "M15", "M30",
   "H1", "H4",
   "D1", "W1", "MN",
+  "AUTO",
 ] as const;
 
 export const COMMON_INSTRUMENTS = [
@@ -95,6 +96,9 @@ export const SOCKET_EVENTS = {
   TOPIC_ARCHIVED: "topic_archived",
   TRADE_STATUS_UPDATED: "trade_status_updated",
   TRADE_ACTION_EXECUTED: "trade_action_executed",
+  EA_ACTION_PENDING: "ea_action_pending",
+  EA_ACTION_RESOLVED: "ea_action_resolved",
+  TRADE_PNL_UPDATE: "trade_pnl_update",
 
   // Server -> Client (DMs)
   RECEIVE_DM: "receive_dm",

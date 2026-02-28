@@ -1,9 +1,13 @@
+"use client";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { MetricsDisplay } from "@/components/statements/MetricsDisplay";
 import { ProfileBadgeSection } from "@/components/profile/ProfileBadgeSection";
 import type { StatementMetrics } from "@/types/statement";
 import Link from "next/link";
+import { BarChart3 } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 interface ProfileCardProps {
   user: {
@@ -31,6 +35,7 @@ interface ProfileCardProps {
 }
 
 export function ProfileCard({ user, isOwnProfile }: ProfileCardProps) {
+  const { t } = useTranslation();
   const initials = user.name
     ? user.name
         .split(" ")
@@ -58,12 +63,12 @@ export function ProfileCard({ user, isOwnProfile }: ProfileCardProps) {
             <h1 className="text-2xl font-bold">{user.name || "Anonymous"}</h1>
             {isVerified && (
               <Badge variant="default" className="text-xs">
-                Verified
+                {t("profile.verified")}
               </Badge>
             )}
             {user.isPro && (
               <Badge variant="secondary" className="text-xs">
-                PRO
+                {t("profile.pro")}
               </Badge>
             )}
           </div>
@@ -76,15 +81,73 @@ export function ProfileCard({ user, isOwnProfile }: ProfileCardProps) {
         </div>
       </div>
 
+      {/* Verified Trading Stats (lead with credibility) */}
+      {isVerified && user.statements?.[0]?.extractedMetrics ? (
+        <div className="rounded-lg border p-4">
+          <h3 className="mb-3 font-medium">{t("profile.verifiedStats")}</h3>
+          <MetricsDisplay
+            metrics={user.statements[0].extractedMetrics as unknown as StatementMetrics}
+            compact
+            verificationMethod={user.statements[0].verificationMethod}
+          />
+        </div>
+      ) : isOwnProfile ? (
+        <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
+          <BarChart3 className="h-5 w-5 shrink-0 text-primary" />
+          <div className="flex-1">
+            <p className="text-sm font-medium">{t("profile.becomeVerified")}</p>
+            <p className="text-xs text-muted-foreground">
+              {t("profile.becomeVerifiedDesc")}
+            </p>
+          </div>
+          <Link
+            href="/settings/mt-accounts"
+            className="shrink-0 text-sm font-medium text-primary hover:underline"
+          >
+            {t("profile.connect")}
+          </Link>
+        </div>
+      ) : null}
+
       {/* Badges */}
       <ProfileBadgeSection userId={user.id} />
 
-      {/* Trading Details */}
+      {/* Clan */}
+      {clan ? (
+        <div className="rounded-lg border p-3">
+          <p className="text-xs text-muted-foreground">{t("admin.clan")}</p>
+          <p className="font-medium">
+            <Link
+              href={`/clans/${clan.clan.id}`}
+              className="text-primary hover:underline"
+            >
+              {clan.clan.name}
+            </Link>{" "}
+            <span className="text-xs text-muted-foreground">
+              ({clan.role.toLowerCase().replace("_", "-")})
+            </span>
+          </p>
+        </div>
+      ) : isOwnProfile ? (
+        <div className="rounded-lg border border-dashed p-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            {t("profile.emptyProfile")}
+          </p>
+          <Link
+            href="/discover"
+            className="mt-1 inline-block text-sm text-primary hover:underline"
+          >
+            {t("profile.setupProfile")}
+          </Link>
+        </div>
+      ) : null}
+
+      {/* Trading Details (preferences — least important) */}
       {hasTradeDetails ? (
         <div className="grid gap-4 sm:grid-cols-2">
           {user.tradingStyle && (
             <div className="rounded-lg border p-3">
-              <p className="text-xs text-muted-foreground">Trading Style</p>
+              <p className="text-xs text-muted-foreground">{t("profile.tradingStyle")}</p>
               <p className="font-medium">
                 <Link
                   href={`/explore?tab=agents&tradingStyle=${user.tradingStyle}`}
@@ -97,7 +160,7 @@ export function ProfileCard({ user, isOwnProfile }: ProfileCardProps) {
           )}
           {user.sessionPreference && (
             <div className="rounded-lg border p-3">
-              <p className="text-xs text-muted-foreground">Preferred Session</p>
+              <p className="text-xs text-muted-foreground">{t("profile.preferredSession")}</p>
               <p className="font-medium">
                 <Link
                   href={`/explore?tab=agents&sessionPreference=${user.sessionPreference}`}
@@ -110,7 +173,7 @@ export function ProfileCard({ user, isOwnProfile }: ProfileCardProps) {
           )}
           {user.preferredPairs.length > 0 && (
             <div className="rounded-lg border p-3 sm:col-span-2">
-              <p className="text-xs text-muted-foreground">Preferred Pairs</p>
+              <p className="text-xs text-muted-foreground">{t("profile.preferredPairs")}</p>
               <div className="mt-1 flex flex-wrap gap-1">
                 {user.preferredPairs.map((pair) => (
                   <Link
@@ -130,67 +193,13 @@ export function ProfileCard({ user, isOwnProfile }: ProfileCardProps) {
       ) : isOwnProfile ? (
         <div className="rounded-lg border border-dashed p-4 text-center">
           <p className="text-sm text-muted-foreground">
-            Your trading profile is empty.
+            {t("profile.emptyProfile")}
           </p>
           <Link
             href="/settings/profile"
             className="mt-1 inline-block text-sm text-primary hover:underline"
           >
-            Set up your trading style, session, and pairs
-          </Link>
-        </div>
-      ) : null}
-
-      {/* Clan */}
-      {clan ? (
-        <div className="rounded-lg border p-3">
-          <p className="text-xs text-muted-foreground">Clan</p>
-          <p className="font-medium">
-            <Link
-              href={`/clans/${clan.clan.id}`}
-              className="text-primary hover:underline"
-            >
-              {clan.clan.name}
-            </Link>{" "}
-            <span className="text-xs text-muted-foreground">
-              ({clan.role.toLowerCase().replace("_", "-")})
-            </span>
-          </p>
-        </div>
-      ) : isOwnProfile ? (
-        <div className="rounded-lg border border-dashed p-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            You&apos;re not in a clan yet.
-          </p>
-          <Link
-            href="/discover"
-            className="mt-1 inline-block text-sm text-primary hover:underline"
-          >
-            Discover and join a clan
-          </Link>
-        </div>
-      ) : null}
-
-      {/* Verified Trading Stats */}
-      {isVerified && user.statements?.[0]?.extractedMetrics ? (
-        <div className="rounded-lg border p-4">
-          <h3 className="mb-3 font-medium">Verified Trading Stats</h3>
-          <MetricsDisplay
-            metrics={user.statements[0].extractedMetrics as unknown as StatementMetrics}
-            compact
-            verificationMethod={user.statements[0].verificationMethod}
-          />
-        </div>
-      ) : isOwnProfile ? (
-        <div className="rounded-lg border border-dashed p-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            No verified trading statement yet.
-          </p>
-          <Link
-            href="/statements/upload"
-            className="mt-1 inline-block text-sm text-primary hover:underline"
-          >
-            Upload your MetaTrader statement to get verified
+            {t("profile.setupProfile")}
           </Link>
         </div>
       ) : null}

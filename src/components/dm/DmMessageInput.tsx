@@ -161,6 +161,7 @@ export function DmMessageInput({ recipientId, disabled }: DmMessageInputProps) {
         </Button>
         <Textarea
           ref={textareaRef}
+          data-testid="dm-input"
           value={content}
           onChange={(e) => {
             setContent(e.target.value);

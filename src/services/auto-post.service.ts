@@ -74,7 +74,53 @@ export async function maybeAutoPost(
   audit("auto_post.create", "ChannelPost", post.id, userId, {
     tradeCardId,
     clanId,
-  });
+  }, { category: "TRADE" });
 
   return true;
+}
+
+export async function updateChannelPostRiskWarning(
+  tradeCardId: string,
+  eventType: string
+): Promise<void> {
+  const post = await db.channelPost.findUnique({
+    where: { tradeCardId },
+  });
+  if (!post) return;
+
+  try {
+    const content = JSON.parse(post.content);
+    content.riskWarning = {
+      type: eventType,
+      timestamp: new Date().toISOString(),
+    };
+    await db.channelPost.update({
+      where: { id: post.id },
+      data: { content: JSON.stringify(content) },
+    });
+  } catch {
+    // Content might not be valid JSON for manual posts
+  }
+}
+
+export async function updateChannelPostTargets(
+  tradeCardId: string,
+  newTargets: number[]
+): Promise<void> {
+  const post = await db.channelPost.findUnique({
+    where: { tradeCardId },
+  });
+  if (!post) return;
+
+  try {
+    const content = JSON.parse(post.content);
+    content.targets = newTargets;
+    content.tpRemoved = true;
+    await db.channelPost.update({
+      where: { id: post.id },
+      data: { content: JSON.stringify(content) },
+    });
+  } catch {
+    // Content might not be valid JSON for manual posts
+  }
 }

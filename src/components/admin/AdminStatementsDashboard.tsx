@@ -18,6 +18,7 @@ import { MetricsDisplay } from "@/components/statements/MetricsDisplay";
 import { FileText, CheckCircle, XCircle, Loader2, ExternalLink } from "lucide-react";
 import type { StatementMetrics } from "@/types/statement";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 
 interface StatementUser {
   id: string;
@@ -54,17 +55,18 @@ interface AdminStatementsDashboardProps {
   initialCounts: Counts;
 }
 
-const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  PENDING: { label: "Pending", variant: "secondary" },
-  VERIFIED: { label: "Verified", variant: "default" },
-  REJECTED: { label: "Rejected", variant: "destructive" },
-  EXPIRED: { label: "Expired", variant: "outline" },
+const statusConfig: Record<string, { labelKey: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  PENDING: { labelKey: "admin.pending", variant: "secondary" },
+  VERIFIED: { labelKey: "admin.verified", variant: "default" },
+  REJECTED: { labelKey: "admin.rejected", variant: "destructive" },
+  EXPIRED: { labelKey: "admin.expired", variant: "outline" },
 };
 
 export function AdminStatementsDashboard({
   initialStatements,
   initialCounts,
 }: AdminStatementsDashboardProps) {
+  const { t } = useTranslation();
   const [statements, setStatements] = useState(initialStatements);
   const [counts, setCounts] = useState(initialCounts);
   const [activeTab, setActiveTab] = useState("PENDING");
@@ -111,18 +113,18 @@ export function AdminStatementsDashboard({
       if (res.ok) {
         toast.success(
           status === "VERIFIED"
-            ? "Statement approved"
-            : "Statement rejected"
+            ? t("admin.statementApproved")
+            : t("admin.statementRejected")
         );
         setReviewStatement(null);
         setReviewNotes("");
         fetchStatements(activeTab);
       } else {
         const data = await res.json();
-        toast.error(data.error || "Review failed");
+        toast.error(data.error || t("admin.reviewFailed"));
       }
     } catch {
-      toast.error("Network error");
+      toast.error(t("admin.networkError"));
     } finally {
       setSubmitting(false);
     }
@@ -133,19 +135,19 @@ export function AdminStatementsDashboard({
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="ALL">
-            All ({counts.all})
+            {t("admin.allCount", { count: counts.all })}
           </TabsTrigger>
           <TabsTrigger value="PENDING">
-            Pending ({counts.pending})
+            {t("admin.pendingCount", { count: counts.pending })}
           </TabsTrigger>
           <TabsTrigger value="VERIFIED">
-            Verified ({counts.verified})
+            {t("admin.verifiedCount", { count: counts.verified })}
           </TabsTrigger>
           <TabsTrigger value="REJECTED">
-            Rejected ({counts.rejected})
+            {t("admin.rejectedCount", { count: counts.rejected })}
           </TabsTrigger>
           <TabsTrigger value="EXPIRED">
-            Expired ({counts.expired})
+            {t("admin.expiredCount", { count: counts.expired })}
           </TabsTrigger>
         </TabsList>
 
@@ -161,7 +163,7 @@ export function AdminStatementsDashboard({
                 <CardContent className="flex flex-col items-center justify-center py-8">
                   <FileText className="mb-3 h-10 w-10 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">
-                    No statements found.
+                    {t("admin.noStatements")}
                   </p>
                 </CardContent>
               </Card>
@@ -183,7 +185,7 @@ export function AdminStatementsDashboard({
                             </Avatar>
                             <div>
                               <CardTitle className="text-sm">
-                                {stmt.user.name || stmt.user.email}
+                                {stmt.user.name || stmt.user.email || "Unknown"}
                               </CardTitle>
                               <p className="text-xs text-muted-foreground">
                                 {stmt.originalFilename} &middot;{" "}
@@ -192,7 +194,7 @@ export function AdminStatementsDashboard({
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Badge variant={config.variant}>{config.label}</Badge>
+                            <Badge variant={config.variant}>{t(config.labelKey)}</Badge>
                             {stmt.verificationStatus === "PENDING" && (
                               <Button
                                 size="sm"
@@ -201,7 +203,7 @@ export function AdminStatementsDashboard({
                                   setReviewNotes("");
                                 }}
                               >
-                                Review
+                                {t("admin.review")}
                               </Button>
                             )}
                           </div>
@@ -229,9 +231,9 @@ export function AdminStatementsDashboard({
         {reviewStatement && (
           <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Review Statement</DialogTitle>
+              <DialogTitle>{t("admin.reviewStatement")}</DialogTitle>
               <DialogDescription>
-                {reviewStatement.user.name || reviewStatement.user.email} &middot;{" "}
+                {reviewStatement.user.name || reviewStatement.user.email || "Unknown"} &middot;{" "}
                 {reviewStatement.originalFilename}
               </DialogDescription>
             </DialogHeader>
@@ -247,7 +249,7 @@ export function AdminStatementsDashboard({
               className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
             >
               <ExternalLink className="h-3 w-3" />
-              View Original HTML
+              {t("admin.viewOriginal")}
             </a>
 
             <div>
@@ -255,13 +257,13 @@ export function AdminStatementsDashboard({
                 htmlFor="reviewNotes"
                 className="mb-1 block text-sm font-medium"
               >
-                Review Notes (optional)
+                {t("admin.reviewNotes")}
               </label>
               <textarea
                 id="reviewNotes"
                 value={reviewNotes}
                 onChange={(e) => setReviewNotes(e.target.value)}
-                placeholder="Add notes about this review..."
+                placeholder={t("admin.reviewNotesPlaceholder")}
                 rows={3}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               />
@@ -278,7 +280,7 @@ export function AdminStatementsDashboard({
                 ) : (
                   <XCircle className="mr-2 h-4 w-4" />
                 )}
-                Reject
+                {t("admin.reject")}
               </Button>
               <Button
                 onClick={() => handleReview("VERIFIED")}
@@ -289,7 +291,7 @@ export function AdminStatementsDashboard({
                 ) : (
                   <CheckCircle className="mr-2 h-4 w-4" />
                 )}
-                Approve
+                {t("admin.approve")}
               </Button>
             </DialogFooter>
           </DialogContent>

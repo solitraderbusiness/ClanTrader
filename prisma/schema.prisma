@@ -8,9 +8,11 @@ datasource db {
 
 model User {
   id                String    @id @default(cuid())
-  email             String    @unique
+  phone             String?   @unique
+  phoneVerified     DateTime?
+  email             String?   @unique
   username          String?   @unique
-  passwordHash      String
+  passwordHash      String?
   name              String?
   bio               String?
   avatar            String?
@@ -24,6 +26,8 @@ model User {
   resetTokenExpiry  DateTime?
   isPro             Boolean   @default(false)
   referredBy        String?
+  onboardingIntent   String?
+  onboardingComplete Boolean   @default(false)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -49,8 +53,10 @@ model User {
   badgeAdminChanges   BadgeAdminChange[] @relation("BadgeAdminChanges")
   referralEvents      ReferralEvent[]    @relation("ReferralEvents")
   referredEvents      ReferralEvent[]    @relation("ReferredEvents")
+  mtAccounts          MtAccount[]
 
   @@index([email])
+  @@index([phone])
 }
 
 enum UserRole {
@@ -63,6 +69,8 @@ model TradingStatement {
   id                 String             @id @default(cuid())
   userId             String
   user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mtAccountId        String?
+  mtAccount          MtAccount?         @relation(fields: [mtAccountId], references: [id], onDelete: SetNull)
   filePath           String
   originalFilename   String
   verificationStatus VerificationStatus @default(PENDING)
@@ -74,6 +82,7 @@ model TradingStatement {
   expiresAt          DateTime?
 
   @@index([userId])
+  @@index([mtAccountId])
   @@index([verificationStatus])
 }
 
@@ -244,6 +253,21 @@ enum TradeActionType {
   INTEGRITY_FLAG
   MANUAL_STATUS_SET
   ADMIN_STATEMENT_TOGGLE
+  SL_REMOVED
+  TP_REMOVED
+}
+
+enum RiskStatus {
+  PROTECTED
+  BREAKEVEN
+  LOCKED_PROFIT
+  UNPROTECTED
+}
+
+enum TradeEventSeverity {
+  INFO
+  WARNING
+  CRITICAL
 }
 
 enum TradeDirection {
@@ -280,6 +304,35 @@ enum ResolutionSource {
   EVALUATOR
   MANUAL
   UNKNOWN
+  EA_VERIFIED
+}
+
+enum EaActionStatus {
+  PENDING
+  SENT
+  EXECUTED
+  FAILED
+  TIMED_OUT
+}
+
+enum MtPlatform {
+  MT4
+  MT5
+}
+
+enum MtAccountType {
+  DEMO
+  LIVE
+}
+
+enum MtTradeDirection {
+  BUY
+  SELL
+}
+
+enum CardType {
+  SIGNAL
+  ANALYSIS
 }
 
 enum TopicStatus {
@@ -345,6 +398,7 @@ model TradeCard {
   riskPct   Float?
   note      String?
   tags      String[]
+  cardType  CardType       @default(SIGNAL)
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
@@ -397,8 +451,28 @@ model Trade {
   statementEligible Boolean          @default(true)
   resolutionSource  ResolutionSource @default(UNKNOWN)
 
-  statusHistory TradeStatusHistory[]
-  events        TradeEvent[]
+  mtLinked        Boolean              @default(false)
+  cardType        CardType             @default(SIGNAL)
+
+  // Initial risk snapshot (immutable after creation)
+  initialEntry        Float?
+  initialStopLoss     Float?
+  initialTakeProfit   Float?
+  initialRiskAbs      Float?
+  initialRiskMissing  Boolean          @default(false)
+  riskStatus          RiskStatus       @default(PROTECTED)
+  wasEverCounted      Boolean          @default(false)
+  countedAt           DateTime?
+
+  // Final result (populated on close)
+  closePrice          Float?
+  finalRR             Float?
+  netProfit           Float?
+
+  statusHistory   TradeStatusHistory[]
+  events          TradeEvent[]
+  mtTradeMatches  MtTrade[]
+  pendingActions  EaPendingAction[]
 
   @@index([clanId, status])
   @@index([clanId, createdAt])
@@ -407,15 +481,17 @@ model Trade {
 }
 
 model TradeEvent {
-  id         String          @id @default(cuid())
+  id         String              @id @default(cuid())
   tradeId    String
-  trade      Trade           @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  trade      Trade               @relation(fields: [tradeId], references: [id], onDelete: Cascade)
   actionType TradeActionType
   actorId    String
   oldValue   String?
   newValue   String?
   note       String?
-  createdAt  DateTime        @default(now())
+  severity   TradeEventSeverity?
+  source     String?
+  createdAt  DateTime            @default(now())
 
   @@index([tradeId, createdAt])
   @@index([actorId])
@@ -570,18 +646,37 @@ model SubscriptionPlan {
   updatedAt    DateTime @updatedAt
 }
 
+enum LogLevel {
+  INFO
+  WARN
+  ERROR
+}
+
+enum LogCategory {
+  AUTH
+  EA
+  TRADE
+  CHAT
+  ADMIN
+  SYSTEM
+}
+
 model AuditLog {
-  id         String   @id @default(cuid())
+  id         String      @id @default(cuid())
   action     String
   entityType String
   entityId   String
   actorId    String?
   metadata   Json?
-  createdAt  DateTime @default(now())
+  level      LogLevel    @default(INFO)
+  category   LogCategory @default(SYSTEM)
+  createdAt  DateTime    @default(now())
 
   @@index([entityType, entityId])
   @@index([action, createdAt])
   @@index([actorId])
+  @@index([category, createdAt])
+  @@index([level, createdAt])
 }
 
 // --- Referral Analytics ---
@@ -780,4 +875,86 @@ model DirectMessage {
 
   @@index([conversationId, createdAt])
   @@index([senderId])
+}
+
+// --- MetaTrader EA Bridge ---
+
+model MtAccount {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountNumber Int
+  broker        String
+  serverName    String?
+  accountType   MtAccountType @default(LIVE)
+  platform      MtPlatform    @default(MT4)
+  balance       Float         @default(0)
+  equity        Float         @default(0)
+  margin        Float?
+  freeMargin    Float?
+  currency      String        @default("USD")
+  leverage      Int?
+  isActive      Boolean       @default(true)
+  lastHeartbeat DateTime?
+  connectedAt   DateTime      @default(now())
+  apiKey        String        @unique
+
+  trades         MtTrade[]
+  statements     TradingStatement[]
+  pendingActions EaPendingAction[]
+
+  @@unique([accountNumber, broker])
+  @@index([userId])
+  @@index([apiKey])
+}
+
+model MtTrade {
+  id             String           @id @default(cuid())
+  mtAccountId    String
+  mtAccount      MtAccount        @relation(fields: [mtAccountId], references: [id], onDelete: Cascade)
+  ticket         BigInt
+  symbol         String
+  direction      MtTradeDirection
+  lots           Float
+  openPrice      Float
+  closePrice     Float?
+  openTime       DateTime
+  closeTime      DateTime?
+  stopLoss       Float?
+  takeProfit     Float?
+  profit         Float?
+  commission     Float?
+  swap           Float?
+  comment        String?
+  magicNumber    Int?
+  isOpen         Boolean          @default(true)
+  matchedTradeId String?
+  matchedTrade   Trade?           @relation(fields: [matchedTradeId], references: [id], onDelete: SetNull)
+
+  @@unique([mtAccountId, ticket])
+  @@index([mtAccountId, isOpen])
+  @@index([matchedTradeId])
+}
+
+model EaPendingAction {
+  id            String          @id @default(cuid())
+  tradeId       String
+  trade         Trade           @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  mtAccountId   String
+  mtAccount     MtAccount       @relation(fields: [mtAccountId], references: [id], onDelete: Cascade)
+  actionType    TradeActionType
+  newValue      String?
+  note          String?
+  requestedById String
+  status        EaActionStatus  @default(PENDING)
+  mtTicket      BigInt?
+  errorMessage  String?
+  createdAt     DateTime        @default(now())
+  sentAt        DateTime?
+  completedAt   DateTime?
+  expiresAt     DateTime
+
+  @@index([mtAccountId, status])
+  @@index([tradeId])
+  @@index([status, expiresAt])
 }

@@ -7,6 +7,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useTranslation } from "@/lib/i18n";
 
 interface RankBadgeInfo {
   name: string;
@@ -21,7 +22,8 @@ interface TraderBadgeProps {
 }
 
 export function TraderBadge({ role, size = "sm", rankBadge }: TraderBadgeProps) {
-  const showRole = role === "TRADER" || role === "ADMIN";
+  const { t } = useTranslation();
+  const showRole = role === "TRADER" || role === "ADMIN" || role === "SPECTATOR";
 
   if (!showRole && !rankBadge) return null;
 
@@ -50,7 +52,7 @@ export function TraderBadge({ role, size = "sm", rankBadge }: TraderBadgeProps) 
               </Badge>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Rank: {rankBadge.name}</p>
+              <p>{t("profile.rank")}: {rankBadge.name}</p>
             </TooltipContent>
           </Tooltip>
         )}
@@ -60,14 +62,28 @@ export function TraderBadge({ role, size = "sm", rankBadge }: TraderBadgeProps) 
           <Tooltip>
             <TooltipTrigger asChild>
               <Badge
-                variant={role === "ADMIN" ? "destructive" : "default"}
-                className={size === "sm" ? "px-1 py-0 text-[10px]" : ""}
+                variant={
+                  role === "ADMIN"
+                    ? "destructive"
+                    : role === "SPECTATOR"
+                      ? "secondary"
+                      : "default"
+                }
+                className={`${size === "sm" ? "px-1 py-0 text-[10px]" : ""} ${
+                  role === "SPECTATOR" ? "opacity-70" : ""
+                }`}
               >
-                {role === "ADMIN" ? "A" : "T"}
+                {role === "ADMIN" ? "A" : role === "SPECTATOR" ? "V" : "T"}
               </Badge>
             </TooltipTrigger>
             <TooltipContent>
-              <p>{role === "ADMIN" ? "Admin" : "Verified Trader"}</p>
+              <p>
+                {role === "ADMIN"
+                  ? t("profile.admin")
+                  : role === "SPECTATOR"
+                    ? t("profile.viewer")
+                    : t("profile.verifiedTrader")}
+              </p>
             </TooltipContent>
           </Tooltip>
         )}

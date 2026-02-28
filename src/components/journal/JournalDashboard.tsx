@@ -27,13 +27,20 @@ export function JournalDashboard({ clans }: Props) {
   const [clanId, setClanId] = useState<string>("");
   const [trackedOnly, setTrackedOnly] = useState(true);
   const [period, setPeriod] = useState<string>("all");
+  const [journalTab, setJournalTab] = useState<"signals" | "analysis">("signals");
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (clanId) params.set("clanId", clanId);
-      if (!trackedOnly) params.set("tracked", "false");
+
+      if (journalTab === "analysis") {
+        params.set("cardType", "ANALYSIS");
+        params.set("tracked", "false");
+      } else {
+        if (!trackedOnly) params.set("tracked", "false");
+      }
 
       if (period !== "all") {
         const now = new Date();
@@ -61,42 +68,13 @@ export function JournalDashboard({ clans }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [clanId, trackedOnly, period]);
+  }, [clanId, trackedOnly, period, journalTab]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
-      </div>
-    );
-  }
-
-  if (!data || data.summary.totalTrades === 0) {
-    return (
-      <div className="flex flex-col items-center gap-4 py-24 text-center">
-        <BookOpen className="h-12 w-12 text-muted-foreground/40" />
-        <div>
-          <h2 className="text-lg font-semibold">{t("journal.title")}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("journal.empty")}
-          </p>
-        </div>
-        <PeriodSelector
-          clans={clans}
-          clanId={clanId}
-          onClanChange={setClanId}
-          trackedOnly={trackedOnly}
-          onTrackedChange={setTrackedOnly}
-          period={period}
-          onPeriodChange={setPeriod}
-        />
-      </div>
-    );
-  }
+  const isEmpty = !data || data.summary.totalTrades === 0;
 
   return (
     <div className="space-y-6">
@@ -114,6 +92,31 @@ export function JournalDashboard({ clans }: Props) {
         />
       </div>
 
+      {/* Signals / Analysis top-level toggle */}
+      <Tabs value={journalTab} onValueChange={(v) => setJournalTab(v as "signals" | "analysis")}>
+        <TabsList>
+          <TabsTrigger value="signals">{t("journal.signals")}</TabsTrigger>
+          <TabsTrigger value="analysis" className="data-[state=active]:text-blue-600">{t("journal.analysis")}</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {journalTab === "analysis" && (
+        <p className="text-xs text-muted-foreground">{t("journal.analysisDisclaimer")}</p>
+      )}
+
+      {loading ? (
+        <div className="flex items-center justify-center py-24">
+          <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+        </div>
+      ) : isEmpty ? (
+        <div className="flex flex-col items-center gap-4 py-24 text-center">
+          <BookOpen className="h-12 w-12 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">
+            {t("journal.empty")}
+          </p>
+        </div>
+      ) : (
+      <>
       {/* Summary */}
       <SummaryCards summary={data.summary} />
 
@@ -165,6 +168,8 @@ export function JournalDashboard({ clans }: Props) {
           <StreakDisplay data={data.streaks} />
         </TabsContent>
       </Tabs>
+      </>
+      )}
     </div>
   );
 }

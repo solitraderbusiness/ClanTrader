@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MoreVertical, ArrowDownUp, Target, XCircle, StickyNote, RefreshCw, Shield } from "lucide-react";
+import { MoreVertical, ArrowDownUp, Target, XCircle, StickyNote, RefreshCw, Shield, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,8 +12,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { getSocket } from "@/lib/socket-client";
 import { SOCKET_EVENTS } from "@/lib/chat-constants";
-import { canPerformAction, type TradeActionKey } from "@/lib/trade-action-constants";
+import { TRADE_ACTIONS, canPerformAction, canPerformMtAction, type TradeActionKey } from "@/lib/trade-action-constants";
 import { TradeActionDialog } from "./TradeActionDialog";
+import { useTranslation } from "@/lib/i18n";
 
 interface TradeActionsMenuProps {
   tradeId: string;
@@ -22,20 +23,21 @@ interface TradeActionsMenuProps {
   userRole?: string;
   memberRole: string;
   isAuthor: boolean;
+  mtLinked?: boolean;
+  pendingActionType?: string | null;
 }
 
 const ACTION_ITEMS: {
   key: TradeActionKey;
   icon: typeof MoreVertical;
-  label: string;
   requiresInput: boolean;
 }[] = [
-  { key: "SET_BE", icon: Shield, label: "Set Break Even", requiresInput: false },
-  { key: "MOVE_SL", icon: ArrowDownUp, label: "Move Stop Loss", requiresInput: true },
-  { key: "CHANGE_TP", icon: Target, label: "Change Targets", requiresInput: true },
-  { key: "CLOSE", icon: XCircle, label: "Close Trade", requiresInput: true },
-  { key: "ADD_NOTE", icon: StickyNote, label: "Add Note", requiresInput: true },
-  { key: "STATUS_CHANGE", icon: RefreshCw, label: "Change Status", requiresInput: true },
+  { key: "SET_BE", icon: Shield, requiresInput: false },
+  { key: "MOVE_SL", icon: ArrowDownUp, requiresInput: true },
+  { key: "CHANGE_TP", icon: Target, requiresInput: true },
+  { key: "CLOSE", icon: XCircle, requiresInput: true },
+  { key: "ADD_NOTE", icon: StickyNote, requiresInput: true },
+  { key: "STATUS_CHANGE", icon: RefreshCw, requiresInput: true },
 ];
 
 export function TradeActionsMenu({
@@ -44,7 +46,10 @@ export function TradeActionsMenu({
   userRole,
   memberRole,
   isAuthor,
+  mtLinked,
+  pendingActionType,
 }: TradeActionsMenuProps) {
+  const { t } = useTranslation();
   const [dialogAction, setDialogAction] = useState<TradeActionKey | null>(null);
 
   function handleAction(actionType: TradeActionKey, requiresInput: boolean) {
@@ -66,11 +71,24 @@ export function TradeActionsMenu({
     });
   }
 
-  const availableActions = ACTION_ITEMS.filter((item) =>
-    canPerformAction(userRole, memberRole, item.key, isAuthor)
-  );
+  const availableActions = ACTION_ITEMS.filter((item) => {
+    // Base permission check
+    if (!canPerformAction(userRole, memberRole, item.key, isAuthor)) return false;
+    // MT-linked permission check
+    if (mtLinked && !canPerformMtAction(item.key, isAuthor)) return false;
+    return true;
+  });
 
   if (availableActions.length === 0) return null;
+
+  // If there's a pending action, show spinner instead of menu
+  if (pendingActionType) {
+    return (
+      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" disabled>
+        <Loader2 className="h-3 w-3 animate-spin" />
+      </Button>
+    );
+  }
 
   return (
     <>
@@ -86,7 +104,7 @@ export function TradeActionsMenu({
               {i === 4 && <DropdownMenuSeparator />}
               <DropdownMenuItem onClick={() => handleAction(item.key, item.requiresInput)}>
                 <item.icon className="me-2 h-3 w-3" />
-                {item.label}
+                {t(TRADE_ACTIONS[item.key].labelKey)}
               </DropdownMenuItem>
             </span>
           ))}
@@ -99,6 +117,7 @@ export function TradeActionsMenu({
           onOpenChange={(open) => !open && setDialogAction(null)}
           actionType={dialogAction}
           onConfirm={(newValue, note) => emitAction(dialogAction, newValue, note)}
+          mtLinked={mtLinked}
         />
       )}
     </>

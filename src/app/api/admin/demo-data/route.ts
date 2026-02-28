@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       totalTrades,
       populateAll,
       rankingsCount,
-    });
+    }, { category: "ADMIN" });
 
     return NextResponse.json({
       clans: clans.map((c) => ({ id: c.clan.id, name: c.clan.name })),

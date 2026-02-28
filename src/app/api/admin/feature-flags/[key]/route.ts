@@ -29,7 +29,7 @@ export async function PATCH(
     audit("feature_flag.update", "FeatureFlag", flag.id, session.user.id, {
       key,
       changes: parsed.data,
-    });
+    }, { category: "ADMIN" });
 
     return NextResponse.json({ flag });
   } catch (error) {
@@ -50,7 +50,7 @@ export async function DELETE(
 
     const { key } = await params;
     await deleteFeatureFlag(key);
-    audit("feature_flag.delete", "FeatureFlag", key, session.user.id);
+    audit("feature_flag.delete", "FeatureFlag", key, session.user.id, undefined, { category: "ADMIN" });
 
     return NextResponse.json({ success: true });
   } catch (error) {

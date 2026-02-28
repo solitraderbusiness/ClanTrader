@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ run: null, message: "No queued runs" });
     }
 
-    audit("test_run.claimed", "TestRun", run.id, undefined, { hostname });
+    audit("test_run.claimed", "TestRun", run.id, undefined, { hostname }, { category: "ADMIN" });
 
     return NextResponse.json({ run });
   } catch (error) {

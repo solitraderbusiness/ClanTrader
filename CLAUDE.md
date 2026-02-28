@@ -57,6 +57,44 @@ ClanTrader is a competitive social trading platform where verified traders form 
 - Client connection in `src/lib/socket-client.ts`
 - Event constants in `src/lib/chat-constants.ts`
 
+## Infrastructure & Deployment
+
+### Servers
+- **Dev VPS (US)**: `31.97.211.86` (Hostinger, Phoenix) — user `root`, project at `/root/projects/clantrader`
+- **Production VPS (Iran)**: `37.32.10.153` — user `ubuntu`, project at `/home/ubuntu/clantrader`
+- **Domains**: `clantrader.com` (dev, US), `clantrader.ir` (production, Iran)
+
+### Auth: Phone-First (Kavenegar SMS OTP)
+- Primary identity: phone number with SMS OTP via Kavenegar (works over cellular during blackouts)
+- Secondary (optional): email + password, added from settings
+- Existing email-only users redirected to `/add-phone` to add phone
+- Redis keys: `otp:{phone}`, `otp-limit:{phone}`, `login-token:{token}`, `signup-token:{token}`, `phone-verify-token:{token}`
+- Dev mode: OTP codes logged to console (no KAVENEGAR_API_KEY needed)
+- Env vars needed for production: `KAVENEGAR_API_KEY`, `KAVENEGAR_OTP_TEMPLATE`
+
+### Staging + Production (Iran VPS)
+- **Staging**: `/home/ubuntu/clantrader-staging` (port 3001, `staging.clantrader.ir`, DB: `clantrader_staging`, Redis DB 1)
+- **Production**: `/home/ubuntu/clantrader` (port 3000, `clantrader.ir`, DB: `clantrader_prod`, Redis DB 0)
+
+### Deployment Pipeline
+- Build on US VPS, transfer pre-built tarball to Iran VPS (no npm install needed on Iran)
+- Scripts in `scripts/`:
+  - `setup-iran-vps.sh` — one-time Iran VPS setup (Node, PostgreSQL, Redis, nginx, PM2) with dual staging+production
+  - `deploy-pack.sh` — builds app + creates `deploy.tar.gz` on US VPS
+  - `deploy-staging.sh` — extracts tarball to staging, runs health check
+  - `promote-to-prod.sh` — syncs staging to production with backup + auto-rollback
+  - `deploy-unpack.sh` — (legacy) direct deploy to production
+- Deploy flow: `deploy-pack.sh` (US) → scp to laptop → scp to Iran VPS → `deploy-staging.sh` → test → `promote-to-prod.sh`
+- Blackout flow: same, but switch internet (Starlink for US VPS, Iranian ISP for Iran VPS)
+
+### Claude Code on Iran VPS
+- SSH tunnel: `ssh -D 1080 -N -f root@31.97.211.86` then `ALL_PROXY=socks5://127.0.0.1:1080 claude`
+- Iran VPS Claude Code reads `CLAUDE.md` in staging dir (from `CLAUDE.iran.md`)
+- Restrictions: no npm/git/build, staging-only edits, never touch production
+
+### Runtime versions (match on both servers)
+- Node 20, npm 10, PostgreSQL 16, Redis 7, nginx, PM2 6
+
 ## Current Progress (as of Feb 2026)
 - Phase 1 (Auth & Profiles): COMPLETE
 - Phase 2 (Statements & Verification): COMPLETE

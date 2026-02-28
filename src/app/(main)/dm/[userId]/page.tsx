@@ -38,16 +38,24 @@ export default async function DmConversationPage({
   // Get recipient info
   const recipient = await db.user.findUnique({
     where: { id: recipientId },
-    select: { id: true, name: true, avatar: true },
+    select: { id: true, name: true, avatar: true, role: true },
   });
 
   if (!recipient) notFound();
 
   // Get or create conversation and fetch messages
-  const conversation = await getOrCreateConversation(
-    session.user.id,
-    recipientId
-  );
+  let conversation;
+  try {
+    conversation = await getOrCreateConversation(
+      session.user.id,
+      recipientId
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message === "User not found") {
+      redirect("/login");
+    }
+    throw error;
+  }
 
   const result = await getConversationMessages(
     conversation.id,
@@ -81,6 +89,7 @@ export default async function DmConversationPage({
         currentUserId={session.user.id}
         recipientName={recipient.name}
         recipientAvatar={recipient.avatar}
+        recipientRole={recipient.role}
         initialMessages={serializedMessages}
         conversationId={conversation.id}
         hasMore={result.hasMore}

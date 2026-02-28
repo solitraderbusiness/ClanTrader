@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     }
 
     const flag = await createFeatureFlag(parsed.data);
-    audit("feature_flag.create", "FeatureFlag", flag.id, session.user.id, { key: flag.key });
+    audit("feature_flag.create", "FeatureFlag", flag.id, session.user.id, { key: flag.key }, { category: "ADMIN" });
 
     return NextResponse.json({ flag }, { status: 201 });
   } catch (error) {

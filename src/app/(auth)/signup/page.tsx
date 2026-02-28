@@ -1,11 +1,14 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -14,25 +17,133 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Download, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Download,
+  ChevronDown,
+  ChevronUp,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+} from "lucide-react";
+import { signupSchema, type SignupInput } from "@/lib/validators";
+import { useTranslation } from "@/lib/i18n";
+
+type UsernameStatus = "idle" | "checking" | "available" | "taken" | "invalid";
 
 function SignupForm() {
+  const { t } = useTranslation();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const refParam = searchParams.get("ref") || "";
   const tokenFromUrl = searchParams.get("token") || "";
+
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [tokenExpanded, setTokenExpanded] = useState(!!tokenFromUrl);
+
+  // EA token section
+  const [eaExpanded, setEaExpanded] = useState(!!tokenFromUrl);
   const [token, setToken] = useState(tokenFromUrl);
+  const [eaLoading, setEaLoading] = useState(false);
+
+  // Username availability check
+  const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
+  const usernameTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<SignupInput>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: { ref: refParam || undefined },
+  });
+
+  const watchedUsername = watch("username");
+
+  const checkUsername = useCallback(async (username: string) => {
+    if (!username || username.length < 3) {
+      setUsernameStatus("idle");
+      return;
+    }
+    setUsernameStatus("checking");
+    try {
+      const res = await fetch(
+        `/api/users/check-username?username=${encodeURIComponent(username)}`
+      );
+      const data = await res.json();
+      if (data.error) {
+        setUsernameStatus("invalid");
+      } else {
+        setUsernameStatus(data.available ? "available" : "taken");
+      }
+    } catch {
+      setUsernameStatus("idle");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (usernameTimer.current) clearTimeout(usernameTimer.current);
+    if (!watchedUsername || watchedUsername.length < 3) {
+      setUsernameStatus("idle");
+      return;
+    }
+    usernameTimer.current = setTimeout(() => {
+      checkUsername(watchedUsername);
+    }, 500);
+    return () => {
+      if (usernameTimer.current) clearTimeout(usernameTimer.current);
+    };
+  }, [watchedUsername, checkUsername]);
+
+  async function onSubmit(data: SignupInput) {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        setError(result.error || "Signup failed");
+        setLoading(false);
+        return;
+      }
+
+      // Auto sign-in via username + password
+      const signInResult = await signIn("credentials", {
+        username: data.username,
+        password: data.password,
+        redirect: false,
+      });
+
+      if (signInResult?.error) {
+        // Account was created but auto-login failed — send to login
+        router.push("/login");
+        return;
+      }
+
+      router.push("/home");
+      router.refresh();
+    } catch {
+      setError(t("auth.somethingWrong"));
+      setLoading(false);
+    }
+  }
 
   async function handleTokenSignup() {
     if (!token.trim()) return;
-    setLoading(true);
+    setEaLoading(true);
     setError(null);
     const result = await signIn("ea", { token: token.trim(), redirect: false });
-    setLoading(false);
+    setEaLoading(false);
     if (result?.error) {
-      setError("Registration failed. Token may be invalid or expired.");
+      setError(t("auth.regTokenFailed"));
       return;
     }
     router.push("/home");
@@ -40,121 +151,209 @@ function SignupForm() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Register with MetaTrader</CardTitle>
-        <CardDescription>
-          Connect your trading account to get started
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {error && (
-          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-            {error}
-          </div>
-        )}
-
-        {/* Step 1: Download EA */}
-        <div className="flex gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-500/10 text-sm font-bold text-green-400">
-            1
-          </div>
-          <div className="flex-1">
-            <p className="font-medium">Download the EA</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Install the ClanTrader Expert Advisor on your terminal
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" asChild>
-                <a href="/ea/ClanTrader.ex4" download>
-                  <Download className="me-1.5 h-4 w-4" />
-                  MT4 (.ex4)
-                </a>
-              </Button>
-              <Button variant="outline" size="sm" asChild>
-                <a href="/ea/ClanTrader.ex5" download>
-                  <Download className="me-1.5 h-4 w-4" />
-                  MT5 (.ex5)
-                </a>
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Step 2: Install */}
-        <div className="flex gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-500/10 text-sm font-bold text-green-400">
-            2
-          </div>
-          <div className="flex-1">
-            <p className="font-medium">Install on your terminal</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Copy the EA file to your MetaTrader&apos;s{" "}
-              <code className="rounded bg-muted px-1 py-0.5 text-xs">
-                Experts
-              </code>{" "}
-              folder, then attach it to any chart.
-            </p>
-          </div>
-        </div>
-
-        {/* Step 3: Register */}
-        <div className="flex gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-500/10 text-sm font-bold text-green-400">
-            3
-          </div>
-          <div className="flex-1">
-            <p className="font-medium">
-              Click &quot;Register&quot; in the EA
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              The EA will create your account and open your browser automatically.
-            </p>
-          </div>
-        </div>
-
-        {/* Collapsible token input */}
-        <div className="border-t pt-4">
-          <button
-            type="button"
-            onClick={() => setTokenExpanded(!tokenExpanded)}
-            className="flex w-full items-center justify-between text-sm text-muted-foreground hover:text-foreground"
-          >
-            <span>Already have a registration token?</span>
-            {tokenExpanded ? (
-              <ChevronUp className="h-4 w-4" />
-            ) : (
-              <ChevronDown className="h-4 w-4" />
-            )}
-          </button>
-          {tokenExpanded && (
-            <div className="mt-3 space-y-3">
-              <Input
-                placeholder="Paste your registration token"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleTokenSignup()}
-              />
-              <Button
-                onClick={handleTokenSignup}
-                disabled={loading || !token.trim()}
-                className="w-full"
-              >
-                {loading ? "Creating account..." : "Register with token"}
-              </Button>
+    <div className="w-full max-w-md space-y-6">
+      {/* Primary: Web signup form */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("auth.signUpTitle")}</CardTitle>
+          <CardDescription>
+            {t("auth.signUpSubtitle")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              {error}
             </div>
           )}
-        </div>
-      </CardContent>
-      <CardFooter className="flex flex-col gap-4">
-        <p className="text-center text-sm text-muted-foreground">
-          Already have an account?{" "}
-          <Link href="/login" className="text-primary hover:underline">
-            Sign in
-          </Link>
-        </p>
-      </CardFooter>
-    </Card>
+
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {refParam && (
+              <input type="hidden" {...register("ref")} value={refParam} />
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="name">{t("auth.name")}</Label>
+              <Input
+                id="name"
+                placeholder={t("auth.namePlaceholder")}
+                autoComplete="name"
+                {...register("name")}
+              />
+              {errors.name && (
+                <p className="text-xs text-destructive">{errors.name.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="username">{t("auth.username")}</Label>
+              <div className="relative">
+                <Input
+                  id="username"
+                  placeholder={t("auth.usernamePlaceholder")}
+                  autoComplete="username"
+                  {...register("username")}
+                />
+                <div className="absolute inset-y-0 end-0 flex items-center pe-3">
+                  {usernameStatus === "checking" && (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                  {usernameStatus === "available" && (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  )}
+                  {(usernameStatus === "taken" || usernameStatus === "invalid") && (
+                    <XCircle className="h-4 w-4 text-destructive" />
+                  )}
+                </div>
+              </div>
+              {errors.username && (
+                <p className="text-xs text-destructive">
+                  {errors.username.message}
+                </p>
+              )}
+              {usernameStatus === "taken" && !errors.username && (
+                <p className="text-xs text-destructive">
+                  {t("auth.usernameTaken")}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">{t("auth.email")}</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder={t("auth.emailPlaceholder")}
+                autoComplete="email"
+                {...register("email")}
+              />
+              {errors.email && (
+                <p className="text-xs text-destructive">
+                  {errors.email.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">{t("auth.password")}</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder={t("auth.minChars")}
+                autoComplete="new-password"
+                {...register("password")}
+              />
+              {errors.password && (
+                <p className="text-xs text-destructive">
+                  {errors.password.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">{t("auth.confirmPassword")}</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                placeholder={t("auth.confirmPasswordPlaceholder")}
+                autoComplete="new-password"
+                {...register("confirmPassword")}
+              />
+              {errors.confirmPassword && (
+                <p className="text-xs text-destructive">
+                  {errors.confirmPassword.message}
+                </p>
+              )}
+            </div>
+
+            <Button
+              type="submit"
+              disabled={loading || usernameStatus === "taken"}
+              className="w-full"
+            >
+              {loading ? t("auth.creatingAccount") : t("auth.createAccount")}
+            </Button>
+          </form>
+        </CardContent>
+        <CardFooter className="flex flex-col gap-4">
+          <p className="text-center text-sm text-muted-foreground">
+            {t("auth.alreadyHaveAccount")}{" "}
+            <Link href="/login" className="text-primary hover:underline">
+              {t("auth.signIn")}
+            </Link>
+          </p>
+        </CardFooter>
+      </Card>
+
+      {/* Secondary: MetaTrader EA section */}
+      <div className="rounded-lg border bg-card p-4">
+        <button
+          type="button"
+          onClick={() => setEaExpanded(!eaExpanded)}
+          className="flex w-full items-center justify-between text-sm font-medium"
+        >
+          <span>{t("auth.alreadyHaveMt")}</span>
+          {eaExpanded ? (
+            <ChevronUp className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )}
+        </button>
+
+        {eaExpanded && (
+          <div className="mt-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {t("auth.mtConnectHint")}
+            </p>
+
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" asChild>
+                <a href="/ea/ClanTrader_EA.mq4" download>
+                  <Download className="me-1.5 h-4 w-4" />
+                  MT4 (.mq4)
+                </a>
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <a href="/ea/ClanTrader_EA.mq5" download>
+                  <Download className="me-1.5 h-4 w-4" />
+                  MT5 (.mq5)
+                </a>
+              </Button>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              {t("auth.eaDisclaimer")}
+            </p>
+
+            <div className="border-t pt-3">
+              <p className="mb-2 text-xs text-muted-foreground">
+                {t("auth.haveRegToken")}
+              </p>
+              <div className="space-y-2">
+                <Input
+                  placeholder={t("auth.pasteRegToken")}
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && handleTokenSignup()
+                  }
+                />
+                <Button
+                  onClick={handleTokenSignup}
+                  disabled={eaLoading || !token.trim()}
+                  className="w-full"
+                  variant="outline"
+                >
+                  {eaLoading
+                    ? t("auth.creatingAccount")
+                    : t("auth.registerWithToken")}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -165,54 +364,3 @@ export default function SignupPage() {
     </Suspense>
   );
 }
-
-/*
- * =============================================
- * PRESERVED: Phone OTP signup flow (for future re-activation)
- * =============================================
- *
- * import { useCallback } from "react";
- * import { useForm } from "react-hook-form";
- * import { zodResolver } from "@hookform/resolvers/zod";
- * import { phoneSignupSchema, type PhoneSignupInput } from "@/lib/validators";
- * import { Label } from "@/components/ui/label";
- * import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
- * import { PhoneOtpForm } from "@/components/auth/PhoneOtpForm";
- *
- * // Phone OTP first step (no signup token):
- * <PhoneOtpForm
- *   mode="login"
- *   onVerified={(token) => handlePhoneLogin(token)}
- *   onNewUser={handleNewUser}
- * />
- *
- * // Profile completion form (has signup token):
- * const { register, handleSubmit, formState: { errors } } = useForm<PhoneSignupInput>({
- *   resolver: zodResolver(phoneSignupSchema),
- *   defaultValues: { token: signupToken, ref: refParam || undefined },
- * });
- *
- * async function onSubmit(data: PhoneSignupInput) {
- *   const res = await fetch("/api/auth/phone-signup", {
- *     method: "POST",
- *     headers: { "Content-Type": "application/json" },
- *     body: JSON.stringify({
- *       token: signupToken, name: data.name, username: data.username,
- *       ref: refParam || undefined,
- *     }),
- *   });
- *   const result = await res.json();
- *   if (!res.ok) { setError(result.error); return; }
- *   const signInResult = await signIn("phone", { token: result.loginToken, redirect: false });
- *   if (signInResult?.error) { setError("Account created but login failed."); return; }
- *   router.push("/home");
- *   router.refresh();
- * }
- *
- * // Username check:
- * const checkUsername = useCallback(async (username: string) => {
- *   const res = await fetch(`/api/users/check-username?username=${encodeURIComponent(username)}`);
- *   const data = await res.json();
- *   // ... set usernameStatus
- * }, []);
- */

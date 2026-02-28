@@ -128,6 +128,9 @@ export async function getAuditLogs(filters: {
   action?: string;
   entityType?: string;
   actorId?: string;
+  level?: "INFO" | "WARN" | "ERROR";
+  category?: "AUTH" | "EA" | "TRADE" | "CHAT" | "ADMIN" | "SYSTEM";
+  search?: string;
   from?: Date;
   to?: Date;
   page?: number;
@@ -141,6 +144,9 @@ export async function getAuditLogs(filters: {
   if (filters.action) where.action = filters.action;
   if (filters.entityType) where.entityType = filters.entityType;
   if (filters.actorId) where.actorId = filters.actorId;
+  if (filters.level) where.level = filters.level;
+  if (filters.category) where.category = filters.category;
+  if (filters.search) where.action = { contains: filters.search, mode: "insensitive" };
   if (filters.from || filters.to) {
     where.createdAt = {
       ...(filters.from ? { gte: filters.from } : {}),
@@ -148,7 +154,9 @@ export async function getAuditLogs(filters: {
     };
   }
 
-  const [logs, total] = await Promise.all([
+  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  const [logs, total, countInfo, countWarn, countError] = await Promise.all([
     db.auditLog.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -156,6 +164,9 @@ export async function getAuditLogs(filters: {
       take: limit,
     }),
     db.auditLog.count({ where }),
+    db.auditLog.count({ where: { level: "INFO", createdAt: { gte: since24h } } }),
+    db.auditLog.count({ where: { level: "WARN", createdAt: { gte: since24h } } }),
+    db.auditLog.count({ where: { level: "ERROR", createdAt: { gte: since24h } } }),
   ]);
 
   return {
@@ -165,6 +176,11 @@ export async function getAuditLogs(filters: {
       limit,
       total,
       totalPages: Math.ceil(total / limit),
+    },
+    stats: {
+      info24h: countInfo,
+      warn24h: countWarn,
+      error24h: countError,
     },
   };
 }

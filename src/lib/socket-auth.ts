@@ -1,4 +1,5 @@
 import { decode } from "next-auth/jwt";
+import { log } from "@/lib/audit";
 import type { Socket } from "socket.io";
 
 const COOKIE_NAMES = [
@@ -9,7 +10,8 @@ const COOKIE_NAMES = [
 export interface SocketUser {
   id: string;
   name: string | null;
-  email: string;
+  email: string | null;
+  phone: string | null;
   role: string;
   isPro: boolean;
   username: string | null;
@@ -55,7 +57,8 @@ export async function authenticateSocket(
     (socket as Socket & { user: SocketUser }).user = {
       id: decoded.id as string,
       name: (decoded.name as string) || null,
-      email: decoded.email as string,
+      email: (decoded.email as string) || null,
+      phone: (decoded.phone as string) || null,
       role: decoded.role as string,
       isPro: decoded.isPro as boolean,
       username: (decoded.username as string) || null,
@@ -63,7 +66,7 @@ export async function authenticateSocket(
 
     next();
   } catch (error) {
-    console.error("Socket auth error:", error);
+    log("auth.socket_auth_error", "ERROR", "AUTH", { error: String(error) });
     next(new Error("Authentication failed"));
   }
 }

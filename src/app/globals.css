@@ -156,7 +156,10 @@ html[data-font="inter"] { --font-sans-active: var(--font-inter); }
 html[data-font="geist"] { --font-sans-active: var(--font-geist); }
 html[data-font="jakarta"] { --font-sans-active: var(--font-jakarta); }
 html[data-font="vazirmatn"] { --font-sans-active: var(--font-vazirmatn); }
-html[data-font="sahel"] { --font-sans-active: var(--font-sahel); }
+html[data-font="yekanbakh"] { --font-sans-active: var(--font-yekanbakh); }
+html[data-font="shabnam"] { --font-sans-active: var(--font-shabnam); }
+html[data-font="estedad"] { --font-sans-active: var(--font-estedad); }
+html[data-font="samim"] { --font-sans-active: var(--font-samim); }
 
 /* ── Chat UI variables ── */
 :root {

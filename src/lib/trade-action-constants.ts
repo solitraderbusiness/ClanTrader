@@ -1,43 +1,43 @@
 export const TRADE_ACTIONS = {
   SET_BE: {
-    label: "Set Break Even",
-    description: "Move stop loss to entry price",
+    labelKey: "trade.setBe",
+    descriptionKey: "trade.setBeDesc",
     requiresInput: false,
   },
   MOVE_SL: {
-    label: "Move Stop Loss",
-    description: "Change the stop loss price",
+    labelKey: "trade.moveSl",
+    descriptionKey: "trade.moveSlDesc",
     requiresInput: true,
-    inputLabel: "New Stop Loss",
+    inputLabelKey: "trade.newSl",
     inputType: "number" as const,
   },
   CHANGE_TP: {
-    label: "Change Targets",
-    description: "Update target prices",
+    labelKey: "trade.changeTp",
+    descriptionKey: "trade.changeTpDesc",
     requiresInput: true,
-    inputLabel: "New Targets (comma-separated)",
+    inputLabelKey: "trade.newTargets",
     inputType: "text" as const,
   },
   CLOSE: {
-    label: "Close Trade",
-    description: "Close the trade manually",
+    labelKey: "trade.closeTrade",
+    descriptionKey: "trade.closeTradeDesc",
     requiresInput: true,
-    inputLabel: "Close Price (optional)",
+    inputLabelKey: "trade.closePrice",
     inputType: "number" as const,
     inputOptional: true,
   },
   ADD_NOTE: {
-    label: "Add Note",
-    description: "Add a note to this trade",
+    labelKey: "trade.addNote",
+    descriptionKey: "trade.addNoteDesc",
     requiresInput: true,
-    inputLabel: "Note",
+    inputLabelKey: "trade.noteLabel",
     inputType: "text" as const,
   },
   STATUS_CHANGE: {
-    label: "Change Status",
-    description: "Update trade status",
+    labelKey: "trade.changeStatus",
+    descriptionKey: "trade.changeStatusDesc",
     requiresInput: true,
-    inputLabel: "New Status",
+    inputLabelKey: "trade.newStatus",
     inputType: "select" as const,
     options: ["TP_HIT", "SL_HIT", "BE", "CLOSED"],
   },
@@ -64,4 +64,18 @@ export function canPerformAction(
   if (actionType === "ADD_NOTE") return true;
 
   return false;
+}
+
+/**
+ * For MT-linked trades, only the owner can perform execution actions.
+ * ADD_NOTE is open to anyone with base permissions.
+ * STATUS_CHANGE is hidden for MT-linked trades.
+ */
+export function canPerformMtAction(
+  actionType: TradeActionKey,
+  isAuthor: boolean
+): boolean {
+  if (actionType === "ADD_NOTE") return true;
+  if (actionType === "STATUS_CHANGE") return false;
+  return isAuthor; // Owner-only for MT execution
 }

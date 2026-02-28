@@ -44,7 +44,7 @@ export async function PATCH(
     audit("test_run.status_update", "TestRun", run.id, undefined, {
       from: existing.status,
       to: body.status,
-    });
+    }, { category: "ADMIN" });
 
     return NextResponse.json({ run });
   } catch (error) {

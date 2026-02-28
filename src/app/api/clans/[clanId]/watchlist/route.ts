@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { requireClanMembership, MessageServiceError } from "@/services/message.service";
-import { getWatchlist, addToWatchlist } from "@/services/watchlist.service";
+import { getClanWatchlistData, addToWatchlist } from "@/services/watchlist.service";
 import { addWatchlistItemSchema } from "@/lib/validators";
 
 export async function GET(
@@ -17,8 +17,8 @@ export async function GET(
     const { clanId } = await params;
     await requireClanMembership(session.user.id, clanId);
 
-    const items = await getWatchlist(session.user.id, clanId);
-    return NextResponse.json({ items });
+    const data = await getClanWatchlistData(session.user.id, clanId);
+    return NextResponse.json(data);
   } catch (error) {
     if (error instanceof MessageServiceError) {
       return NextResponse.json(

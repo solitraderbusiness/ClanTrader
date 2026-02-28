@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     }
 
     const plan = await createPlan(parsed.data);
-    audit("plan.create", "SubscriptionPlan", plan.id, session.user.id);
+    audit("plan.create", "SubscriptionPlan", plan.id, session.user.id, undefined, { category: "ADMIN" });
 
     return NextResponse.json({ plan }, { status: 201 });
   } catch (error) {

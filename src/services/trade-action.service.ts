@@ -1,8 +1,10 @@
 import { db } from "@/lib/db";
 import { MessageServiceError, requireClanMembership, createMessage } from "@/services/message.service";
 import { canPerformAction, type TradeActionKey } from "@/lib/trade-action-constants";
-import { audit } from "@/lib/audit";
+import { deriveRiskStatus } from "@/lib/risk-utils";
+import { audit, log } from "@/lib/audit";
 import { evaluateUserBadges } from "@/services/badge-engine.service";
+import { createPendingAction } from "@/services/ea-action.service";
 import type { TradeActionType, TradeStatus } from "@prisma/client";
 
 export async function executeTradeAction(
@@ -49,6 +51,56 @@ export async function executeTradeAction(
     );
   }
 
+  // MT-linked branch: route execution actions through EA
+  if (
+    trade.mtLinked &&
+    actionType !== "ADD_NOTE" &&
+    actionType !== "STATUS_CHANGE"
+  ) {
+    // Only the trade owner can trigger MT execution actions
+    if (trade.userId !== actorId) {
+      throw new MessageServiceError(
+        "Only the trade owner can modify MT-linked trades",
+        "FORBIDDEN",
+        403,
+      );
+    }
+
+    const pendingAction = await createPendingAction({
+      tradeId,
+      actionType: actionType as TradeActionType,
+      requestedById: actorId,
+      newValue,
+      note,
+    });
+
+    // Create TradeEvent as pending
+    const event = await db.tradeEvent.create({
+      data: {
+        tradeId,
+        actionType: actionType as TradeActionType,
+        actorId,
+        oldValue: null,
+        newValue: newValue || null,
+        note: `[MT Pending] ${note || ""}`.trim(),
+      },
+    });
+
+    audit("trade_action.mt_pending", "Trade", tradeId, actorId, {
+      actionType,
+      pendingActionId: pendingAction.id,
+    }, { category: "TRADE" });
+
+    return {
+      event,
+      systemMessage: null,
+      trade,
+      tradeCard: trade.tradeCard,
+      pendingAction,
+      mtPending: true,
+    };
+  }
+
   let oldValue: string | undefined;
   let systemContent: string;
   const actorName = actor?.name || "Unknown";
@@ -61,6 +113,10 @@ export async function executeTradeAction(
       await db.tradeCard.update({
         where: { id: tradeCard.id },
         data: { stopLoss: tradeCard.entry },
+      });
+      await db.trade.update({
+        where: { id: tradeId },
+        data: { riskStatus: "BREAKEVEN" },
       });
       systemContent = `${actorName} set break even (SL: ${tradeCard.stopLoss} → ${tradeCard.entry})`;
       break;
@@ -78,6 +134,11 @@ export async function executeTradeAction(
       await db.tradeCard.update({
         where: { id: tradeCard.id },
         data: { stopLoss: newSL },
+      });
+      const newRiskStatus = deriveRiskStatus(tradeCard.direction, tradeCard.entry, newSL);
+      await db.trade.update({
+        where: { id: tradeId },
+        data: { riskStatus: newRiskStatus },
       });
       systemContent = `${actorName} moved SL from ${tradeCard.stopLoss} → ${newSL}`;
       break;
@@ -189,6 +250,8 @@ export async function executeTradeAction(
       oldValue: oldValue || null,
       newValue: newValue || null,
       note: note || null,
+      severity: "INFO",
+      source: "MANUAL",
     },
   });
 
@@ -196,10 +259,11 @@ export async function executeTradeAction(
     actionType,
     oldValue: oldValue || null,
     newValue: newValue || null,
-  });
+  }, { category: "TRADE" });
 
-  // Create TRADE_ACTION system message in the same topic
+  // Create TRADE_ACTION system message in the same topic, replying to the trade card
   const topicId = tradeCard.message.topicId;
+  const tradeCardMessageId = tradeCard.message.id;
   let systemMessage = null;
   if (topicId) {
     systemMessage = await createMessage(
@@ -207,7 +271,7 @@ export async function executeTradeAction(
       actorId,
       systemContent,
       topicId,
-      { type: "TRADE_ACTION" }
+      { type: "TRADE_ACTION", replyToId: tradeCardMessageId }
     );
   }
 
@@ -218,7 +282,7 @@ export async function executeTradeAction(
     (actionType === "STATUS_CHANGE" && newValue && resolvedStatuses.includes(newValue as TradeStatus))
   ) {
     evaluateUserBadges(trade.userId).catch((err) =>
-      console.error("Badge evaluation error:", err)
+      log("badge.evaluation_error", "ERROR", "SYSTEM", { error: String(err), userId: trade.userId })
     );
   }
 

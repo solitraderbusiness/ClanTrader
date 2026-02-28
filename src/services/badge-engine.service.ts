@@ -45,6 +45,7 @@ export async function getValidClosedTrades(
       status: { in: RESOLVED_STATUSES },
       integrityStatus: "VERIFIED",
       statementEligible: true,
+      cardType: "SIGNAL",
     },
     include: {
       tradeCard: {
@@ -448,7 +449,7 @@ export async function evaluateUserBadges(
     rankBadge,
     performanceBadges,
     trophyBadges,
-  });
+  }, { category: "SYSTEM" });
 
   return {
     userId,

@@ -14,12 +14,15 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { getSocket } from "@/lib/socket-client";
 import { SOCKET_EVENTS } from "@/lib/chat-constants";
-import { Loader2 } from "lucide-react";
+import { Loader2, Link2 } from "lucide-react";
+import { RiskStatusBadge } from "@/components/shared/RiskStatusBadge";
+import { useTranslation } from "@/lib/i18n";
 
 interface TradeDetail {
   id: string;
   status: string;
   userId: string;
+  mtLinked?: boolean;
   createdAt: string;
   closedAt: string | null;
   integrityStatus?: string;
@@ -27,6 +30,17 @@ interface TradeDetail {
   integrityDetails?: Record<string, unknown> | null;
   statementEligible?: boolean;
   resolutionSource?: string;
+  finalRR?: number | null;
+  netProfit?: number | null;
+  closePrice?: number | null;
+  riskStatus?: string;
+  initialEntry?: number | null;
+  initialStopLoss?: number | null;
+  initialTakeProfit?: number | null;
+  initialRiskAbs?: number | null;
+  initialRiskMissing?: boolean;
+  wasEverCounted?: boolean;
+  countedAt?: string | null;
   tradeCard: {
     instrument: string;
     direction: string;
@@ -68,6 +82,7 @@ export function TradeCardDetailSheet({
   clanId,
   currentUserId,
 }: TradeCardDetailSheetProps) {
+  const { t } = useTranslation();
   const [trade, setTrade] = useState<TradeDetail | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -112,13 +127,13 @@ export function TradeCardDetailSheet({
   const isTracker = trade?.userId === currentUserId;
   const isOpen = trade?.status === "OPEN";
   const isPending = trade?.status === "PENDING";
-  const canUpdateStatus = isTracker && (isOpen || isPending);
+  const canUpdateStatus = isTracker && (isOpen || isPending) && !trade?.mtLinked;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>Trade Detail</SheetTitle>
+          <SheetTitle>{t("trade.tradeDetail")}</SheetTitle>
         </SheetHeader>
 
         {loading && (
@@ -134,36 +149,68 @@ export function TradeCardDetailSheet({
               <DirectionBadge direction={trade.tradeCard.direction as "LONG" | "SHORT"} />
               <span className="text-lg font-semibold">{trade.tradeCard.instrument}</span>
               <StatusBadge status={trade.status} />
+              {trade.mtLinked && (
+                <Badge variant="outline" className="text-[10px] border-blue-500/50 text-blue-600 dark:text-blue-400">
+                  <Link2 className="me-0.5 h-2.5 w-2.5" />
+                  MT Linked
+                </Badge>
+              )}
             </div>
 
             {/* Price Details */}
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
-                <span className="text-muted-foreground">Entry</span>
+                <span className="text-muted-foreground">{t("trade.entry")}</span>
                 <p className="font-mono font-medium">{trade.tradeCard.entry}</p>
               </div>
               <div>
-                <span className="text-muted-foreground">Stop Loss</span>
+                <span className="text-muted-foreground">{t("trade.stopLoss")}</span>
                 <p className="font-mono font-medium text-red-500">{trade.tradeCard.stopLoss}</p>
               </div>
               {trade.tradeCard.targets.map((tp, i) => (
                 <div key={i}>
                   <span className="text-muted-foreground">
-                    {trade.tradeCard.targets.length > 1 ? `TP${i + 1}` : "Target"}
+                    {trade.tradeCard.targets.length > 1 ? `${t("trade.tp")}${i + 1}` : t("trade.target")}
                   </span>
                   <p className="font-mono font-medium text-green-500">{tp}</p>
                 </div>
               ))}
             </div>
 
+            {/* Final Result */}
+            {trade.finalRR != null && (
+              <div className="grid grid-cols-3 gap-3 rounded-lg border p-3 text-sm">
+                <div>
+                  <span className="text-muted-foreground text-xs">{t("trade.closePriceLabel")}</span>
+                  <p className="font-mono font-medium">{trade.closePrice}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground text-xs">{t("trade.finalRR")}</span>
+                  <p className={`font-mono font-bold ${
+                    trade.finalRR > 0 ? "text-green-500" : trade.finalRR < 0 ? "text-red-500" : "text-muted-foreground"
+                  }`}>
+                    {trade.finalRR > 0 ? "+" : ""}{trade.finalRR.toFixed(2)}R
+                  </p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground text-xs">{t("trade.netPnl")}</span>
+                  <p className={`font-mono font-bold ${
+                    (trade.netProfit ?? 0) > 0 ? "text-green-500" : (trade.netProfit ?? 0) < 0 ? "text-red-500" : "text-muted-foreground"
+                  }`}>
+                    {(trade.netProfit ?? 0) > 0 ? "+" : ""}{(trade.netProfit ?? 0).toFixed(2)}
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Meta */}
             <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
               <Badge variant="outline">{trade.tradeCard.timeframe}</Badge>
               {trade.tradeCard.riskPct != null && (
-                <span>Risk: {trade.tradeCard.riskPct}%</span>
+                <span>{t("trade.risk")}: {trade.tradeCard.riskPct}%</span>
               )}
-              <span>By: {trade.tradeCard.message.user.name}</span>
-              <span>Tracked by: {trade.user.name}</span>
+              <span>{t("trade.by")} {trade.tradeCard.message.user.name}</span>
+              <span>{t("trade.trackedBy")} {trade.user.name}</span>
             </div>
 
             {/* Tags */}
@@ -187,16 +234,78 @@ export function TradeCardDetailSheet({
             {/* Pending State */}
             {isPending && (
               <div className="rounded-md border border-indigo-500/30 bg-indigo-500/5 p-3 text-sm text-indigo-600 dark:text-indigo-400">
-                Waiting for entry confirmation...
+                {t("trade.waitingEntry")}
               </div>
             )}
 
-            {/* Quick Actions */}
+            {/* MT Sync Section */}
+            {trade.mtLinked && (
+              <>
+                <Separator />
+                <div>
+                  <p className="mb-2 text-sm font-medium flex items-center gap-1.5">
+                    <Link2 className="h-3.5 w-3.5 text-blue-500" />
+                    {t("trade.mtSync")}
+                  </p>
+                  <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-3 text-xs space-y-1">
+                    <p className="text-blue-600 dark:text-blue-400">
+                      {t("trade.mtSyncDesc")}
+                    </p>
+                    {trade.resolutionSource === "EA_VERIFIED" && (
+                      <p className="text-muted-foreground">
+                        {t("trade.eaVerified")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Risk Status */}
+            {trade.riskStatus && (
+              <>
+                <Separator />
+                <div>
+                  <p className="mb-2 text-sm font-medium">{t("trade.riskStatus")}</p>
+                  <div className="space-y-2">
+                    <RiskStatusBadge status={trade.riskStatus} />
+                    {trade.initialEntry != null && !trade.initialRiskMissing && (
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                          <span className="text-muted-foreground">{t("trade.initialEntry")}</span>
+                          <p className="font-mono">{trade.initialEntry}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">{t("trade.initialSl")}</span>
+                          <p className="font-mono">{trade.initialStopLoss}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">{t("trade.initialRisk")}</span>
+                          <p className="font-mono">{trade.initialRiskAbs?.toFixed(1)} pts</p>
+                        </div>
+                      </div>
+                    )}
+                    {trade.wasEverCounted && trade.countedAt && (
+                      <p className="text-xs text-muted-foreground">
+                        {t("trade.countedSince", { date: new Date(trade.countedAt).toLocaleDateString() })}
+                      </p>
+                    )}
+                    {trade.initialRiskMissing && (
+                      <p className="text-xs text-muted-foreground italic">
+                        {t("trade.legacyTrade")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Quick Actions — hidden for MT-linked trades */}
             {canUpdateStatus && (
               <>
                 <Separator />
                 <div>
-                  <p className="mb-2 text-sm font-medium">Update Status</p>
+                  <p className="mb-2 text-sm font-medium">{t("trade.updateStatus")}</p>
                   <div className="flex flex-wrap gap-2">
                     <Button
                       variant="outline"
@@ -204,7 +313,7 @@ export function TradeCardDetailSheet({
                       className="text-green-600"
                       onClick={() => handleStatusUpdate("TP_HIT")}
                     >
-                      TP Hit
+                      {t("trade.tpHit")}
                     </Button>
                     <Button
                       variant="outline"
@@ -212,7 +321,7 @@ export function TradeCardDetailSheet({
                       className="text-red-600"
                       onClick={() => handleStatusUpdate("SL_HIT")}
                     >
-                      SL Hit
+                      {t("trade.slHit")}
                     </Button>
                     <Button
                       variant="outline"
@@ -220,14 +329,14 @@ export function TradeCardDetailSheet({
                       className="text-yellow-600"
                       onClick={() => handleStatusUpdate("BE")}
                     >
-                      Break Even
+                      {t("trade.breakEven")}
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleStatusUpdate("CLOSED")}
                     >
-                      Close
+                      {t("common.close")}
                     </Button>
                   </div>
                 </div>
@@ -240,7 +349,7 @@ export function TradeCardDetailSheet({
                 <Separator />
                 <div className="rounded-md border border-orange-500/30 bg-orange-500/5 p-3 text-sm">
                   <p className="font-medium text-orange-600 dark:text-orange-400">
-                    Integrity: {trade.integrityStatus}
+                    {t("trade.integrity")} {trade.integrityStatus}
                     {trade.integrityReason && (
                       <span className="ms-2 font-normal text-muted-foreground">
                         ({trade.integrityReason.replace(/_/g, " ").toLowerCase()})
@@ -249,12 +358,12 @@ export function TradeCardDetailSheet({
                   </p>
                   {trade.statementEligible === false && (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Excluded from statements &amp; competition
+                      {t("trade.excludedFromStatements")}
                     </p>
                   )}
                   {trade.integrityReason === "MANUAL_OVERRIDE" && (
                     <Badge variant="outline" className="mt-1 text-[10px] border-orange-500/50">
-                      Manual
+                      {t("trade.manual")}
                     </Badge>
                   )}
                 </div>
@@ -266,7 +375,7 @@ export function TradeCardDetailSheet({
               <>
                 <Separator />
                 <div>
-                  <p className="mb-2 text-sm font-medium">Status History</p>
+                  <p className="mb-2 text-sm font-medium">{t("trade.statusHistory")}</p>
                   <div className="space-y-2">
                     {trade.statusHistory.map((entry) => (
                       <div

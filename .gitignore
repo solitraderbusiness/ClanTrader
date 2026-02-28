@@ -15,6 +15,7 @@
 /playwright-report/
 /test-results/
 test-report-*.zip
+e2e/.auth/*.json
 
 # next.js
 /.next/

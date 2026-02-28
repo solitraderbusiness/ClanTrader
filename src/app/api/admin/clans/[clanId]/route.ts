@@ -33,7 +33,7 @@ export async function PATCH(
 
     audit("clan.admin_update", "Clan", clanId, session.user.id, {
       changes: { isFeatured, adminNotes, visibilityOverride },
-    });
+    }, { category: "ADMIN" });
 
     return NextResponse.json({ clan });
   } catch (error) {

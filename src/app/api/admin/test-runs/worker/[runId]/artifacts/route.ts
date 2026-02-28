@@ -49,7 +49,7 @@ export async function POST(
     audit("test_run.artifact_uploaded", "TestRun", runId, undefined, {
       filename,
       size: buffer.length,
-    });
+    }, { category: "ADMIN" });
 
     return NextResponse.json({ reportUrl });
   } catch (error) {

@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "MtTrade" ALTER COLUMN "ticket" SET DATA TYPE BIGINT;

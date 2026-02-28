@@ -1,8 +1,11 @@
+"use client";
+
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Users, Heart } from "lucide-react";
+import { Users, Heart, CheckCircle2 } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 interface ClanCardProps {
   clan: {
@@ -14,11 +17,14 @@ interface ClanCardProps {
     tier: string;
     _count?: { members: number };
     followerCount?: number;
+    isVerifiedOwner?: boolean;
+    isActive?: boolean;
   };
   role?: string | null;
 }
 
 export function ClanCard({ clan, role }: ClanCardProps) {
+  const { t } = useTranslation();
   const memberCount = clan._count?.members ?? 0;
   const followerCount = clan.followerCount ?? 0;
 
@@ -35,6 +41,12 @@ export function ClanCard({ clan, role }: ClanCardProps) {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <h3 className="min-w-0 truncate font-semibold">{clan.name}</h3>
+              {clan.isVerifiedOwner && (
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-500" />
+              )}
+              {clan.isActive && (
+                <span className="h-2 w-2 shrink-0 rounded-full bg-green-500" />
+              )}
               {clan.tradingFocus && (
                 <Badge variant="secondary" className="shrink-0">
                   {clan.tradingFocus}
@@ -52,11 +64,11 @@ export function ClanCard({ clan, role }: ClanCardProps) {
             <div className="mt-1 flex items-center gap-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Users className="h-3 w-3" />
-                {memberCount} members
+                {memberCount} {t("clan.members")}
               </span>
               <span className="flex items-center gap-1">
                 <Heart className="h-3 w-3" />
-                {followerCount} followers
+                {followerCount} {t("clan.followers")}
               </span>
               {role && (
                 <Badge variant="outline" className="text-[10px]">

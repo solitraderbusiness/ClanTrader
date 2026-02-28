@@ -32,6 +32,123 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+// --- Phone OTP schemas ---
+
+export const phoneSchema = z
+  .string()
+  .regex(/^09\d{9}$/, "Phone must be a valid Iranian mobile number (09xxxxxxxxx)");
+
+export const sendOtpSchema = z.object({
+  phone: phoneSchema,
+});
+
+export type SendOtpInput = z.infer<typeof sendOtpSchema>;
+
+export const verifyOtpSchema = z.object({
+  phone: phoneSchema,
+  code: z.string().regex(/^\d{6}$/, "Code must be 6 digits"),
+  mode: z.enum(["login", "add-phone"]).optional(),
+});
+
+export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
+
+export const phoneSignupSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+  name: z.string().min(2, "Name must be at least 2 characters").max(50),
+  username: usernameSchema,
+  ref: z.string().optional(),
+});
+
+export type PhoneSignupInput = z.infer<typeof phoneSignupSchema>;
+
+// --- EA (MetaTrader) schemas ---
+
+export const eaRegisterSchema = z.object({
+  username: usernameSchema,
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  accountNumber: z.number().int().positive("Account number must be positive"),
+  broker: z.string().min(1, "Broker is required").max(100),
+  platform: z.enum(["MT4", "MT5"]),
+  serverName: z.string().max(100).optional(),
+});
+
+export type EaRegisterInput = z.infer<typeof eaRegisterSchema>;
+
+export const eaLoginSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+  accountNumber: z.number().int().positive("Account number must be positive"),
+  broker: z.string().min(1, "Broker is required").max(100),
+  platform: z.enum(["MT4", "MT5"]),
+  serverName: z.string().max(100).optional(),
+});
+
+export type EaLoginInput = z.infer<typeof eaLoginSchema>;
+
+export const mtTradeInputSchema = z.object({
+  ticket: z.number().int().positive(),
+  symbol: z.string().min(1).max(20),
+  direction: z.enum(["BUY", "SELL"]),
+  lots: z.number().positive(),
+  openPrice: z.number().positive(),
+  closePrice: z.number().optional(),
+  openTime: z.string().datetime(),
+  closeTime: z.string().datetime().optional(),
+  stopLoss: z.number().optional(),
+  takeProfit: z.number().optional(),
+  profit: z.number().optional(),
+  currentPrice: z.number().optional(),
+  commission: z.number().optional(),
+  swap: z.number().optional(),
+  comment: z.string().max(200).optional(),
+  magicNumber: z.number().int().optional(),
+  isOpen: z.boolean(),
+});
+
+export type MtTradeInput = z.infer<typeof mtTradeInputSchema>;
+
+export const eaHeartbeatSchema = z.object({
+  balance: z.number(),
+  equity: z.number(),
+  margin: z.number().optional(),
+  freeMargin: z.number().optional(),
+  openTrades: z.array(mtTradeInputSchema).max(200).default([]),
+});
+
+export type EaHeartbeatInput = z.infer<typeof eaHeartbeatSchema>;
+
+export const eaTradeSyncSchema = z.object({
+  trades: z.array(mtTradeInputSchema).max(5000),
+});
+
+export type EaTradeSyncInput = z.infer<typeof eaTradeSyncSchema>;
+
+export const eaTradeEventSchema = z.object({
+  event: z.enum(["open", "close", "modify"]),
+  trade: mtTradeInputSchema,
+});
+
+export type EaTradeEventInput = z.infer<typeof eaTradeEventSchema>;
+
+export const addEmailSchema = z
+  .object({
+    email: z.string().email("Invalid email address"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
+export type AddEmailInput = z.infer<typeof addEmailSchema>;
+
+export const addPhoneSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+});
+
+export type AddPhoneInput = z.infer<typeof addPhoneSchema>;
+
 export const forgotPasswordSchema = z.object({
   email: z.string().email("Invalid email address"),
 });
@@ -238,14 +355,32 @@ export const sendTradeCardSchema = z
     instrument: z.string().min(1).max(20),
     direction: z.enum(["LONG", "SHORT"]),
     entry: z.number().positive(),
-    stopLoss: z.number().positive(),
-    targets: z.array(z.number().positive()).length(1, "Exactly one take-profit target is required in v1"),
+    stopLoss: z.number().nonnegative(),
+    targets: z.array(z.number().nonnegative()).length(1, "Exactly one take-profit target is required in v1"),
     timeframe: z.string().min(1).max(10),
     riskPct: z.number().min(0).max(100).optional(),
     note: z.string().max(500).optional(),
     tags: z.array(z.string().max(30)).max(5).optional(),
+    cardType: z.enum(["SIGNAL", "ANALYSIS"]).optional().default("SIGNAL"),
   })
-  .superRefine(tradeCardPriceOrderingRefinement);
+  .superRefine((data, ctx) => {
+    // SIGNAL cards require positive SL and TP + price ordering
+    if (data.cardType === "SIGNAL") {
+      if (data.stopLoss <= 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Signal cards require a stop loss", path: ["stopLoss"] });
+        return;
+      }
+      if (data.targets[0] <= 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Signal cards require a target", path: ["targets"] });
+        return;
+      }
+      tradeCardPriceOrderingRefinement(data as { direction: "LONG" | "SHORT"; entry: number; stopLoss: number; targets: number[] }, ctx);
+    }
+    // ANALYSIS cards: SL and TP can be 0, but if both > 0 validate ordering
+    if (data.cardType === "ANALYSIS" && data.stopLoss > 0 && data.targets[0] > 0) {
+      tradeCardPriceOrderingRefinement(data as { direction: "LONG" | "SHORT"; entry: number; stopLoss: number; targets: number[] }, ctx);
+    }
+  });
 
 export type SendTradeCardInput = z.infer<typeof sendTradeCardSchema>;
 
@@ -353,6 +488,9 @@ export const auditLogQuerySchema = z.object({
   action: z.string().optional(),
   entityType: z.string().optional(),
   actorId: z.string().optional(),
+  level: z.enum(["INFO", "WARN", "ERROR"]).optional(),
+  category: z.enum(["AUTH", "EA", "TRADE", "CHAT", "ADMIN", "SYSTEM"]).optional(),
+  search: z.string().max(100).optional(),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
   page: z.coerce.number().int().min(1).optional(),
@@ -423,6 +561,15 @@ export const tradeActionSchema = z.object({
 });
 
 export type TradeActionInput = z.infer<typeof tradeActionSchema>;
+
+// --- EA Action Result schema ---
+
+export const eaActionResultSchema = z.object({
+  success: z.boolean(),
+  errorMessage: z.string().max(500).optional(),
+});
+
+export type EaActionResultInput = z.infer<typeof eaActionResultSchema>;
 
 // --- Watchlist schemas ---
 

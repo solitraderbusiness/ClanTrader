@@ -4,6 +4,7 @@ import { log } from "./audit";
 import { redis } from "./redis";
 import {
   sendMessageSchema,
+  sendTradeCardSchema,
   editMessageSchema,
   deleteMessageSchema,
   pinMessageSchema,
@@ -30,8 +31,9 @@ import {
   MessageServiceError,
 } from "@/services/message.service";
 import { getDefaultTopic } from "@/services/topic.service";
-import { editTradeCard } from "@/services/trade-card.service";
+import { createTradeCardMessage, editTradeCard } from "@/services/trade-card.service";
 import { trackTrade, updateTradeStatus } from "@/services/trade.service";
+import { maybeAutoPost } from "@/services/auto-post.service";
 import { executeTradeAction } from "@/services/trade-action.service";
 import type { TradeActionKey } from "@/lib/trade-action-constants";
 import { db } from "@/lib/db";
@@ -56,6 +58,7 @@ interface SerializableTradeCard {
   riskPct: number | null;
   note: string | null;
   tags: string[];
+  cardType?: string;
   trade: {
     id: string;
     status: string;
@@ -113,6 +116,7 @@ function serializeMessage(message: SerializableMessage, clanId: string) {
           riskPct: message.tradeCard.riskPct,
           note: message.tradeCard.note,
           tags: message.tradeCard.tags,
+          cardType: message.tradeCard.cardType,
           trade: message.tradeCard.trade,
         }
       : null,
@@ -151,11 +155,14 @@ async function sendInitialPnl(socket: Socket, clanId: string, topicId: string) {
     );
     if (topicTrades.length === 0) return;
 
-    // Collect MT symbols to look up cached prices
+    // Collect MT symbols + card instruments to look up cached prices
     const symbolSet = new Set<string>();
     for (const t of topicTrades) {
       const mtSymbol = t.mtTradeMatches[0]?.symbol?.toUpperCase();
       if (mtSymbol) symbolSet.add(mtSymbol);
+      // Fallback: use card instrument for non-MT-linked trades (e.g. manual analysis cards)
+      const cardInstrument = t.tradeCard?.instrument?.toUpperCase();
+      if (cardInstrument) symbolSet.add(cardInstrument);
     }
 
     // Read cached prices from Redis using the broker symbol (e.g. XAUUSD_L)
@@ -186,9 +193,11 @@ async function sendInitialPnl(socket: Socket, clanId: string, topicId: string) {
         : Math.abs(entry - trade.tradeCard.stopLoss);
       if (riskAbs <= 0) continue;
 
-      // Look up cached price from Redis using broker symbol
+      // Look up cached price: try MT symbol first, then card instrument
       const mtSymbol = trade.mtTradeMatches[0]?.symbol?.toUpperCase();
-      const currentPrice = mtSymbol ? priceMap.get(mtSymbol) : undefined;
+      const cardSymbol = trade.tradeCard.instrument?.toUpperCase();
+      const currentPrice = (mtSymbol ? priceMap.get(mtSymbol) : undefined)
+        ?? (cardSymbol ? priceMap.get(cardSymbol) : undefined);
       if (!currentPrice) continue;
 
       const dir = trade.tradeCard.direction === "LONG" ? 1 : -1;
@@ -549,6 +558,112 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
       }
     }
   );
+
+  // --- SEND TRADE CARD ---
+  socket.on(SOCKET_EVENTS.SEND_TRADE_CARD, async (data: unknown) => {
+    try {
+      const parsed = sendTradeCardSchema.safeParse(data);
+      if (!parsed.success) {
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          event: SOCKET_EVENTS.SEND_TRADE_CARD,
+          message: "Invalid trade card data",
+        });
+        return;
+      }
+
+      const { clanId: tcClanId, topicId: tcTopicId, cardType: tcCardType, ...cardData } = parsed.data;
+
+      const isLimited = await checkRateLimit(user.id);
+      if (isLimited) {
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          event: SOCKET_EVENTS.SEND_TRADE_CARD,
+          message: "You are sending messages too fast. Please slow down.",
+        });
+        return;
+      }
+
+      const membership = await requireClanMembership(user.id, tcClanId);
+
+      // Permission: ANALYSIS → any member; SIGNAL → leaders only
+      if (tcCardType === "SIGNAL" && !["LEADER", "CO_LEADER"].includes(membership.role)) {
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          event: SOCKET_EVENTS.SEND_TRADE_CARD,
+          message: "Only leaders can send signal cards",
+        });
+        return;
+      }
+
+      const message = await createTradeCardMessage(tcClanId, tcTopicId, user.id, {
+        ...cardData,
+        cardType: tcCardType,
+      });
+
+      if (!message.tradeCard) return;
+
+      const isAnalysis = tcCardType === "ANALYSIS";
+
+      // Auto-create Trade record so Live R:R works immediately
+      await db.trade.create({
+        data: {
+          tradeCardId: message.tradeCard.id,
+          clanId: tcClanId,
+          userId: user.id,
+          status: "OPEN",
+          integrityStatus: "VERIFIED",
+          resolutionSource: "UNKNOWN",
+          statementEligible: !isAnalysis,
+          cardType: tcCardType,
+          lastEvaluatedAt: new Date(),
+          initialEntry: cardData.entry,
+          initialStopLoss: cardData.stopLoss,
+          initialTakeProfit: cardData.targets[0] ?? 0,
+          initialRiskAbs: cardData.stopLoss > 0 ? Math.abs(cardData.entry - cardData.stopLoss) : 0,
+          initialRiskMissing: cardData.stopLoss <= 0,
+        },
+      });
+
+      // Re-fetch message with trade included
+      const fullMessage = await db.message.findUnique({
+        where: { id: message.id },
+        include: {
+          user: { select: { id: true, name: true, username: true, avatar: true, role: true } },
+          replyTo: {
+            select: {
+              id: true,
+              content: true,
+              user: { select: { id: true, name: true } },
+            },
+          },
+          tradeCard: {
+            include: {
+              trade: { select: { id: true, status: true, userId: true } },
+            },
+          },
+        },
+      });
+
+      if (fullMessage) {
+        io.to(topicRoom(tcClanId, tcTopicId)).emit(
+          SOCKET_EVENTS.RECEIVE_MESSAGE,
+          serializeMessage(fullMessage as unknown as SerializableMessage, tcClanId)
+        );
+      }
+
+      // Auto-post only for SIGNAL cards
+      if (!isAnalysis) {
+        maybeAutoPost(message.tradeCard.id, tcClanId, user.id).catch(() => {});
+      }
+    } catch (error) {
+      log("chat.send_trade_card_error", "ERROR", "CHAT", { error: String(error) }, user.id);
+      socket.emit(SOCKET_EVENTS.ERROR, {
+        event: SOCKET_EVENTS.SEND_TRADE_CARD,
+        message:
+          error instanceof MessageServiceError
+            ? error.message
+            : "Failed to send trade card",
+      });
+    }
+  });
 
   // --- EDIT TRADE CARD ---
   socket.on(SOCKET_EVENTS.EDIT_TRADE_CARD, async (data: unknown) => {

@@ -55,7 +55,7 @@ export async function PATCH(request: Request) {
       },
     });
 
-    audit("ranking_config.update", "RankingConfig", config.id, session.user.id, { changes: body });
+    audit("ranking_config.update", "RankingConfig", config.id, session.user.id, { changes: body }, { category: "ADMIN" });
 
     return NextResponse.json({ config });
   } catch (error) {

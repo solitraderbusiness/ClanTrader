@@ -10,12 +10,13 @@ import { ClanProfileHeader } from "@/components/clan/ClanProfileHeader";
 import { ClanProfileTabs } from "@/components/clan/ClanProfileTabs";
 import { JoinClanButton } from "@/components/clan/JoinClanButton";
 import { FollowButton } from "@/components/clan/FollowButton";
-import { ChannelFeed } from "@/components/channel/ChannelFeed";
+import { ChannelStream } from "@/components/channel/ChannelStream";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { ClanPerfBanner } from "@/components/clan/ClanPerfBanner";
 import { TraderBadge } from "@/components/shared/TraderBadge";
 import { Settings, Mail } from "lucide-react";
 import type { ClanTier } from "@prisma/client";
@@ -51,7 +52,7 @@ export default async function ClanPage({
     notFound();
   }
 
-  const [following, members, membership, channelData, topics] = await Promise.all([
+  const [following, members, membership, channelData, topics, mtAccountCount] = await Promise.all([
     isFollowing(session.user.id, clanId),
     db.clanMember.findMany({
       where: { clanId },
@@ -77,6 +78,7 @@ export default async function ClanPage({
       isPro: session.user.isPro ?? false,
     }),
     getTopics(clanId),
+    db.mtAccount.count({ where: { userId: session.user.id } }),
   ]);
 
   const isMember = !!membership;
@@ -113,6 +115,30 @@ export default async function ClanPage({
     createdAt:
       p.createdAt instanceof Date ? p.createdAt.toISOString() : String(p.createdAt),
     author: p.author,
+    tradeCard: p.tradeCard
+      ? {
+          id: p.tradeCard.id,
+          instrument: p.tradeCard.instrument,
+          direction: p.tradeCard.direction,
+          entry: Number(p.tradeCard.entry),
+          stopLoss: Number(p.tradeCard.stopLoss),
+          targets: (p.tradeCard.targets as number[]).map(Number),
+          timeframe: p.tradeCard.timeframe,
+          tags: p.tradeCard.tags as string[],
+          trade: p.tradeCard.trade
+            ? {
+                id: p.tradeCard.trade.id,
+                status: p.tradeCard.trade.status,
+                finalRR: p.tradeCard.trade.finalRR ?? null,
+                netProfit:
+                  p.tradeCard.trade.netProfit != null
+                    ? Number(p.tradeCard.trade.netProfit)
+                    : null,
+                closePrice: p.tradeCard.trade.closePrice ?? null,
+              }
+            : null,
+        }
+      : null,
   }));
 
   const serializedTopics = topics.map((t) => ({
@@ -190,15 +216,19 @@ export default async function ClanPage({
       currentUserId={session.user.id}
       memberRole={membership!.role}
       initialTopics={serializedTopics}
+      hasMtAccount={mtAccountCount > 0}
     />
   ) : null;
 
   const channelContent = (
-    <ChannelFeed
+    <ChannelStream
       clanId={clanId}
       initialPosts={serializedPosts}
       initialPagination={channelData.pagination}
+      initialLivePnl={channelData.livePnlMap}
       currentUserId={session.user.id}
+      memberRole={membership?.role ?? null}
+      isMember={isMember}
     />
   );
 
@@ -229,6 +259,8 @@ export default async function ClanPage({
           </Button>
         )}
       </ClanProfileHeader>
+
+      <ClanPerfBanner clanId={clanId} />
 
       <ClanProfileTabs
         channelContent={channelContent}

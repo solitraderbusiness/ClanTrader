@@ -75,6 +75,8 @@ export function TradeCardInline({
     return () => clearTimeout(timer);
   }, [pendingAction, tradeCard.trade?.id, clearTradeCardPendingAction, updateTradeCardPendingAction]);
 
+  const isAnalysis = tradeCard.cardType === "ANALYSIS";
+
   const riskReward = tradeCard.stopLoss > 0 && tradeCard.targets[0] > 0
     ? Math.abs(tradeCard.targets[0] - tradeCard.entry) /
       Math.abs(tradeCard.entry - tradeCard.stopLoss)
@@ -91,6 +93,7 @@ export function TradeCardInline({
 
   return (
     <div
+      data-testid="trade-card"
       className={`relative overflow-hidden rounded-xl glass-card text-[15px] ${
         isPinned ? "ring-2 ring-yellow-400/50" : ""
       }`}
@@ -98,13 +101,17 @@ export function TradeCardInline({
       {/* Colored accent bar */}
       <div
         className={`absolute inset-y-0 start-0 w-1 ${
-          tradeCard.direction === "LONG" ? "bg-green-500" : "bg-red-500"
+          isAnalysis
+            ? "bg-blue-500"
+            : tradeCard.direction === "LONG" ? "bg-green-500" : "bg-red-500"
         }`}
       />
       <div className={`absolute inset-0 ${
-        tradeCard.direction === "LONG"
-          ? "bg-gradient-to-b from-green-500/5 to-transparent"
-          : "bg-gradient-to-b from-red-500/5 to-transparent"
+        isAnalysis
+          ? "bg-gradient-to-b from-blue-500/5 to-transparent"
+          : tradeCard.direction === "LONG"
+            ? "bg-gradient-to-b from-green-500/5 to-transparent"
+            : "bg-gradient-to-b from-red-500/5 to-transparent"
       } pointer-events-none`} />
       {isPinned && (
         <Pin className="absolute -top-1 -end-1 h-3 w-3 text-yellow-500" />
@@ -118,6 +125,11 @@ export function TradeCardInline({
         <Badge variant="outline" className="text-[10px]">
           {tradeCard.timeframe === "AUTO" ? "Auto" : tradeCard.timeframe}
         </Badge>
+        {isAnalysis && (
+          <Badge variant="outline" className="text-[10px] border-blue-500/50 text-blue-600 dark:text-blue-400">
+            {t("trade.analysis")}
+          </Badge>
+        )}
         {tradeCard.trade && <StatusBadge status={tradeCard.trade.status} />}
         {mtLinked && (
           <Badge variant="outline" className="text-[10px] border-blue-500/50 text-blue-600 dark:text-blue-400">

@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { MessageServiceError } from "@/services/message.service";
 import { evaluateUserBadges } from "@/services/badge-engine.service";
-import type { TradeDirection } from "@prisma/client";
+import type { TradeDirection, CardType } from "@prisma/client";
 
 const messageInclude = {
   user: { select: { id: true, name: true, username: true, avatar: true, role: true } },
@@ -31,6 +31,7 @@ interface TradeCardInput {
   riskPct?: number;
   note?: string;
   tags?: string[];
+  cardType?: "SIGNAL" | "ANALYSIS";
 }
 
 export async function createTradeCardMessage(
@@ -40,6 +41,17 @@ export async function createTradeCardMessage(
   data: TradeCardInput
 ) {
   const content = `${data.direction} ${data.instrument} @ ${data.entry}`;
+  const cardType: CardType = data.cardType === "ANALYSIS" ? "ANALYSIS" : "SIGNAL";
+
+  // Auto-inject matching tag based on cardType
+  let tags = data.tags ?? [];
+  if (cardType === "ANALYSIS") {
+    tags = tags.filter((t) => t !== "signal");
+    if (!tags.includes("analysis")) tags.push("analysis");
+  } else {
+    tags = tags.filter((t) => t !== "analysis");
+    if (!tags.includes("signal")) tags.push("signal");
+  }
 
   return db.message.create({
     data: {
@@ -58,7 +70,8 @@ export async function createTradeCardMessage(
           timeframe: data.timeframe,
           riskPct: data.riskPct ?? null,
           note: data.note ?? null,
-          tags: data.tags ?? [],
+          tags,
+          cardType,
         },
       },
     },

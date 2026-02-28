@@ -1,9 +1,14 @@
+"use client";
+
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Eye, Lock, Crown } from "lucide-react";
+import { Eye, Lock, Crown, AlertTriangle } from "lucide-react";
 import { ReactionBar } from "./ReactionBar";
+import { toThumbUrl, isThumbUrl } from "@/lib/image-urls";
+import { TRADE_POLICY } from "@/lib/trade-policy";
+import { useTranslation } from "@/lib/i18n";
 
 interface ChannelPostCardProps {
   post: {
@@ -17,6 +22,7 @@ interface ChannelPostCardProps {
     reactions: Record<string, string[]> | null;
     createdAt: string;
     author: { id: string; name: string | null; avatar: string | null };
+    sourceType?: string;
   };
   clanId: string;
   currentUserId: string | null;
@@ -27,7 +33,19 @@ export function ChannelPostCard({
   clanId,
   currentUserId,
 }: ChannelPostCardProps) {
+  const { t } = useTranslation();
   const reactions = (post.reactions || {}) as Record<string, string[]>;
+
+  // Parse risk warning from AUTO_TAG content
+  let riskWarning: { type: string } | null = null;
+  if (post.sourceType === "AUTO_TAG" && TRADE_POLICY.CHANNEL_SHOW_RISK_VIOLATIONS) {
+    try {
+      const parsed = JSON.parse(post.content);
+      if (parsed.riskWarning) riskWarning = parsed.riskWarning;
+    } catch {
+      // Not JSON content
+    }
+  }
 
   return (
     <Card className="glass-card">
@@ -46,7 +64,7 @@ export function ChannelPostCard({
             </Avatar>
             <div>
               <span className="text-sm font-medium">
-                {post.author.name || "Unknown"}
+                {post.author.name || t("common.unknown")}
               </span>
               <span className="ms-2 text-xs text-muted-foreground">
                 {new Date(post.createdAt).toLocaleDateString()}
@@ -57,11 +75,23 @@ export function ChannelPostCard({
             {post.isPremium && (
               <Badge variant="default" className="gap-1">
                 <Crown className="h-3 w-3" />
-                Premium
+                {t("chat.premiumContent")}
               </Badge>
             )}
           </div>
         </div>
+
+        {/* Risk Warning Banner */}
+        {riskWarning && (
+          <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            <span>
+              {riskWarning.type === "SL_REMOVED"
+                ? t("chat.slRemoved")
+                : t("chat.riskViolation")}
+            </span>
+          </div>
+        )}
 
         {/* Title */}
         {post.title && (
@@ -75,7 +105,7 @@ export function ChannelPostCard({
             <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-t from-background via-background/80 to-transparent pt-8">
               <div className="flex items-center gap-2 rounded-full bg-muted px-4 py-2 text-sm">
                 <Lock className="h-4 w-4" />
-                Premium content — join clan or upgrade to view
+                {t("chat.premiumLocked")}
               </div>
             </div>
           )}
@@ -95,10 +125,13 @@ export function ChannelPostCard({
             {post.images.map((img, i) => (
               <img
                 key={i}
-                src={img}
-                alt={`Post image ${i + 1}`}
+                src={isThumbUrl(img) ? img : toThumbUrl(img)}
+                alt={`${t("chat.postImage")} ${i + 1}`}
                 className="w-full rounded-lg object-cover"
                 style={{ maxHeight: post.images.length === 1 ? 400 : 200 }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
               />
             ))}
           </div>
@@ -122,7 +155,7 @@ export function ChannelPostCard({
             href={`/clans/${clanId}/posts/${post.id}`}
             className="text-xs text-muted-foreground hover:text-foreground"
           >
-            View post
+            {t("chat.viewPost")}
           </Link>
         </div>
       </CardContent>

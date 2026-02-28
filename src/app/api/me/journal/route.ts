@@ -14,6 +14,7 @@ const querySchema = z.object({
     .refine((v) => !isNaN(Date.parse(v)), "Invalid date")
     .optional(),
   tracked: z.enum(["true", "false"]).optional(),
+  cardType: z.enum(["SIGNAL", "ANALYSIS"]).optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -33,13 +34,14 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { clanId, from, to, tracked } = parsed.data;
+    const { clanId, from, to, tracked, cardType } = parsed.data;
 
     const data = await getJournalData(session.user.id, {
       clanId,
       from: from ? new Date(from) : undefined,
       to: to ? new Date(to) : undefined,
       trackedOnly: tracked !== "false",
+      cardType,
     });
 
     return NextResponse.json(data);

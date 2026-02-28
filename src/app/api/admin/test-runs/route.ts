@@ -65,7 +65,7 @@ export async function POST(request: Request) {
       runMode: run.runMode,
       requestedWorkers: run.requestedWorkers,
       effectiveWorkers: run.effectiveWorkers,
-    });
+    }, { category: "ADMIN" });
 
     return NextResponse.json({ run }, { status: 201 });
   } catch (error) {

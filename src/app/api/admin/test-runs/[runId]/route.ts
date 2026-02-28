@@ -42,7 +42,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    audit("test_run.cancel", "TestRun", run.id, session.user.id);
+    audit("test_run.cancel", "TestRun", run.id, session.user.id, undefined, { category: "ADMIN" });
 
     return NextResponse.json({ run });
   } catch (error) {

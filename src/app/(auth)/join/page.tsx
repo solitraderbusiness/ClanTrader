@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { headers } from "next/headers";
+import { headers, cookies } from "next/headers";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { trackEvent } from "@/services/referral.service";
@@ -13,7 +13,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Shield } from "lucide-react";
+import { CandlestickChart } from "lucide-react";
+import { t } from "@/lib/i18n-core";
+import type { Locale } from "@/lib/locale";
 
 interface JoinPageProps {
   searchParams: Promise<{ ref?: string }>;
@@ -21,6 +23,8 @@ interface JoinPageProps {
 
 export default async function JoinPage({ searchParams }: JoinPageProps) {
   const { ref } = await searchParams;
+  const cookieStore = await cookies();
+  const locale = (cookieStore.get("NEXT_LOCALE")?.value as Locale) || "fa";
 
   let referrer: { id: string; name: string | null; username: string | null; avatar: string | null } | null = null;
   if (ref) {
@@ -52,11 +56,11 @@ export default async function JoinPage({ searchParams }: JoinPageProps) {
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
         <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-          <Shield className="h-6 w-6 text-primary" />
+          <CandlestickChart className="h-6 w-6 text-primary" />
         </div>
-        <CardTitle>Join ClanTrader</CardTitle>
+        <CardTitle>{t(locale, "auth.joinTitle")}</CardTitle>
         <CardDescription>
-          The competitive social trading platform
+          {t(locale, "auth.joinSubtitle")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -67,28 +71,31 @@ export default async function JoinPage({ searchParams }: JoinPageProps) {
               <AvatarFallback className="text-xs">{initials || "?"}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">{referrer.name || "A trader"}</p>
+              <p className="text-sm font-medium">{referrer.name || t(locale, "auth.aTrader")}</p>
               {referrer.username && (
                 <p className="text-xs text-muted-foreground">@{referrer.username}</p>
               )}
-              <p className="text-xs text-muted-foreground">invited you to join</p>
+              <p className="text-xs text-muted-foreground">{t(locale, "auth.invitedBy")}</p>
             </div>
           </div>
         )}
         <p className="text-center text-sm text-muted-foreground">
-          Form clans, share trade signals, compete on leaderboards, and prove your edge.
+          {t(locale, "auth.joinCta")}
         </p>
       </CardContent>
       <CardFooter className="flex flex-col gap-3">
         <Button asChild className="w-full">
           <Link href={ref ? `/signup?ref=${encodeURIComponent(ref)}` : "/signup"}>
-            Create Account
+            {t(locale, "auth.createAccount")}
           </Link>
         </Button>
+        <p className="text-center text-xs text-muted-foreground">
+          {t(locale, "auth.canConnectMtLater")}
+        </p>
         <p className="text-center text-sm text-muted-foreground">
-          Already have an account?{" "}
+          {t(locale, "auth.alreadyHaveAccount")}{" "}
           <Link href="/login" className="text-primary hover:underline">
-            Sign in
+            {t(locale, "auth.signIn")}
           </Link>
         </p>
       </CardFooter>

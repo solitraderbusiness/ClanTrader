@@ -172,6 +172,23 @@ export class TestAgent {
   }
 
   // =========================================================================
+  // REST helpers — Bearer-token auth (for EA API key endpoints)
+  // =========================================================================
+
+  async postWithBearer(path: string, apiKey: string, data?: unknown): Promise<APIResponse> {
+    return this._request.post(`${this.baseURL}${path}`, {
+      headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+      data: data ?? {},
+    });
+  }
+
+  async getWithBearer(path: string, apiKey: string): Promise<APIResponse> {
+    return this._request.get(`${this.baseURL}${path}`, {
+      headers: { authorization: `Bearer ${apiKey}` },
+    });
+  }
+
+  // =========================================================================
   // Socket.io helpers
   // =========================================================================
 

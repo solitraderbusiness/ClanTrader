@@ -12,14 +12,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useTranslation } from "@/lib/i18n";
 
 export function UserMenu() {
+  const { t } = useTranslation();
   const { data: session } = useSession();
 
   if (!session?.user) {
     return (
       <Button variant="ghost" size="sm" asChild>
-        <Link href="/login">Sign in</Link>
+        <Link href="/login">{t("auth.signIn")}</Link>
       </Button>
     );
   }
@@ -52,25 +54,27 @@ export function UserMenu() {
           {session.user.username && (
             <p className="text-xs text-muted-foreground">@{session.user.username}</p>
           )}
-          <p className="text-xs text-muted-foreground">{session.user.email}</p>
+          {session.user.email && (
+            <p className="text-xs text-muted-foreground">{session.user.email}</p>
+          )}
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href={`/profile/${session.user.id}`}>
             <User className="me-2 h-4 w-4" />
-            Profile
+            {t("nav.profile")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/settings/profile">
             <Settings className="me-2 h-4 w-4" />
-            Settings
+            {t("nav.settings")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/" })}>
           <LogOut className="me-2 h-4 w-4" />
-          Sign out
+          {t("auth.signOut")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -7,11 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { UserCheck } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 interface User {
   id: string;
   name: string | null;
-  email: string;
+  email: string | null;
+  phone: string | null;
   role: string;
   isPro: boolean;
   avatar: string | null;
@@ -28,6 +30,7 @@ export function ImpersonatePanel({
   currentUserId,
 }: ImpersonatePanelProps) {
   const router = useRouter();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState<string | null>(null);
 
   async function handleImpersonate(userId: string, userName: string | null) {
@@ -40,7 +43,7 @@ export function ImpersonatePanel({
       });
 
       if (res.ok) {
-        toast.success(`Switched to ${userName || "user"}`);
+        toast.success(t("admin.switchedTo") + (userName || "user"));
         router.push("/home");
         router.refresh();
       } else {
@@ -81,12 +84,12 @@ export function ImpersonatePanel({
                 </span>
                 {isCurrent && (
                   <Badge variant="default" className="text-xs">
-                    You
+                    {t("common.you")}
                   </Badge>
                 )}
               </div>
               <p className="truncate text-xs text-muted-foreground">
-                {user.email}
+                {user.email || user.phone || t("admin.noContactInfo")}
               </p>
               <div className="mt-1 flex items-center gap-2">
                 <Badge variant="outline" className="text-xs">
@@ -99,7 +102,7 @@ export function ImpersonatePanel({
                 )}
                 {user.clanCount > 0 && (
                   <span className="text-xs text-muted-foreground">
-                    {user.clanCount} clan{user.clanCount > 1 ? "s" : ""}
+                    {user.clanCount} {user.clanCount > 1 ? t("admin.clans") : t("admin.clan")}
                   </span>
                 )}
               </div>
@@ -112,7 +115,7 @@ export function ImpersonatePanel({
                 onClick={() => handleImpersonate(user.id, user.name)}
               >
                 <UserCheck className="me-1 h-3 w-3" />
-                {loading === user.id ? "..." : "Switch"}
+                {loading === user.id ? "..." : t("admin.switch")}
               </Button>
             )}
           </div>

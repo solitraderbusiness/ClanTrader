@@ -9,14 +9,23 @@ import { DmMessageInput } from "./DmMessageInput";
 import { UserProfileSheet } from "@/components/chat/UserProfileSheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { TraderBadge } from "@/components/shared/TraderBadge";
+import { ArrowLeft, MoreVertical } from "lucide-react";
 import Link from "next/link";
+import { useTranslation } from "@/lib/i18n";
 
 interface DmPanelProps {
   recipientId: string;
   currentUserId: string;
   recipientName: string | null;
   recipientAvatar: string | null;
+  recipientRole?: string;
   initialMessages: DmMessage[];
   conversationId: string;
   hasMore: boolean;
@@ -28,12 +37,14 @@ export function DmPanel({
   currentUserId,
   recipientName,
   recipientAvatar,
+  recipientRole,
   initialMessages,
   conversationId,
   hasMore: initialHasMore,
   nextCursor: initialNextCursor,
 }: DmPanelProps) {
   const store = useDmStore();
+  const { t } = useTranslation();
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const socketRef = useRef(getSocket());
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -221,13 +232,28 @@ export function DmPanel({
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">
-            {recipientName || "Unknown"}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className="truncate text-sm font-medium">
+              {recipientName || "Unknown"}
+            </p>
+            <TraderBadge role={recipientRole} />
+          </div>
           {typingNames.length > 0 && (
-            <p className="text-xs text-muted-foreground">typing...</p>
+            <p className="text-xs text-muted-foreground">{t("chat.typing")}</p>
           )}
         </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <Link href={`/profile/${recipientId}`}>{t("common.viewProfile")}</Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Messages */}
@@ -238,9 +264,14 @@ export function DmPanel({
       >
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
-            <p className="text-sm text-muted-foreground">
-              Send a message to start the conversation
-            </p>
+            <div className="text-center px-6">
+              <p className="text-sm text-muted-foreground">
+                {t("chat.conversationStart", { name: recipientName || "this user" })}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground/70">
+                {t("chat.messagesPrivate")}
+              </p>
+            </div>
           </div>
         ) : (
           messages.map((msg, i) => {
@@ -269,7 +300,7 @@ export function DmPanel({
       {/* Typing indicator */}
       {typingNames.length > 0 && (
         <div className="px-3 py-1 text-xs text-muted-foreground">
-          {typingNames.join(", ")} {typingNames.length === 1 ? "is" : "are"} typing...
+          {typingNames.join(", ")} {typingNames.length === 1 ? t("chat.isTyping") : t("chat.areTyping")}
         </div>
       )}
 

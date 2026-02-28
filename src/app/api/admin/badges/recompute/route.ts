@@ -38,7 +38,7 @@ export async function POST(request: Request) {
 
     audit("badge.recompute", "BadgeDefinition", targetId || "all", session.user.id, {
       scope,
-    });
+    }, { category: "ADMIN" });
 
     if (scope === "user") {
       const result = await recomputeUserBadges(targetId!);

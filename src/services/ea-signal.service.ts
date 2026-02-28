@@ -42,6 +42,7 @@ function serializeMessageForSocket(message: Awaited<ReturnType<typeof createTrad
           riskPct: message.tradeCard.riskPct,
           note: message.tradeCard.note,
           tags: message.tradeCard.tags,
+          cardType: (message.tradeCard as Record<string, unknown>).cardType as string | undefined,
           trade: message.tradeCard.trade
             ? {
                 id: message.tradeCard.trade.id,
@@ -90,10 +91,11 @@ export async function autoCreateSignalFromMtTrade(
     const clanId = membership.clanId;
     const topic = await getDefaultTopic(clanId);
 
-    // Determine tags
+    // Determine tags and cardType
     const hasSL = (mtTrade.stopLoss ?? 0) > 0;
     const hasTP = (mtTrade.takeProfit ?? 0) > 0;
-    const tags = hasSL && hasTP ? ["signal"] : ["analysis"];
+    const cardType = hasSL && hasTP ? "SIGNAL" as const : "ANALYSIS" as const;
+    const tags = cardType === "SIGNAL" ? ["signal"] : ["analysis"];
 
     // Create message + trade card
     const message = await createTradeCardMessage(clanId, topic.id, userId, {
@@ -105,6 +107,7 @@ export async function autoCreateSignalFromMtTrade(
       timeframe: "AUTO",
       note: `Auto-generated from MetaTrader (Ticket #${mtTrade.ticket})`,
       tags,
+      cardType,
     });
 
     if (!message.tradeCard) return;
@@ -126,6 +129,7 @@ export async function autoCreateSignalFromMtTrade(
         integrityStatus: "VERIFIED",
         resolutionSource: "EA_VERIFIED",
         mtLinked: true,
+        cardType,
         statementEligible: isSignal,
         lastEvaluatedAt: new Date(),
         initialEntry: mtTrade.openPrice,
@@ -183,10 +187,12 @@ export async function autoCreateSignalFromMtTrade(
       });
     }
 
-    // Auto-post (fire-and-forget)
-    maybeAutoPost(message.tradeCard.id, clanId, userId).catch((err) =>
-      log("ea_signal.auto_post_error", "ERROR", "EA", { error: String(err) }, userId)
-    );
+    // Auto-post (fire-and-forget) — only for SIGNAL cards
+    if (cardType === "SIGNAL") {
+      maybeAutoPost(message.tradeCard.id, clanId, userId).catch((err) =>
+        log("ea_signal.auto_post_error", "ERROR", "EA", { error: String(err) }, userId)
+      );
+    }
   } catch (err) {
     log("ea_signal.auto_create_error", "ERROR", "EA", { error: String(err), ticket: String(mtTrade.ticket) }, userId);
   }
@@ -323,10 +329,13 @@ export async function syncSignalModification(
     // --- Normal SL/TP change (non-removal) ---
     if (!slRemoved && !tpRemoved) {
       let newTags = [...tradeCard.tags];
+      let newCardType = tradeCard.cardType;
       const hasBothNow = newSL > 0 && newTP > 0;
-      if (hasBothNow && newTags.includes("analysis")) {
+      if (hasBothNow && (newTags.includes("analysis") || newCardType === "ANALYSIS")) {
+        // Upgrade from ANALYSIS to SIGNAL
         newTags = newTags.filter((t) => t !== "analysis");
         if (!newTags.includes("signal")) newTags.push("signal");
+        newCardType = "SIGNAL";
 
         await db.trade.update({
           where: { id: trade.id },
@@ -334,6 +343,7 @@ export async function syncSignalModification(
             statementEligible: true,
             wasEverCounted: true,
             countedAt: new Date(),
+            cardType: "SIGNAL",
           },
         });
 
@@ -354,6 +364,7 @@ export async function syncSignalModification(
           stopLoss: newSL,
           targets: [newTP],
           tags: newTags,
+          cardType: newCardType,
         },
       });
 
@@ -443,7 +454,8 @@ export async function syncSignalClose(
     // Net P&L = profit + commission + swap (MT reports commission/swap as negatives)
     const netProfit = (mtTrade.profit ?? 0) + (mtTrade.commission ?? 0) + (mtTrade.swap ?? 0);
 
-    // Update trade
+    // Update trade — keep statementEligible false for ANALYSIS cards
+    const isAnalysis = trade.cardType === "ANALYSIS";
     await db.trade.update({
       where: { id: trade.id },
       data: {
@@ -451,7 +463,7 @@ export async function syncSignalClose(
         closedAt: new Date(),
         resolutionSource: "EA_VERIFIED",
         integrityStatus: "VERIFIED",
-        statementEligible: true,
+        statementEligible: !isAnalysis,
         closePrice,
         finalRR,
         netProfit: Math.round(netProfit * 100) / 100,

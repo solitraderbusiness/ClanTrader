@@ -19,24 +19,24 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 - [ ] Enter wrong OTP -> error message shown
 - [ ] OTP expires after timeout
 - [ ] Login with existing phone number (send OTP, verify, logged in)
-- [ ] Session persists across page reload
+- [x] Session persists across page reload *(API: spec 01)*
 - [ ] Sign out from user menu -> redirected to login
 
 ### 1.2 Email + Password (Secondary)
 - [ ] Add email + password from Settings > Security
-- [ ] Login with email + password works
+- [x] Login with email + password works *(API: spec 01)*
 - [ ] Forgot password -> receives reset email
 - [ ] Reset password with valid link -> can login with new password
 - [ ] Reset password with expired/invalid link -> error
 
 ### 1.3 MetaTrader EA Auth
-- [ ] Signup via EA registration token (token=xxx in URL)
-- [ ] Login via EA token
+- [x] Signup via EA registration token (token=xxx in URL) *(API: spec 16)*
+- [x] Login via EA token *(API: spec 16)*
 - [ ] Download MT4 EA (.mq4) button works
 - [ ] Download MT5 EA (.mq5) button works
 
 ### 1.4 Signup Form Validation
-- [ ] Username: min 3 chars enforced
+- [x] Username: min 3 chars enforced *(API: spec 16)*
 - [ ] Username: real-time availability check (debounced)
 - [ ] Username: shows available / taken / invalid indicator
 - [ ] Password: min 8 chars enforced
@@ -109,7 +109,7 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 ### 3.3 Edit Profile (Settings > Profile)
 - [ ] Edit name -> saves and reflects everywhere
 - [ ] Edit username -> availability check works
-- [ ] Edit bio -> saves
+- [x] Edit bio -> saves *(API: spec 01, 22)*
 - [ ] Upload avatar -> preview shown, saves on submit
 - [ ] Select trading style dropdown
 - [ ] Select preferred session
@@ -167,19 +167,19 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 - [ ] Fill in name (required), description, trading focus (required)
 - [ ] Toggle public/private
 - [ ] Upload clan avatar
-- [ ] Submit -> clan created, redirected to clan page
-- [ ] Creator has LEADER role
+- [x] Submit -> clan created, redirected to clan page *(API: spec 02)*
+- [x] Creator has LEADER role *(API: spec 03)*
 
 ### 5.2 Discover & Join Clans
-- [ ] Explore page shows clan cards
-- [ ] Search clans by name
+- [x] Explore page shows clan cards *(API: spec 11)*
+- [x] Search clans by name *(API: spec 11)*
 - [ ] Filter by trading focus
 - [ ] Clan card shows: name, avatar, member count, followers, description
 - [ ] Follow button works (toggle follow/unfollow)
 - [ ] Join public clan -> instant membership
-- [ ] Request to join private clan -> request sent
+- [x] Request to join private clan -> request sent *(API: spec 04)*
 - [ ] Cannot join if clan is full (member limit reached)
-- [ ] Free Agents tab shows verified traders without clan
+- [x] Free Agents tab shows verified traders without clan *(API: spec 11)*
 - [ ] Free agent card shows trading stats
 
 ### 5.3 Clan Profile Page
@@ -192,44 +192,44 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 - [ ] **Channel tab**: posts visible (members or public clan)
 - [ ] **Chat tab**: real-time messages (members only)
 - [ ] **Members tab**: list with roles and trading style
-- [ ] **Performance tab**: win rate, profit factor, avg R, total R
-- [ ] **Performance tab**: top providers list, recent signals, instrument breakdown
+- [x] **Performance tab**: win rate, profit factor, avg R, total R *(API: spec 20)*
+- [x] **Performance tab**: top providers list, recent signals, instrument breakdown *(API: spec 20)*
 - [ ] **Statements tab**: clan trading statements
 
 ### 5.4 Clan Settings (Leader Only)
-- [ ] Edit clan name
-- [ ] Edit description
+- [x] Edit clan name *(API: spec 02)*
+- [x] Edit description *(API: spec 02)*
 - [ ] Change avatar
 - [ ] Change trading focus
 - [ ] Toggle public/private
-- [ ] Enable/disable join requests
+- [x] Enable/disable join requests *(API: spec 02)*
 - [ ] Member limit display (based on tier)
-- [ ] Create invite link
+- [x] Create invite link *(API: spec 05)*
 - [ ] Share invite link
-- [ ] Approve/reject join requests
-- [ ] Remove member
-- [ ] Promote member to co-leader
-- [ ] Demote co-leader to member
+- [x] Approve/reject join requests *(API: spec 04)*
+- [x] Remove member *(API: spec 03)*
+- [x] Promote member to co-leader *(API: spec 03)*
+- [x] Demote co-leader to member *(API: spec 03)*
 - [ ] Ban member
-- [ ] Delete clan (with confirmation)
+- [x] Delete clan (with confirmation) *(API: spec 02)*
 
 ### 5.5 Topics
-- [ ] Default topic exists on clan creation
-- [ ] Create new topic (name, description)
+- [x] Default topic exists on clan creation *(API: spec 07)*
+- [x] Create new topic (name, description) *(API: spec 07)*
 - [ ] Edit topic name and description
 - [ ] Archive topic
 - [ ] Reorder topics
 - [ ] Max 20 topics enforced
-- [ ] Switch between topics in chat
+- [x] Switch between topics in chat *(API: spec 07)*
 
 ### 5.6 Invite Links
-- [ ] Generate invite link
+- [x] Generate invite link *(API: spec 05)*
 - [ ] Join clan via invite link (/invite/[code])
 - [ ] Expired/invalid invite shows error
 - [ ] Invite tracks referral code
 
 ### 5.7 Edge Cases
-- [ ] User can only be in one clan at a time (enforced)
+- [x] User can only be in one clan at a time (enforced) *(API: spec 03, 04)*
 - [ ] Cannot join a full clan
 - [ ] Leader cannot leave without promoting another leader first
 - [ ] Last member leaving -> clan handled gracefully
@@ -239,14 +239,14 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 ## 6. Clan Chat (Real-Time)
 
 ### 6.1 Messaging
-- [ ] Send text message -> appears instantly
-- [ ] Other members see message in real-time
+- [x] Send text message -> appears instantly *(API: spec 06)*
+- [x] Other members see message in real-time *(API: spec 06)*
 - [ ] Message shows sender name, avatar, timestamp
-- [ ] Edit own message -> updated text shown with "edited" indicator
-- [ ] Delete own message -> removed from chat
-- [ ] Reply to a message -> shows quoted original
-- [ ] Message max 2000 characters enforced
-- [ ] Rate limiting: cannot send more than 5 messages in 10 seconds
+- [x] Edit own message -> updated text shown with "edited" indicator *(API: spec 06)*
+- [x] Delete own message -> removed from chat *(API: spec 06)*
+- [x] Reply to a message -> shows quoted original *(API: spec 06)*
+- [x] Message max 2000 characters enforced *(API: spec 06)*
+- [x] Rate limiting: cannot send more than 5 messages in 10 seconds *(API: spec 14)*
 
 ### 6.2 Images
 - [ ] Attach 1 image -> uploads and displays inline
@@ -255,20 +255,20 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 - [ ] Large image files handled (compressed/rejected)
 
 ### 6.3 Reactions
-- [ ] React to message with emoji (available: thumbs up, heart, laugh, wow, sad, fire)
+- [x] React to message with emoji (available: thumbs up, heart, laugh, wow, sad, fire) *(API: spec 06)*
 - [ ] Reaction count updates in real-time
-- [ ] Remove own reaction
-- [ ] Multiple users can react to same message
+- [x] Remove own reaction *(API: spec 06)*
+- [x] Multiple users can react to same message *(API: spec 06)*
 
 ### 6.4 Pinning
-- [ ] Pin message (leader/co-leader only)
+- [x] Pin message (leader/co-leader only) *(API: spec 06)*
 - [ ] Pinned message indicator shown
-- [ ] Unpin message
+- [x] Unpin message *(API: spec 06)*
 - [ ] Max 10 pinned messages per topic enforced
-- [ ] View pinned messages list
+- [x] View pinned messages list *(API: spec 06)*
 
 ### 6.5 Typing Indicator
-- [ ] Typing indicator appears when other user is typing
+- [x] Typing indicator appears when other user is typing *(API: spec 06)*
 - [ ] Typing indicator disappears when user stops
 - [ ] Shows who is typing (name)
 
@@ -290,7 +290,7 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 - [ ] Open trade card composer
 - [ ] Fill in: instrument, direction (buy/sell), entry price, stop loss, targets, timeframe
 - [ ] Optional: risk %, tags, note
-- [ ] Submit -> signal card appears in chat
+- [x] Submit -> signal card appears in chat *(API: spec 08)*
 - [ ] Card shows all fields with proper formatting
 - [ ] Live R:R calculation updates in real-time
 - [ ] Risk status badge: protected / breakeven / unprotected
@@ -303,15 +303,15 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 
 ### 7.3 Trade Card Interactions
 - [ ] View trade card detail sheet (tap card)
-- [ ] Track trade button -> creates trade record
-- [ ] Edit trade card (own cards only)
+- [x] Track trade button -> creates trade record *(API: spec 08)*
+- [x] Edit trade card (own cards only) *(API: spec 08)*
 - [ ] Delete trade card
 
 ### 7.4 Trade Actions
-- [ ] Set break even -> SL moves to entry
+- [x] Set break even -> SL moves to entry *(API: spec 08)*
 - [ ] Move stop loss -> SL updates
 - [ ] Change targets -> TP list updates
-- [ ] Close trade -> enter close price, trade marked closed
+- [x] Close trade -> enter close price, trade marked closed *(API: spec 08)*
 - [ ] Add/edit note on trade
 - [ ] System messages appear in chat for each action
 - [ ] MT-linked trades: action sent to EA as pending action
@@ -319,7 +319,7 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 - [ ] Manual trades update immediately
 
 ### 7.5 Trade Status Updates
-- [ ] PENDING -> OPEN -> TP_HIT / SL_HIT / BE / CLOSED
+- [x] PENDING -> OPEN -> TP_HIT / SL_HIT / BE / CLOSED *(API: spec 08)*
 - [ ] Status updates reflected on card in real-time
 - [ ] Integrity: VERIFIED vs UNVERIFIED badge
 
@@ -333,24 +333,24 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 ## 8. Direct Messages (DMs)
 
 ### 8.1 Conversations
-- [ ] DM list shows all conversations
+- [x] DM list shows all conversations *(API: spec 09)*
 - [ ] Last message preview shown
 - [ ] Sorted by most recent
 - [ ] Unread count badge on unread conversations
 - [ ] Start new DM from user profile ("Message" button)
 
 ### 8.2 Messaging
-- [ ] Send text message -> appears instantly
-- [ ] Receive message in real-time
-- [ ] Edit own message
-- [ ] Delete own message
-- [ ] Reply to message
+- [x] Send text message -> appears instantly *(API: spec 09)*
+- [x] Receive message in real-time *(API: spec 09)*
+- [x] Edit own message *(API: spec 09)*
+- [x] Delete own message *(API: spec 09)*
+- [x] Reply to message *(API: spec 09)*
 - [ ] Max 2000 characters enforced
 - [ ] Attach images (up to 4)
 
 ### 8.3 Read Receipts & Typing
-- [ ] Mark conversation as read -> unread badge clears
-- [ ] Typing indicator when other user types
+- [x] Mark conversation as read -> unread badge clears *(API: spec 09)*
+- [x] Typing indicator when other user types *(API: spec 09)*
 - [ ] Typing indicator clears when they stop
 
 ---
@@ -367,16 +367,16 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 - [ ] Post detail view on tap
 
 ### 9.2 Creating Posts (Leader Only)
-- [ ] Create post with title and content
+- [x] Create post with title and content *(API: spec 10)*
 - [ ] Attach images
 - [ ] Include signal trade card (optional)
 - [ ] Publish post
-- [ ] Edit own post
-- [ ] Delete own post
+- [x] Edit own post *(API: spec 10)*
+- [x] Delete own post *(API: spec 10)*
 
 ### 9.3 Reactions
-- [ ] React to post with emoji
-- [ ] Remove reaction
+- [x] React to post with emoji *(API: spec 10)*
+- [x] Remove reaction *(API: spec 10)*
 - [ ] Reaction count and users shown
 
 ---
@@ -401,8 +401,8 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 
 ### 10.3 Filters
 - [ ] Filter: tracked signals only vs all trades
-- [ ] Filter: all clans vs specific clan
-- [ ] Time period: all time, this month, last 3 months, last 6 months, this year
+- [x] Filter: all clans vs specific clan *(API: spec 19)*
+- [x] Time period: all time, this month, last 3 months, last 6 months, this year *(API: spec 19)*
 - [ ] Filters update all charts and stats in real-time
 
 ---
@@ -410,7 +410,7 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 ## 11. Leaderboard & Rankings
 
 - [ ] Navigate to Leaderboard from Explore
-- [ ] Users ranked by: win rate, profit factor, total R
+- [x] Users ranked by: win rate, profit factor, total R *(API: spec 12)*
 - [ ] Filter by trading style
 - [ ] Filter by preferred pairs
 - [ ] Filter by season
@@ -444,7 +444,7 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 - [ ] "Connect MT" banner if no MT account
 
 ### 13.1 Missions Dashboard
-- [ ] Missions section shows pending missions
+- [x] Missions section shows pending missions *(API: spec 22)*
 - [ ] Progress checkmarks for completed missions
 - [ ] Completion count (X of Y)
 - [ ] All-complete message when done
@@ -454,9 +454,9 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 ## 14. Watchlist
 
 - [ ] Open watchlist in clan chat
-- [ ] Add instrument to watchlist
-- [ ] Remove instrument from watchlist
-- [ ] Watchlist displays added instruments
+- [x] Add instrument to watchlist *(API: spec 18)*
+- [x] Remove instrument from watchlist *(API: spec 18)*
+- [x] Watchlist displays added instruments *(API: spec 18)*
 - [ ] Instrument data updates
 
 ---
@@ -493,36 +493,36 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 - [ ] Switch back to admin
 
 ### 16.4 Feature Flags
-- [ ] Create flag
-- [ ] Enable / disable flag
-- [ ] Edit flag
-- [ ] Delete flag
+- [x] Create flag *(API: spec 21)*
+- [x] Enable / disable flag *(API: spec 21)*
+- [x] Edit flag *(API: spec 21)*
+- [x] Delete flag *(API: spec 21)*
 
 ### 16.5 Paywall Rules
-- [ ] Create rule
-- [ ] Edit rule
-- [ ] Delete rule
+- [x] Create rule *(API: spec 21)*
+- [x] Edit rule *(API: spec 21)*
+- [x] Delete rule *(API: spec 21)*
 
 ### 16.6 Plans
-- [ ] View plans
-- [ ] Create plan
-- [ ] Edit plan (name, price, features)
+- [x] View plans *(API: spec 21)*
+- [x] Create plan *(API: spec 21)*
+- [x] Edit plan (name, price, features) *(API: spec 21)*
 - [ ] Activate / deactivate plan
-- [ ] Delete plan
+- [x] Delete plan *(API: spec 21)*
 
 ### 16.7 Badges
-- [ ] View all badges (filter by category, enabled/disabled)
-- [ ] Create badge
-- [ ] Edit badge requirements
-- [ ] Reorder rank ladder
-- [ ] Delete badge
-- [ ] Recompute badges for all users
-- [ ] Dry-run recomputation (preview changes)
-- [ ] Badge audit trail
+- [x] View all badges (filter by category, enabled/disabled) *(API: spec 15)*
+- [x] Create badge *(API: spec 15)*
+- [x] Edit badge requirements *(API: spec 15)*
+- [x] Reorder rank ladder *(API: spec 15)*
+- [x] Delete badge *(API: spec 15)*
+- [x] Recompute badges for all users *(API: spec 15)*
+- [x] Dry-run recomputation (preview changes) *(API: spec 15)*
+- [x] Badge audit trail *(API: spec 15)*
 
 ### 16.8 Referrals
-- [ ] View referral signups
-- [ ] Track referral events
+- [x] View referral signups *(API: spec 23)*
+- [x] Track referral events *(API: spec 23)*
 
 ### 16.9 Statements Review
 - [ ] View pending statements
@@ -543,9 +543,9 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 - [ ] Test artifacts
 
 ### 16.12 Ranking
-- [ ] View ranking config
-- [ ] Edit ranking parameters
-- [ ] Trigger ranking calculation
+- [x] View ranking config *(API: spec 21)*
+- [x] Edit ranking parameters *(API: spec 21)*
+- [x] Trigger ranking calculation *(API: spec 21)*
 
 ---
 
@@ -598,11 +598,11 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 
 ### 19.5 Error Handling
 - [ ] Invalid URL -> 404 page shown
-- [ ] Unauthorized action -> redirected to login
-- [ ] Forbidden action -> error message shown
+- [x] Unauthorized action -> redirected to login *(API: spec 13)*
+- [x] Forbidden action -> error message shown *(API: spec 13)*
 - [ ] Network error -> toast/notification shown
 - [ ] Form validation errors shown inline
-- [ ] Rate limit hit -> appropriate message shown
+- [x] Rate limit hit -> appropriate message shown *(API: spec 14)*
 
 ### 19.6 Loading States
 - [ ] Pages show spinner/skeleton while loading

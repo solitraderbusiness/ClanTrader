@@ -32,11 +32,17 @@ async function main() {
   await prisma.season.deleteMany();
   await prisma.follow.deleteMany();
   await prisma.clanInvite.deleteMany();
+  await prisma.clanJoinRequest.deleteMany();
   await prisma.clanMember.deleteMany();
   await prisma.tradingStatement.deleteMany();
   await prisma.subscriptionPlan.deleteMany();
   await prisma.paywallRule.deleteMany();
   await prisma.featureFlag.deleteMany();
+  await prisma.directMessage.deleteMany();
+  await prisma.conversation.deleteMany();
+  await prisma.referralEvent.deleteMany();
+  await prisma.mtTrade.deleteMany();
+  await prisma.mtAccount.deleteMany();
   await prisma.clan.deleteMany();
   await prisma.user.deleteMany();
 
@@ -47,6 +53,8 @@ async function main() {
     data: {
       email: "admin@clantrader.ir",
       passwordHash,
+      phone: "09120000001",
+      phoneVerified: new Date(),
       name: "Admin User",
       username: "admin_ct",
       bio: "Platform administrator",
@@ -60,6 +68,8 @@ async function main() {
     data: {
       email: "trader1@clantrader.ir",
       passwordHash,
+      phone: "09120000002",
+      phoneVerified: new Date(),
       name: "Ali Trader",
       username: "alitrader",
       bio: "XAUUSD specialist, 5 years experience",
@@ -76,6 +86,8 @@ async function main() {
     data: {
       email: "trader2@clantrader.ir",
       passwordHash,
+      phone: "09120000003",
+      phoneVerified: new Date(),
       name: "Sara Forex",
       username: "saraforex",
       bio: "Swing trader focused on major pairs",
@@ -91,6 +103,8 @@ async function main() {
     data: {
       email: "trader3@clantrader.ir",
       passwordHash,
+      phone: "09120000004",
+      phoneVerified: new Date(),
       name: "Reza Gold",
       username: "rezagold",
       bio: "Gold and commodities day trader",
@@ -106,11 +120,25 @@ async function main() {
     data: {
       email: "spectator@clantrader.ir",
       passwordHash,
+      phone: "09120000005",
+      phoneVerified: new Date(),
       name: "New User",
       username: "newuser",
       bio: "Just watching and learning",
       role: "SPECTATOR",
       emailVerified: new Date(),
+    },
+  });
+
+  // Phone-only test user (no email/password)
+  await prisma.user.create({
+    data: {
+      phone: "09120000006",
+      phoneVerified: new Date(),
+      name: "Phone User",
+      username: "phoneuser",
+      bio: "Signed up with phone only",
+      role: "SPECTATOR",
     },
   });
 
@@ -763,7 +791,7 @@ async function main() {
   }
 
   console.log("\nSeed data created successfully:");
-  console.log(`  - 5 users (1 admin, 3 traders, 1 spectator)`);
+  console.log(`  - 6 users (1 admin, 3 traders, 1 spectator, 1 phone-only)`);
   console.log(`  - 1 clan with 4 members`);
   console.log(`  - 2 topics (General + Gold Signals)`);
   console.log(`  - ${totalTrades} signal-tagged trades`);
@@ -773,6 +801,7 @@ async function main() {
   console.log(`  - ${featureFlags.length} feature flags`);
   console.log(`  - 1 ranking config`);
   console.log("\nTest credentials: any email above with password: password123");
+  console.log("Phone-only user: 09120000006 (use OTP flow)");
 }
 
 main()

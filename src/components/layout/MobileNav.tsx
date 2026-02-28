@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Home, Compass, MessageSquare, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavStore } from "@/stores/nav-store";
+import { useTranslation } from "@/lib/i18n";
 
 interface MobileTab {
   href: string;
@@ -14,6 +15,7 @@ interface MobileTab {
 }
 
 export function MobileNav() {
+  const { t } = useTranslation();
   const pathname = usePathname();
   const { chats } = useNavStore();
   const hasChats = chats.length > 0;
@@ -21,20 +23,20 @@ export function MobileNav() {
 
   const renderedTabs: MobileTab[] = hasChats
     ? [
-        { href: "/home", label: "Home", icon: Home },
+        { href: "/home", label: t("nav.home"), icon: Home },
         {
           href: "/clans",
-          label: "Chats",
+          label: t("nav.chats"),
           icon: MessageSquare,
           badge: totalUnread || undefined,
         },
-        { href: "/explore", label: "Explore", icon: Compass },
-        { href: "/settings/profile", label: "Profile", icon: User },
+        { href: "/explore", label: t("nav.explore"), icon: Compass },
+        { href: "/settings/profile", label: t("nav.profile"), icon: User },
       ]
     : [
-        { href: "/home", label: "Home", icon: Home },
-        { href: "/explore", label: "Explore", icon: Compass },
-        { href: "/settings/profile", label: "Profile", icon: User },
+        { href: "/home", label: t("nav.home"), icon: Home },
+        { href: "/explore", label: t("nav.explore"), icon: Compass },
+        { href: "/settings/profile", label: t("nav.profile"), icon: User },
       ];
 
   return (

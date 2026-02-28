@@ -75,7 +75,7 @@ export async function POST(request: Request) {
 
     audit("badge.create", "BadgeDefinition", badge.id, session.user.id, {
       key: badge.key,
-    });
+    }, { category: "ADMIN" });
 
     return NextResponse.json({ badge }, { status: 201 });
   } catch (error) {
