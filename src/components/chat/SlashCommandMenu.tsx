@@ -1,8 +1,8 @@
 "use client";
 
-import { BarChart3, Eye, Calendar, FileText } from "lucide-react";
+import { BarChart3, Eye, Calendar, FileText, ClipboardList } from "lucide-react";
 
-type PanelType = "trades" | "watchlist" | "events" | "summary";
+type PanelType = "trades" | "watchlist" | "events" | "summary" | "digest";
 
 const COMMANDS: Array<{
   command: string;
@@ -38,6 +38,13 @@ const COMMANDS: Array<{
     description: "Topic summary & stats",
     icon: FileText,
     panel: "summary",
+  },
+  {
+    command: "/digest",
+    label: "Activity Digest",
+    description: "Clan activity breakdown",
+    icon: ClipboardList,
+    panel: "digest",
   },
 ];
 

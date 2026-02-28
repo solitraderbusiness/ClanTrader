@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Eye, Calendar, FileText } from "lucide-react";
+import { BarChart3, Eye, Calendar, FileText, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -9,7 +9,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-type PanelType = "trades" | "watchlist" | "events" | "summary";
+type PanelType = "trades" | "watchlist" | "events" | "summary" | "digest";
 
 interface ChatToolbarProps {
   openPanel: PanelType | null;
@@ -21,6 +21,7 @@ const tools: Array<{ panel: PanelType; icon: typeof BarChart3; label: string }> 
   { panel: "watchlist", icon: Eye, label: "Watchlist" },
   { panel: "events", icon: Calendar, label: "Events" },
   { panel: "summary", icon: FileText, label: "Summary" },
+  { panel: "digest", icon: ClipboardList, label: "Activity Digest" },
 ];
 
 export function ChatToolbar({ openPanel, onTogglePanel }: ChatToolbarProps) {

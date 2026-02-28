@@ -1,5 +1,13 @@
 import { create } from "zustand";
 
+export interface PendingAction {
+  actionId: string;
+  actionType: string;
+  expiresAt: string;
+  status?: string;
+  errorMessage?: string | null;
+}
+
 export interface TradeCardData {
   id: string;
   instrument: string;
@@ -11,12 +19,21 @@ export interface TradeCardData {
   riskPct: number | null;
   note: string | null;
   tags: string[];
+  cardType?: "SIGNAL" | "ANALYSIS";
   trade: {
     id: string;
     status: string;
     userId: string;
+    mtLinked?: boolean;
     integrityStatus?: string;
     statementEligible?: boolean;
+    pendingAction?: PendingAction | null;
+    riskStatus?: string;
+    initialRiskAbs?: number;
+    initialEntry?: number;
+    finalRR?: number | null;
+    netProfit?: number | null;
+    closePrice?: number | null;
   } | null;
 }
 
@@ -71,7 +88,7 @@ export interface ChatTopic {
   sortOrder: number;
 }
 
-type OpenPanel = "trades" | "watchlist" | "events" | "summary" | null;
+type OpenPanel = "trades" | "watchlist" | "events" | "summary" | "digest" | null;
 
 interface ChatState {
   isConnected: boolean;
@@ -133,6 +150,15 @@ interface ChatState {
   // Trade card status update
   updateTradeCardStatus: (messageId: string, trade: { id: string; status: string; userId: string }) => void;
 
+  // MT pending action updates
+  updateTradeCardPendingAction: (tradeId: string, pendingAction: PendingAction) => void;
+  clearTradeCardPendingAction: (tradeId: string) => void;
+  updateTradeCardValues: (tradeId: string, updates: { stopLoss?: number; targets?: number[] }) => void;
+
+  // Live R:R PnL
+  tradePnl: Record<string, { currentRR: number; currentPrice: number; targetRR?: number | null; riskStatus?: string }>;
+  updateTradePnl: (updates: Array<{ tradeId: string; currentRR: number; currentPrice: number; targetRR?: number | null; riskStatus?: string }>) => void;
+
   reset: () => void;
 }
 
@@ -151,6 +177,7 @@ const initialState = {
   replyingTo: null as ChatMessage | null,
   editingMessage: null as ChatMessage | null,
   clanMembers: [] as ClanMember[],
+  tradePnl: {} as Record<string, { currentRR: number; currentPrice: number; targetRR?: number | null; riskStatus?: string }>,
 };
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -240,6 +267,61 @@ export const useChatStore = create<ChatState>((set) => ({
           : m
       ),
     })),
+
+  updateTradeCardPendingAction: (tradeId, pendingAction) =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.tradeCard?.trade?.id === tradeId
+          ? {
+              ...m,
+              tradeCard: {
+                ...m.tradeCard,
+                trade: { ...m.tradeCard.trade!, pendingAction },
+              },
+            }
+          : m
+      ),
+    })),
+
+  clearTradeCardPendingAction: (tradeId) =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.tradeCard?.trade?.id === tradeId
+          ? {
+              ...m,
+              tradeCard: {
+                ...m.tradeCard,
+                trade: { ...m.tradeCard.trade!, pendingAction: null },
+              },
+            }
+          : m
+      ),
+    })),
+
+  updateTradeCardValues: (tradeId, updates) =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.tradeCard?.trade?.id === tradeId
+          ? {
+              ...m,
+              tradeCard: {
+                ...m.tradeCard,
+                ...(updates.stopLoss !== undefined ? { stopLoss: updates.stopLoss } : {}),
+                ...(updates.targets !== undefined ? { targets: updates.targets } : {}),
+              },
+            }
+          : m
+      ),
+    })),
+
+  updateTradePnl: (updates) =>
+    set((state) => {
+      const newPnl = { ...state.tradePnl };
+      for (const u of updates) {
+        newPnl[u.tradeId] = { currentRR: u.currentRR, currentPrice: u.currentPrice, targetRR: u.targetRR, riskStatus: u.riskStatus };
+      }
+      return { tradePnl: newPnl };
+    }),
 
   reset: () => set({ ...initialState, typingUsers: new Map() }),
 }));

@@ -125,6 +125,12 @@
     "noPostsDesc": "This clan hasn't published any channel posts yet.",
     "startPosting": "Start posting to your channel below.",
     "loadOlderPosts": "Load older posts",
+    "loadMore": "Load more",
+    "editPost": "Edit Post",
+    "deletePost": "Delete Post",
+    "deletePostConfirm": "Are you sure you want to delete this post? This action cannot be undone.",
+    "postUpdated": "Post updated",
+    "postDeleted": "Post deleted",
     "premiumContent": "Premium content",
     "premiumLocked": "Premium content — join clan or upgrade to view",
     "riskViolation": "Risk violation detected",
@@ -215,7 +221,10 @@
     "lockedProfit": "Locked Profit",
     "unprotected": "Unprotected",
     "signal": "Signal",
-    "analysis": "Analysis"
+    "analysis": "Analysis",
+    "shareAnalysis": "Share Analysis",
+    "createAnalysis": "Create Analysis Card",
+    "analysisDisclaimer": "Analysis trades are not included in official statistics"
   },
   "clan": {
     "create": "Create Clan",
@@ -244,10 +253,31 @@
     "tabDiscussion": "Discussion",
     "tabMembers": "Members",
     "tabRoster": "Roster",
+    "tabPerformance": "Performance",
+    "tabStats": "Stats",
     "tabStatements": "Statements",
     "tabRecords": "Records",
     "noClan": "You're not in a clan yet.",
     "discoverClans": "Discover and join a clan"
+  },
+  "clanPerf": {
+    "title": "Clan Performance",
+    "noSignals": "No verified signals yet",
+    "totalSignals": "Signals",
+    "winRate": "Win Rate",
+    "profitFactor": "Profit Factor",
+    "avgR": "Avg R",
+    "totalR": "Total R",
+    "bestWorstR": "Best / Worst R",
+    "topProviders": "Top Signal Providers",
+    "recentSignals": "Recent Signals",
+    "instruments": "Instrument Breakdown",
+    "allTime": "All Time",
+    "thisMonth": "This Month",
+    "last30Days": "Last 30 Days",
+    "signals": "signals",
+    "closed": "Closed",
+    "moreDetails": "More details"
   },
   "profile": {
     "editProfile": "Edit Profile",
@@ -489,7 +519,32 @@
     "maxWinStreak": "Best win streak",
     "maxLossStreak": "Worst loss streak",
     "periodComparison": "Period Comparison",
-    "previous": "Prev"
+    "previous": "Prev",
+    "signals": "Signals",
+    "analysis": "Analysis",
+    "analysisDisclaimer": "These trades are for personal tracking only."
+  },
+  "channel": {
+    "filterAll": "All",
+    "filterSignals": "Signals",
+    "filterAnnouncements": "Announcements",
+    "noFilterResults": "No posts match this filter."
+  },
+  "digest": {
+    "title": "Activity Digest",
+    "today": "Today",
+    "thisWeek": "This Week",
+    "thisMonth": "This Month",
+    "empty": "No activity in this period",
+    "emptyDesc": "No trade cards or analysis cards were shared during this time.",
+    "signals": "Signals",
+    "analysis": "Analysis",
+    "winRate": "Win Rate",
+    "totalR": "Total R",
+    "avgR": "Avg R",
+    "activeMembers": "Active Members",
+    "open": "Open",
+    "memberBreakdown": "Member Breakdown"
   },
   "format": {
     "numberSeparator": ",",

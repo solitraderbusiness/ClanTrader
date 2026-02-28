@@ -125,6 +125,12 @@
     "noPostsDesc": "این کلن هنوز پستی در کانال منتشر نکرده.",
     "startPosting": "پست‌های خود را در کانال زیر شروع کنید.",
     "loadOlderPosts": "بارگذاری پست‌های قبلی",
+    "loadMore": "بارگذاری بیشتر",
+    "editPost": "ویرایش پست",
+    "deletePost": "حذف پست",
+    "deletePostConfirm": "آیا مطمئن هستید که می‌خواهید این پست را حذف کنید؟ این عمل قابل بازگشت نیست.",
+    "postUpdated": "پست به‌روزرسانی شد",
+    "postDeleted": "پست حذف شد",
     "premiumContent": "محتوای ویژه",
     "premiumLocked": "محتوای ویژه — به کلن بپیوندید یا ارتقا دهید",
     "riskViolation": "نقض مدیریت ریسک شناسایی شد",
@@ -215,7 +221,10 @@
     "lockedProfit": "سود قفل شده",
     "unprotected": "بدون محافظت",
     "signal": "سیگنال",
-    "analysis": "تحلیل"
+    "analysis": "تحلیل",
+    "shareAnalysis": "اشتراک تحلیل",
+    "createAnalysis": "ساخت کارت تحلیل",
+    "analysisDisclaimer": "معاملات تحلیلی در آمار رسمی لحاظ نمی‌شوند"
   },
   "clan": {
     "create": "ایجاد کلن",
@@ -244,10 +253,31 @@
     "tabDiscussion": "بحث",
     "tabMembers": "اعضا",
     "tabRoster": "فهرست",
+    "tabPerformance": "عملکرد",
+    "tabStats": "آمار",
     "tabStatements": "گزارش‌ها",
     "tabRecords": "سوابق",
     "noClan": "هنوز عضو کلنی نیستید.",
     "discoverClans": "کشف و عضویت در کلن"
+  },
+  "clanPerf": {
+    "title": "عملکرد کلن",
+    "noSignals": "هنوز سیگنال تایید شده‌ای وجود ندارد",
+    "totalSignals": "سیگنال‌ها",
+    "winRate": "نرخ برد",
+    "profitFactor": "ضریب سود",
+    "avgR": "میانگین R",
+    "totalR": "مجموع R",
+    "bestWorstR": "بهترین / بدترین R",
+    "topProviders": "بهترین سیگنال‌دهندگان",
+    "recentSignals": "سیگنال‌های اخیر",
+    "instruments": "تفکیک ابزار",
+    "allTime": "کل زمان",
+    "thisMonth": "این ماه",
+    "last30Days": "۳۰ روز اخیر",
+    "signals": "سیگنال",
+    "closed": "بسته شده",
+    "moreDetails": "جزئیات بیشتر"
   },
   "profile": {
     "editProfile": "ویرایش پروفایل",
@@ -489,7 +519,32 @@
     "maxWinStreak": "بهترین استریک برد",
     "maxLossStreak": "بدترین استریک باخت",
     "periodComparison": "مقایسه دوره‌ای",
-    "previous": "قبلی"
+    "previous": "قبلی",
+    "signals": "سیگنال‌ها",
+    "analysis": "تحلیل‌ها",
+    "analysisDisclaimer": "این معاملات فقط برای پیگیری شخصی هستند."
+  },
+  "channel": {
+    "filterAll": "همه",
+    "filterSignals": "سیگنال‌ها",
+    "filterAnnouncements": "اطلاعیه‌ها",
+    "noFilterResults": "پستی با این فیلتر یافت نشد."
+  },
+  "digest": {
+    "title": "خلاصه فعالیت",
+    "today": "امروز",
+    "thisWeek": "این هفته",
+    "thisMonth": "این ماه",
+    "empty": "فعالیتی در این بازه نیست",
+    "emptyDesc": "هیچ سیگنال یا تحلیلی در این بازه زمانی به اشتراک گذاشته نشده.",
+    "signals": "سیگنال‌ها",
+    "analysis": "تحلیل‌ها",
+    "winRate": "نرخ برد",
+    "totalR": "مجموع R",
+    "avgR": "میانگین R",
+    "activeMembers": "اعضای فعال",
+    "open": "باز",
+    "memberBreakdown": "تفکیک اعضا"
   },
   "format": {
     "numberSeparator": "٫",

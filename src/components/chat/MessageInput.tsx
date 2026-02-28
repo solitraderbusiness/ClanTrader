@@ -5,13 +5,13 @@ import { getSocket } from "@/lib/socket-client";
 import { SOCKET_EVENTS, MESSAGE_CONTENT_MAX, CHAT_IMAGES_MAX } from "@/lib/chat-constants";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, X, Reply, Pencil, BarChart3, ImagePlus, Loader2 } from "lucide-react";
+import { Send, X, Reply, Pencil, BarChart3, ImagePlus, Loader2, Lightbulb } from "lucide-react";
 import { ImageAttachmentPreview } from "@/components/shared/ImageAttachmentPreview";
 
 import { useChatStore, type ClanMember } from "@/stores/chat-store";
 import { SlashCommandMenu } from "./SlashCommandMenu";
 
-type PanelType = "trades" | "watchlist" | "events" | "summary";
+type PanelType = "trades" | "watchlist" | "events" | "summary" | "digest";
 
 interface MessageInputProps {
   clanId: string;
@@ -19,9 +19,10 @@ interface MessageInputProps {
   disabled: boolean;
   onOpenPanel?: (panel: PanelType) => void;
   onOpenTradeCard?: () => void;
+  onOpenAnalysisCard?: () => void;
 }
 
-export function MessageInput({ clanId, topicId, disabled, onOpenPanel, onOpenTradeCard }: MessageInputProps) {
+export function MessageInput({ clanId, topicId, disabled, onOpenPanel, onOpenTradeCard, onOpenAnalysisCard }: MessageInputProps) {
   const editingMsg = useChatStore((s) => s.editingMessage);
   const [content, setContent] = useState(editingMsg?.content || "");
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -110,6 +111,8 @@ export function MessageInput({ clanId, topicId, disabled, onOpenPanel, onOpenTra
         events: "events",
         event: "events",
         summary: "summary",
+        digest: "digest",
+        activity: "digest",
       };
       if (panelMap[cmd]) {
         onOpenPanel(panelMap[cmd]);
@@ -355,6 +358,18 @@ export function MessageInput({ clanId, topicId, disabled, onOpenPanel, onOpenTra
         />
         <ImageAttachmentPreview previews={imagePreviews} onRemove={removeImage} />
         <div className="flex items-end gap-2">
+          {onOpenAnalysisCard && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-[40px] w-[40px] shrink-0 text-blue-500 hover:text-blue-600"
+              onClick={onOpenAnalysisCard}
+              disabled={disabled}
+              title="Share Analysis Card"
+            >
+              <Lightbulb className="h-4 w-4" />
+            </Button>
+          )}
           {onOpenTradeCard && (
             <Button
               variant="ghost"
@@ -379,6 +394,7 @@ export function MessageInput({ clanId, topicId, disabled, onOpenPanel, onOpenTra
           </Button>
           <Textarea
             ref={textareaRef}
+            data-testid="chat-input"
             value={content}
             onChange={handleChange}
             onKeyDown={handleKeyDown}

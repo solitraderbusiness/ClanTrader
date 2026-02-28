@@ -15,12 +15,14 @@ import { MessageInput } from "./MessageInput";
 import { TypingIndicator } from "./TypingIndicator";
 import { PinnedMessages } from "./PinnedMessages";
 import { TopicManageDialog } from "./TopicManageDialog";
-import { TradeCardComposerDialog } from "./TradeCardComposerDialog";
+import { EaSignalGuideDialog } from "./EaSignalGuideDialog";
+import { AnalysisCardComposerDialog } from "./AnalysisCardComposerDialog";
 import { TradeCardDetailSheet } from "./TradeCardDetailSheet";
 import { LatestTradesSheet } from "./LatestTradesSheet";
 import { WatchlistSheet } from "./WatchlistSheet";
 import { EventsSheet } from "./EventsSheet";
 import { SummarySheet } from "./SummarySheet";
+import { DigestSheet } from "./DigestSheet";
 import { toast } from "sonner";
 import { useNavStore } from "@/stores/nav-store";
 
@@ -29,6 +31,7 @@ interface ChatPanelProps {
   currentUserId: string;
   memberRole: string;
   initialTopics?: ChatTopic[];
+  hasMtAccount?: boolean;
 }
 
 export function ChatPanel({
@@ -36,11 +39,13 @@ export function ChatPanel({
   currentUserId,
   memberRole,
   initialTopics,
+  hasMtAccount,
 }: ChatPanelProps) {
   const store = useChatStore();
   const socketRef = useRef(getSocket());
   const [topicDialogOpen, setTopicDialogOpen] = useState(false);
-  const [tradeCardDialogOpen, setTradeCardDialogOpen] = useState(false);
+  const [guideDialogOpen, setGuideDialogOpen] = useState(false);
+  const [analysisComposerOpen, setAnalysisComposerOpen] = useState(false);
   const [tradeDetailId, setTradeDetailId] = useState<string | null>(null);
   const [tradeDetailOpen, setTradeDetailOpen] = useState(false);
 
@@ -100,6 +105,10 @@ export function ChatPanel({
       updateTopic: updateTopicInStore,
       removeTopic,
       updateTradeCardStatus,
+      updateTradeCardPendingAction,
+      clearTradeCardPendingAction,
+      updateTradeCardValues,
+      updateTradePnl,
       reset,
     } = useChatStore.getState();
 
@@ -150,6 +159,8 @@ export function ChatPanel({
 
     socket.on("connect", () => setConnected(true));
     socket.on("disconnect", () => setConnected(false));
+    // Socket may already be connected (e.g. from channel tab)
+    if (socket.connected) setConnected(true);
 
     socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, (message: ChatMessage) => {
       addMessage(message);
@@ -224,6 +235,52 @@ export function ChatPanel({
     );
 
     socket.on(
+      SOCKET_EVENTS.EA_ACTION_PENDING,
+      (data: { tradeId: string; actionType: string; actionId: string; expiresAt: string }) => {
+        updateTradeCardPendingAction(data.tradeId, {
+          actionId: data.actionId,
+          actionType: data.actionType,
+          expiresAt: data.expiresAt,
+        });
+      }
+    );
+
+    socket.on(
+      SOCKET_EVENTS.EA_ACTION_RESOLVED,
+      (data: { tradeId: string; actionId: string; actionType: string; status: string; errorMessage: string | null; newValue?: string | null }) => {
+        if (data.status === "EXECUTED") {
+          clearTradeCardPendingAction(data.tradeId);
+          // Apply the updated values to the trade card
+          if (data.newValue) {
+            const val = parseFloat(data.newValue);
+            if (!isNaN(val)) {
+              if (data.actionType === "MOVE_SL" || data.actionType === "SET_BE") {
+                updateTradeCardValues(data.tradeId, { stopLoss: val });
+              } else if (data.actionType === "CHANGE_TP") {
+                updateTradeCardValues(data.tradeId, { targets: [val] });
+              }
+            }
+          }
+        } else {
+          updateTradeCardPendingAction(data.tradeId, {
+            actionId: data.actionId,
+            actionType: data.actionType,
+            expiresAt: "",
+            status: data.status,
+            errorMessage: data.errorMessage,
+          });
+        }
+      }
+    );
+
+    socket.on(
+      SOCKET_EVENTS.TRADE_PNL_UPDATE,
+      (data: { updates: Array<{ tradeId: string; currentRR: number; currentPrice: number; targetRR?: number | null; riskStatus?: string }> }) => {
+        updateTradePnl(data.updates);
+      }
+    );
+
+    socket.on(
       SOCKET_EVENTS.ERROR,
       (data: { event: string; message: string }) => {
         toast.error(data.message);
@@ -247,6 +304,9 @@ export function ChatPanel({
       socket.off(SOCKET_EVENTS.TOPIC_UPDATED);
       socket.off(SOCKET_EVENTS.TOPIC_ARCHIVED);
       socket.off(SOCKET_EVENTS.TRADE_STATUS_UPDATED);
+      socket.off(SOCKET_EVENTS.EA_ACTION_PENDING);
+      socket.off(SOCKET_EVENTS.EA_ACTION_RESOLVED);
+      socket.off(SOCKET_EVENTS.TRADE_PNL_UPDATE);
       socket.off(SOCKET_EVENTS.ERROR);
       socket.disconnect();
       reset();
@@ -344,7 +404,8 @@ export function ChatPanel({
         onCreateTopic={() => setTopicDialogOpen(true)}
         canManage={canManage}
         onlineUsers={store.onlineUsers}
-        isConnected={store.isConnected}
+        hasMtAccount={hasMtAccount}
+        onConnectAccount={() => setGuideDialogOpen(true)}
         openPanel={store.openPanel}
         onTogglePanel={(panel) => store.setOpenPanel(panel)}
       />
@@ -376,7 +437,8 @@ export function ChatPanel({
         topicId={store.currentTopicId || ""}
         disabled={!store.isConnected}
         onOpenPanel={(panel) => store.setOpenPanel(panel)}
-        onOpenTradeCard={() => setTradeCardDialogOpen(true)}
+        onOpenTradeCard={() => setGuideDialogOpen(true)}
+        onOpenAnalysisCard={() => setAnalysisComposerOpen(true)}
       />
 
       {/* Dialogs */}
@@ -387,11 +449,16 @@ export function ChatPanel({
         onTopicCreated={handleTopicCreated}
       />
 
-      <TradeCardComposerDialog
-        open={tradeCardDialogOpen}
-        onOpenChange={setTradeCardDialogOpen}
+      <EaSignalGuideDialog
+        open={guideDialogOpen}
+        onOpenChange={setGuideDialogOpen}
+      />
+
+      <AnalysisCardComposerDialog
+        open={analysisComposerOpen}
+        onOpenChange={setAnalysisComposerOpen}
         clanId={clanId}
-        topicId={store.currentTopicId || ""}
+        topicId={store.currentTopicId}
       />
 
       {/* Sheets — only one open at a time */}
@@ -426,6 +493,14 @@ export function ChatPanel({
         }}
         clanId={clanId}
         topicId={store.currentTopicId}
+      />
+
+      <DigestSheet
+        open={store.openPanel === "digest"}
+        onOpenChange={(open) => {
+          if (!open) store.setOpenPanel(null);
+        }}
+        clanId={clanId}
       />
 
       <TradeCardDetailSheet
