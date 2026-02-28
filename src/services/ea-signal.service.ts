@@ -9,6 +9,7 @@ import { createTradeCardMessage } from "@/services/trade-card.service";
 import { maybeAutoPost, updateChannelPostRiskWarning, updateChannelPostTargets } from "@/services/auto-post.service";
 import { evaluateUserBadges } from "@/services/badge-engine.service";
 import { generateStatementFromMtAccount } from "@/services/mt-statement.service";
+import { calculateStatement } from "@/services/statement-calc.service";
 import { normalizeInstrument, mapDirection, pipDistance } from "@/services/signal-matcher.service";
 import type { MtTrade } from "@prisma/client";
 
@@ -534,11 +535,22 @@ export async function syncSignalClose(
         serializeMessageForSocket(systemMsg, clanId)
       );
 
+      const tradePayload = {
+        id: trade.id, status: outcome, userId: trade.userId,
+        finalRR, netProfit: Math.round(netProfit * 100) / 100, closePrice,
+      };
       io.to(topicRoom(clanId, topicId)).emit(SOCKET_EVENTS.TRADE_STATUS_UPDATED, {
         tradeId: trade.id,
         messageId: tradeCard.message.id,
         status: outcome,
-        trade: { id: trade.id, status: outcome, userId: trade.userId },
+        trade: tradePayload,
+      });
+      // Also emit to clan room for subscribers outside the topic (e.g. statements page)
+      io.to(`clan:${clanId}`).emit(SOCKET_EVENTS.TRADE_STATUS_UPDATED, {
+        tradeId: trade.id,
+        messageId: tradeCard.message.id,
+        status: outcome,
+        trade: tradePayload,
       });
     }
 
@@ -556,6 +568,16 @@ export async function syncSignalClose(
         log("ea_signal.statement_generation_error", "ERROR", "EA", { error: String(err), userId }, userId)
       );
     }
+
+    // Fire-and-forget: recalculate trader's clan statement
+    const now = new Date();
+    const periodKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    calculateStatement(userId, clanId, "MONTHLY", periodKey).catch((err) =>
+      log("ea_signal.statement_calc_error", "ERROR", "EA", { error: String(err) }, userId)
+    );
+    calculateStatement(userId, clanId, "ALL_TIME", "all-time").catch((err) =>
+      log("ea_signal.statement_calc_error", "ERROR", "EA", { error: String(err) }, userId)
+    );
   } catch (err) {
     log("ea_signal.sync_close_error", "ERROR", "EA", { error: String(err), tradeId: mtTrade.matchedTradeId }, userId);
   }

@@ -47,8 +47,13 @@ function calculateRMultiple(
   entry: number,
   stopLoss: number,
   targets: number[],
-  initialRiskAbs?: number | null
+  initialRiskAbs?: number | null,
+  finalRR?: number | null
 ): number {
+  // Use EA-verified finalRR when available
+  if (finalRR != null) return finalRR;
+
+  // Fallback to status-based estimate
   const risk = initialRiskAbs && initialRiskAbs > 0 ? initialRiskAbs : Math.abs(entry - stopLoss);
   if (risk === 0) return 0;
 
@@ -118,7 +123,8 @@ export async function calculateStatement(
       card.entry,
       card.stopLoss,
       card.targets,
-      trade.initialRiskAbs
+      trade.initialRiskAbs,
+      trade.finalRR
     );
 
     rValues.push(r);

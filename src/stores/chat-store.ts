@@ -263,7 +263,7 @@ export const useChatStore = create<ChatState>((set) => ({
     set((state) => ({
       messages: state.messages.map((m) =>
         m.id === messageId && m.tradeCard
-          ? { ...m, tradeCard: { ...m.tradeCard, trade } }
+          ? { ...m, tradeCard: { ...m.tradeCard, trade: { ...m.tradeCard.trade, ...trade } } }
           : m
       ),
     })),

@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import { StatementHistory } from "@/components/statements/StatementHistory";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { getSocket } from "@/lib/socket-client";
+import { SOCKET_EVENTS } from "@/lib/chat-constants";
 import type { TraderStatementMetrics } from "@/types/trader-statement";
 
 interface Statement {
@@ -39,6 +41,19 @@ export default function ClanStatementsPage() {
   useEffect(() => {
     fetchStatements();
   }, [fetchStatements]);
+
+  // Auto-refetch when a trade status changes in this clan
+  useEffect(() => {
+    const socket = getSocket();
+    socket.emit("join_clan", clanId);
+    const handler = () => {
+      fetchStatements();
+    };
+    socket.on(SOCKET_EVENTS.TRADE_STATUS_UPDATED, handler);
+    return () => {
+      socket.off(SOCKET_EVENTS.TRADE_STATUS_UPDATED, handler);
+    };
+  }, [clanId, fetchStatements]);
 
   return (
     <div className="space-y-4">
