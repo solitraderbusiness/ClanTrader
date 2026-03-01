@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { computeAndSetEligibility } from "@/services/integrity.service";
 import type { MtTrade } from "@prisma/client";
 
 /**
@@ -50,7 +51,7 @@ export function pipDistance(instrument: string, price1: number, price2: number):
 
 // Matching tolerances
 const PRICE_TOLERANCE_PIPS = 5;
-const TIME_WINDOW_MINUTES = 60;
+const TIME_WINDOW_MINUTES = 5;
 
 /**
  * Match a closed MtTrade against existing Trade/TradeCard signals in the user's clans.
@@ -103,9 +104,12 @@ export async function matchTradeToSignal(
     const priceDist = pipDistance(mtTrade.symbol, mtTrade.openPrice, trade.tradeCard.entry);
     if (priceDist > PRICE_TOLERANCE_PIPS) continue;
 
-    const tradeCreatedAt = trade.createdAt.getTime();
+    const cardCreatedAt = trade.createdAt.getTime();
     const mtOpenTime = mtTrade.openTime.getTime();
-    const timeDiffMinutes = Math.abs(tradeCreatedAt - mtOpenTime) / 60000;
+    // Signal-first: card must exist BEFORE MT trade opened
+    const timeDiffMs = mtOpenTime - cardCreatedAt;
+    if (timeDiffMs < 0) continue; // card created AFTER trade → reject
+    const timeDiffMinutes = timeDiffMs / 60000;
     if (timeDiffMinutes > TIME_WINDOW_MINUTES) continue;
 
     // Score: 60% time proximity + 40% price proximity
@@ -122,13 +126,14 @@ export async function matchTradeToSignal(
   scored.sort((a, b) => b.score - a.score);
   const best = scored[0].trade;
 
-  // Update Trade as verified and MT-linked
+  // Update Trade as MT-linked (eligibility computed separately)
   await db.trade.update({
     where: { id: best.id },
     data: {
-      integrityStatus: "VERIFIED",
       resolutionSource: "EA_VERIFIED",
       mtLinked: true,
+      openedAt: mtTrade.openTime,
+      openReceivedAt: new Date(),
     },
   });
 
@@ -148,6 +153,9 @@ export async function matchTradeToSignal(
       note: `Matched to MT ${mtTrade.direction} ${mtTrade.symbol} ticket #${mtTrade.ticket}`,
     },
   });
+
+  // Compute eligibility (deny-by-default)
+  await computeAndSetEligibility(best.id);
 
   return true;
 }

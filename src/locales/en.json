@@ -549,5 +549,25 @@
   "format": {
     "numberSeparator": ",",
     "dateFormat": "MM/dd/yyyy"
+  },
+  "integrity": {
+    "notMtLinked": "Not linked to MetaTrader",
+    "unverified": "Trade integrity is unverified",
+    "untrustedResolution": "Trade was not resolved by a trusted source",
+    "cardAfterTrade": "Signal card was created after the trade opened",
+    "noInitialRisk": "No initial stop loss was set",
+    "duplicateMtTicket": "Duplicate MetaTrader ticket",
+    "analysisUpgrade": "Upgraded from analysis (not eligible)",
+    "manualTrade": "Manually tracked trade (not eligible)",
+    "manualOverride": "Manually resolved (not eligible)",
+    "tpModified": "Take profit was modified after open",
+    "slRemoved": "Stop loss was removed",
+    "lateSignal": "Signal was posted after trade opened",
+    "pendingVerification": "Trade is pending verification",
+    "cardTypeAnalysis": "Analysis cards are not eligible for statements",
+    "notCounted": "Not Counted",
+    "notCountedDesc": "This trade is excluded from statements and competition",
+    "whyExcluded": "Why is this excluded?",
+    "winRateInfo": "Win rate is calculated based on final R:R outcome (positive = win), not status labels"
   }
 }

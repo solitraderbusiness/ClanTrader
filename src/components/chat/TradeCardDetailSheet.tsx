@@ -344,22 +344,33 @@ export function TradeCardDetailSheet({
             )}
 
             {/* Integrity Section */}
-            {trade.integrityStatus && trade.integrityStatus !== "VERIFIED" && (
+            {trade.statementEligible === false && (
               <>
                 <Separator />
                 <div className="rounded-md border border-orange-500/30 bg-orange-500/5 p-3 text-sm">
                   <p className="font-medium text-orange-600 dark:text-orange-400">
-                    {t("trade.integrity")} {trade.integrityStatus}
-                    {trade.integrityReason && (
-                      <span className="ms-2 font-normal text-muted-foreground">
-                        ({trade.integrityReason.replace(/_/g, " ").toLowerCase()})
-                      </span>
-                    )}
+                    {t("integrity.notCounted")}
                   </p>
-                  {trade.statementEligible === false && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t("integrity.notCountedDesc")}
+                  </p>
+                  {trade.integrityStatus && trade.integrityStatus !== "VERIFIED" && (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {t("trade.excludedFromStatements")}
+                      {t("trade.integrity")} {trade.integrityStatus}
                     </p>
+                  )}
+                  {trade.integrityDetails && Array.isArray(trade.integrityDetails.reasons) && (
+                    <div className="mt-2 space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">{t("integrity.whyExcluded")}</p>
+                      {(trade.integrityDetails.reasons as string[]).map((reason: string) => {
+                        const key = reason.toLowerCase().replace(/_([a-z])/g, (_: string, c: string) => c.toUpperCase());
+                        return (
+                          <p key={reason} className="text-xs text-muted-foreground">
+                            {t(`integrity.${key}`)}
+                          </p>
+                        );
+                      })}
+                    </div>
                   )}
                   {trade.integrityReason === "MANUAL_OVERRIDE" && (
                     <Badge variant="outline" className="mt-1 text-[10px] border-orange-500/50">

@@ -11,6 +11,7 @@ import { evaluateUserBadges } from "@/services/badge-engine.service";
 import { generateStatementFromMtAccount } from "@/services/mt-statement.service";
 import { calculateStatement } from "@/services/statement-calc.service";
 import { normalizeInstrument, mapDirection, pipDistance } from "@/services/signal-matcher.service";
+import { computeAndSetEligibility } from "@/services/integrity.service";
 import type { MtTrade } from "@prisma/client";
 
 const CLOSE_TOLERANCE_PIPS = 5;
@@ -118,20 +119,19 @@ export async function autoCreateSignalFromMtTrade(
     const tp = mtTrade.takeProfit ?? 0;
     const initialRiskAbs = sl > 0 ? Math.abs(mtTrade.openPrice - sl) : 0;
     const direction = mapDirection(mtTrade.direction);
-    const isSignal = tags.includes("signal");
 
-    // Create Trade record — already executed in MT
+    // Create Trade record — starts PENDING, eligibility computed after
     const trade = await db.trade.create({
       data: {
         tradeCardId: message.tradeCard.id,
         clanId,
         userId,
         status: "OPEN",
-        integrityStatus: "VERIFIED",
+        integrityStatus: "PENDING",
         resolutionSource: "EA_VERIFIED",
         mtLinked: true,
         cardType,
-        statementEligible: isSignal,
+        statementEligible: false,
         lastEvaluatedAt: new Date(),
         initialEntry: mtTrade.openPrice,
         initialStopLoss: sl,
@@ -139,8 +139,8 @@ export async function autoCreateSignalFromMtTrade(
         initialRiskAbs,
         initialRiskMissing: sl <= 0,
         riskStatus: deriveRiskStatus(direction, mtTrade.openPrice, sl),
-        wasEverCounted: isSignal,
-        countedAt: isSignal ? new Date() : null,
+        openedAt: mtTrade.openTime,
+        openReceivedAt: new Date(),
       },
     });
 
@@ -149,6 +149,9 @@ export async function autoCreateSignalFromMtTrade(
       where: { id: mtTrade.id },
       data: { matchedTradeId: trade.id },
     });
+
+    // Compute eligibility (deny-by-default)
+    await computeAndSetEligibility(trade.id);
 
     // Broadcast via Socket.io
     const io = getIO();
@@ -333,18 +336,26 @@ export async function syncSignalModification(
       let newCardType = tradeCard.cardType;
       const hasBothNow = newSL > 0 && newTP > 0;
       if (hasBothNow && (newTags.includes("analysis") || newCardType === "ANALYSIS")) {
-        // Upgrade from ANALYSIS to SIGNAL
+        // Upgrade from ANALYSIS to SIGNAL — cardType only, NOT eligibility
         newTags = newTags.filter((t) => t !== "analysis");
         if (!newTags.includes("signal")) newTags.push("signal");
         newCardType = "SIGNAL";
 
         await db.trade.update({
           where: { id: trade.id },
+          data: { cardType: "SIGNAL" },
+        });
+
+        await db.tradeEvent.create({
           data: {
-            statementEligible: true,
-            wasEverCounted: true,
-            countedAt: new Date(),
-            cardType: "SIGNAL",
+            tradeId: trade.id,
+            actionType: "INTEGRITY_FLAG",
+            actorId: userId,
+            oldValue: JSON.stringify({ cardType: "ANALYSIS" }),
+            newValue: JSON.stringify({ cardType: "SIGNAL", reason: "ANALYSIS_UPGRADE" }),
+            note: "Card upgraded from Analysis to Signal — eligibility NOT granted (Integrity Contract)",
+            severity: "INFO",
+            source: "EA",
           },
         });
 
@@ -356,7 +367,11 @@ export async function syncSignalModification(
       const newRiskStatus = deriveRiskStatus(tradeCard.direction, tradeCard.entry, newSL);
       await db.trade.update({
         where: { id: trade.id },
-        data: { riskStatus: newRiskStatus },
+        data: {
+          riskStatus: newRiskStatus,
+          ...(newSL !== oldSL ? { slEverModified: true } : {}),
+          ...(newTP !== oldTP ? { tpEverModified: true } : {}),
+        },
       });
 
       await db.tradeCard.update({
@@ -455,21 +470,21 @@ export async function syncSignalClose(
     // Net P&L = profit + commission + swap (MT reports commission/swap as negatives)
     const netProfit = (mtTrade.profit ?? 0) + (mtTrade.commission ?? 0) + (mtTrade.swap ?? 0);
 
-    // Update trade — keep statementEligible false for ANALYSIS cards
-    const isAnalysis = trade.cardType === "ANALYSIS";
+    // Update trade — preserve existing eligibility, re-evaluate after
     await db.trade.update({
       where: { id: trade.id },
       data: {
         status: outcome,
         closedAt: new Date(),
         resolutionSource: "EA_VERIFIED",
-        integrityStatus: "VERIFIED",
-        statementEligible: !isAnalysis,
         closePrice,
         finalRR,
         netProfit: Math.round(netProfit * 100) / 100,
       },
     });
+
+    // Re-evaluate eligibility on close (may promote PENDING → VERIFIED)
+    await computeAndSetEligibility(trade.id);
 
     // Status history
     await db.tradeStatusHistory.create({

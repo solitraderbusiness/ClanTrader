@@ -42,7 +42,8 @@ export function DigestSheet({ open, onOpenChange, clanId }: DigestSheetProps) {
       setLoading(true);
       setData(null);
       try {
-        const res = await fetch(`/api/clans/${clanId}/digest?period=${p}`);
+        const tz = new Date().getTimezoneOffset();
+        const res = await fetch(`/api/clans/${clanId}/digest?period=${p}&tz=${tz}`);
         if (res.ok) {
           const json = await res.json();
           setData(json);

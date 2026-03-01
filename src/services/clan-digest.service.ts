@@ -11,26 +11,43 @@ import type {
 
 const CACHE_TTL = 90; // seconds
 
-function getPeriodStart(period: DigestPeriod): Date {
-  const now = new Date();
+/**
+ * Compute period start in the user's timezone, returned as a UTC Date.
+ * @param tzOffset - minutes from getTimezoneOffset() (e.g. -210 for UTC+3:30 Iran)
+ */
+function getPeriodStart(period: DigestPeriod, tzOffset: number = 0): Date {
+  const offsetMs = tzOffset * 60 * 1000;
+  // Shift current UTC time to user's local (as a UTC timestamp for date math)
+  const nowLocal = new Date(Date.now() - offsetMs);
+
+  let localMidnight: Date;
   if (period === "today") {
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  }
-  if (period === "week") {
-    const day = now.getDay(); // 0=Sun
+    localMidnight = new Date(
+      Date.UTC(nowLocal.getUTCFullYear(), nowLocal.getUTCMonth(), nowLocal.getUTCDate())
+    );
+  } else if (period === "week") {
+    const day = nowLocal.getUTCDay(); // 0=Sun
     const diff = day === 0 ? 6 : day - 1; // Monday=0
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
-    return start;
+    localMidnight = new Date(
+      Date.UTC(nowLocal.getUTCFullYear(), nowLocal.getUTCMonth(), nowLocal.getUTCDate() - diff)
+    );
+  } else {
+    // month
+    localMidnight = new Date(
+      Date.UTC(nowLocal.getUTCFullYear(), nowLocal.getUTCMonth(), 1)
+    );
   }
-  // month
-  return new Date(now.getFullYear(), now.getMonth(), 1);
+
+  // Convert back to UTC
+  return new Date(localMidnight.getTime() + offsetMs);
 }
 
 export async function getClanDigest(
   clanId: string,
-  period: DigestPeriod = "today"
+  period: DigestPeriod = "today",
+  tzOffset: number = 0
 ): Promise<ClanDigestData> {
-  const cacheKey = `clan-digest:${clanId}:${period}`;
+  const cacheKey = `clan-digest:${clanId}:${period}:${tzOffset}`;
 
   // Try cache
   try {
@@ -40,13 +57,15 @@ export async function getClanDigest(
     // Redis unavailable — continue without cache
   }
 
-  const periodStart = getPeriodStart(period);
+  const periodStart = getPeriodStart(period, tzOffset);
 
   const trades = await db.trade.findMany({
     where: {
       clanId,
-      createdAt: { gte: periodStart },
-      status: { not: "UNVERIFIED" },
+      OR: [
+        { createdAt: { gte: periodStart } },
+        { closedAt: { gte: periodStart } },
+      ],
     },
     select: {
       id: true,
@@ -147,17 +166,16 @@ export async function getClanDigest(
     if (t.cardType === "SIGNAL") entry.signalCount++;
     else entry.analysisCount++;
 
-    // Count by status
-    if (t.status === "TP_HIT") {
-      entry.tpHit++;
-      entry.wins++;
-    } else if (t.status === "SL_HIT") {
-      entry.slHit++;
-      entry.losses++;
-    } else if (t.status === "BE") {
-      entry.be++;
-    } else if (t.status === "PENDING" || t.status === "OPEN") {
-      entry.openCount++;
+    // Count by status (labels only — separate from win/loss)
+    if (t.status === "TP_HIT") entry.tpHit++;
+    else if (t.status === "SL_HIT") entry.slHit++;
+    else if (t.status === "BE") entry.be++;
+    else if (t.status === "PENDING" || t.status === "OPEN") entry.openCount++;
+
+    // Outcome-based win/loss from R (not status labels)
+    if (t.r !== null) {
+      if (t.r > 0) entry.wins++;
+      else if (t.r < 0) entry.losses++;
     }
 
     // R accumulation (only for closed trades with R)
@@ -181,6 +199,31 @@ export async function getClanDigest(
     }
   }
 
+  // ─── Clan-wide summary (from raw member data, before capping) ───
+  let totalSignals = 0;
+  let totalAnalysis = 0;
+  let tpHit = 0;
+  let slHit = 0;
+  let be = 0;
+  let openCount = 0;
+  let wins = 0;
+  let losses = 0;
+  let totalR = 0;
+  let countWithR = 0;
+
+  for (const m of memberMap.values()) {
+    totalSignals += m.signalCount;
+    totalAnalysis += m.analysisCount;
+    tpHit += m.tpHit;
+    slHit += m.slHit;
+    be += m.be;
+    openCount += m.openCount;
+    wins += m.wins;
+    losses += m.losses;
+    totalR += m.totalR;
+    countWithR += m.countWithR;
+  }
+
   // Build member stats sorted by totalR desc
   const members: DigestMemberStats[] = Array.from(memberMap.values())
     .sort((a, b) => b.totalR - a.totalR)
@@ -202,31 +245,6 @@ export async function getClanDigest(
         trades: e.trades,
       };
     });
-
-  // ─── Clan-wide summary ───
-  let totalSignals = 0;
-  let totalAnalysis = 0;
-  let tpHit = 0;
-  let slHit = 0;
-  let be = 0;
-  let openCount = 0;
-  let wins = 0;
-  let losses = 0;
-  let totalR = 0;
-  let countWithR = 0;
-
-  for (const m of members) {
-    totalSignals += m.signalCount;
-    totalAnalysis += m.analysisCount;
-    tpHit += m.tpHit;
-    slHit += m.slHit;
-    be += m.be;
-    openCount += m.openCount;
-    wins += m.tpHit;
-    losses += m.slHit;
-    totalR += m.totalR;
-    countWithR += m.trades.filter((t) => t.r !== null).length;
-  }
 
   const decided = wins + losses;
   const summary: DigestSummary = {

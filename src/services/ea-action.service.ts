@@ -3,6 +3,7 @@ import { getIO } from "@/lib/socket-io-global";
 import { audit, log } from "@/lib/audit";
 import { createMessage } from "@/services/message.service";
 import { evaluateUserBadges } from "@/services/badge-engine.service";
+import { computeAndSetEligibility } from "@/services/integrity.service";
 import type { TradeActionType } from "@prisma/client";
 
 const ACTION_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
@@ -316,13 +317,14 @@ export async function reportActionResult(
             status: "CLOSED",
             closedAt: new Date(),
             resolutionSource: "EA_VERIFIED",
-            integrityStatus: "VERIFIED",
-            statementEligible: true,
             ...(closePrice != null && { closePrice }),
             ...(finalRR != null && { finalRR }),
             ...(netProfit != null && { netProfit }),
           },
         });
+
+        // Re-evaluate eligibility (deny-by-default)
+        await computeAndSetEligibility(trade.id);
         await db.tradeStatusHistory.create({
           data: {
             tradeId: trade.id,

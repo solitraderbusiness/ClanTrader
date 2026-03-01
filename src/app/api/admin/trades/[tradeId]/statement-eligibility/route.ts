@@ -43,6 +43,25 @@ export async function PATCH(
       return NextResponse.json({ error: "Trade not found" }, { status: 404 });
     }
 
+    // HARD BLOCK: Cannot enable eligibility if integrity is not VERIFIED
+    if (statementEligible && trade.integrityStatus !== "VERIFIED") {
+      const reasons: string[] = [];
+      if (trade.integrityStatus === "UNVERIFIED") {
+        reasons.push("INTEGRITY_UNVERIFIED");
+      }
+      if (trade.integrityStatus === "PENDING") {
+        reasons.push("PENDING_VERIFICATION");
+      }
+      return NextResponse.json(
+        {
+          error: "Cannot enable statement eligibility",
+          reasons,
+          message: `Trade integrity is ${trade.integrityStatus}. Only VERIFIED trades can be statement-eligible.`,
+        },
+        { status: 422 }
+      );
+    }
+
     // Update the trade
     const updated = await db.trade.update({
       where: { id: tradeId },
@@ -61,15 +80,8 @@ export async function PATCH(
       },
     });
 
-    // Warn if enabling while integrity is UNVERIFIED
-    const warning =
-      statementEligible && trade.integrityStatus === "UNVERIFIED"
-        ? "Trade is UNVERIFIED but statement eligibility was enabled"
-        : undefined;
-
     return NextResponse.json({
       trade: { id: updated.id, statementEligible: updated.statementEligible },
-      warning,
     });
   } catch (error) {
     console.error("Update statement eligibility error:", error);

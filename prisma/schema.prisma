@@ -288,6 +288,7 @@ enum TradeStatus {
 }
 
 enum IntegrityStatus {
+  PENDING
   VERIFIED
   UNVERIFIED
 }
@@ -445,10 +446,10 @@ model Trade {
   // Trade integrity fields
   entryFilledAt     DateTime?
   lastEvaluatedAt   DateTime?
-  integrityStatus   IntegrityStatus  @default(VERIFIED)
+  integrityStatus   IntegrityStatus  @default(PENDING)
   integrityReason   IntegrityReason?
   integrityDetails  Json?
-  statementEligible Boolean          @default(true)
+  statementEligible Boolean          @default(false)
   resolutionSource  ResolutionSource @default(UNKNOWN)
 
   mtLinked        Boolean              @default(false)
@@ -463,6 +464,13 @@ model Trade {
   riskStatus          RiskStatus       @default(PROTECTED)
   wasEverCounted      Boolean          @default(false)
   countedAt           DateTime?
+
+  // Integrity contract fields
+  eligibleAtOpen      Boolean          @default(false)
+  openedAt            DateTime?
+  openReceivedAt      DateTime?
+  tpEverModified      Boolean          @default(false)
+  slEverModified      Boolean          @default(false)
 
   // Final result (populated on close)
   closePrice          Float?

@@ -133,23 +133,20 @@ export async function calculateStatement(
     if (r > metrics.bestRMultiple) metrics.bestRMultiple = r;
     if (r < metrics.worstRMultiple) metrics.worstRMultiple = r;
 
-    switch (trade.status) {
-      case "TP_HIT":
-        metrics.wins++;
-        break;
-      case "SL_HIT":
-        metrics.losses++;
-        break;
-      case "BE":
-        metrics.breakEven++;
-        break;
-      case "CLOSED":
-        metrics.closed++;
-        break;
+    // Outcome-based counting using finalRR (Integrity Contract)
+    if (r > 0) {
+      metrics.wins++;
+    } else if (r < 0) {
+      metrics.losses++;
+    } else {
+      metrics.breakEven++;
     }
+
+    // Track resolved status labels for display
+    if (trade.status === "CLOSED") metrics.closed++;
   }
 
-  const resolved = metrics.wins + metrics.losses + metrics.breakEven + metrics.closed;
+  const resolved = metrics.wins + metrics.losses + metrics.breakEven;
   metrics.winRate = resolved > 0 ? metrics.wins / resolved : 0;
   metrics.avgRMultiple = rValues.length > 0
     ? metrics.totalRMultiple / rValues.length

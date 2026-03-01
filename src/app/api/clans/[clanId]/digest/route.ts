@@ -6,6 +6,7 @@ import { getClanDigest } from "@/services/clan-digest.service";
 
 const querySchema = z.object({
   period: z.enum(["today", "week", "month"]).default("today"),
+  tz: z.coerce.number().int().min(-720).max(840).default(0),
 });
 
 export async function GET(
@@ -35,6 +36,7 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const parsed = querySchema.safeParse({
       period: searchParams.get("period") ?? undefined,
+      tz: searchParams.get("tz") ?? undefined,
     });
     if (!parsed.success) {
       return NextResponse.json(
@@ -43,7 +45,7 @@ export async function GET(
       );
     }
 
-    const data = await getClanDigest(clanId, parsed.data.period);
+    const data = await getClanDigest(clanId, parsed.data.period, parsed.data.tz);
     return NextResponse.json(data);
   } catch (error) {
     console.error("Clan digest error:", error);

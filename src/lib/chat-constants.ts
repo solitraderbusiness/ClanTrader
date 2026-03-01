@@ -99,6 +99,7 @@ export const SOCKET_EVENTS = {
   EA_ACTION_PENDING: "ea_action_pending",
   EA_ACTION_RESOLVED: "ea_action_resolved",
   TRADE_PNL_UPDATE: "trade_pnl_update",
+  TRADE_INTEGRITY_UPDATE: "trade_integrity_update",
 
   // Server -> Client (DMs)
   RECEIVE_DM: "receive_dm",

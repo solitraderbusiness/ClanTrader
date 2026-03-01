@@ -20,17 +20,15 @@ export async function trackTrade(messageId: string, clanId: string, userId: stri
     throw new MessageServiceError("Trade is already being tracked", "ALREADY_TRACKED", 409);
   }
 
-  const isAnalysis = message.tradeCard.cardType === "ANALYSIS";
-
   const trade = await db.trade.create({
     data: {
       tradeCardId: message.tradeCard.id,
       clanId,
       userId,
       status: "PENDING",
-      integrityStatus: "VERIFIED",
-      statementEligible: !isAnalysis,
-      resolutionSource: "UNKNOWN",
+      integrityStatus: "UNVERIFIED",
+      statementEligible: false,
+      resolutionSource: "MANUAL",
       lastEvaluatedAt: new Date(),
       cardType: message.tradeCard.cardType,
     },

@@ -161,6 +161,20 @@ export function TradeCardInline({
             </Tooltip>
           </TooltipProvider>
         )}
+        {tradeCard.trade && tradeCard.trade.statementEligible === false && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="outline" className="text-[10px] border-orange-500/50 text-orange-600 dark:text-orange-400">
+                  {t("integrity.notCounted")}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{t("integrity.notCountedDesc")}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
         {tradeCard.trade && canAct && (
           <div className="ms-auto">
             <TradeActionsMenu

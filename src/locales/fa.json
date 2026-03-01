@@ -549,5 +549,25 @@
   "format": {
     "numberSeparator": "٫",
     "dateFormat": "yyyy/MM/dd"
+  },
+  "integrity": {
+    "notMtLinked": "به متاتریدر متصل نیست",
+    "unverified": "سلامت معامله تایید نشده است",
+    "untrustedResolution": "معامله توسط منبع معتبری بسته نشده",
+    "cardAfterTrade": "کارت سیگنال بعد از باز شدن معامله ایجاد شده",
+    "noInitialRisk": "حد ضرر اولیه تنظیم نشده بود",
+    "duplicateMtTicket": "تیکت متاتریدر تکراری",
+    "analysisUpgrade": "از تحلیل ارتقا یافته (واجد شرایط نیست)",
+    "manualTrade": "معامله دستی (واجد شرایط نیست)",
+    "manualOverride": "بسته شدن دستی (واجد شرایط نیست)",
+    "tpModified": "هدف بعد از باز شدن تغییر کرده",
+    "slRemoved": "حد ضرر حذف شده",
+    "lateSignal": "سیگنال بعد از باز شدن معامله ارسال شده",
+    "pendingVerification": "معامله در انتظار تایید است",
+    "cardTypeAnalysis": "کارت‌های تحلیل در گزارش‌ها لحاظ نمی‌شوند",
+    "notCounted": "محاسبه نشده",
+    "notCountedDesc": "این معامله از گزارش‌ها و رقابت حذف شده است",
+    "whyExcluded": "چرا حذف شده؟",
+    "winRateInfo": "نرخ برد بر اساس نتیجه نهایی R:R محاسبه می‌شود (مثبت = برد)، نه برچسب وضعیت"
   }
 }

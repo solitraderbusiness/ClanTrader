@@ -600,18 +600,16 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
 
       if (!message.tradeCard) return;
 
-      const isAnalysis = tcCardType === "ANALYSIS";
-
-      // Auto-create Trade record so Live R:R works immediately
+      // Auto-create Trade record (manual — not statement-eligible)
       await db.trade.create({
         data: {
           tradeCardId: message.tradeCard.id,
           clanId: tcClanId,
           userId: user.id,
           status: "OPEN",
-          integrityStatus: "VERIFIED",
-          resolutionSource: "UNKNOWN",
-          statementEligible: !isAnalysis,
+          integrityStatus: "UNVERIFIED",
+          resolutionSource: "MANUAL",
+          statementEligible: false,
           cardType: tcCardType,
           lastEvaluatedAt: new Date(),
           initialEntry: cardData.entry,
@@ -650,7 +648,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
       }
 
       // Auto-post only for SIGNAL cards
-      if (!isAnalysis) {
+      if (tcCardType !== "ANALYSIS") {
         maybeAutoPost(message.tradeCard.id, tcClanId, user.id).catch(() => {});
       }
     } catch (error) {

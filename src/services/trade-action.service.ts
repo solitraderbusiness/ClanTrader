@@ -116,7 +116,7 @@ export async function executeTradeAction(
       });
       await db.trade.update({
         where: { id: tradeId },
-        data: { riskStatus: "BREAKEVEN" },
+        data: { riskStatus: "BREAKEVEN", slEverModified: true },
       });
       systemContent = `${actorName} set break even (SL: ${tradeCard.stopLoss} → ${tradeCard.entry})`;
       break;
@@ -138,7 +138,7 @@ export async function executeTradeAction(
       const newRiskStatus = deriveRiskStatus(tradeCard.direction, tradeCard.entry, newSL);
       await db.trade.update({
         where: { id: tradeId },
-        data: { riskStatus: newRiskStatus },
+        data: { riskStatus: newRiskStatus, slEverModified: true },
       });
       systemContent = `${actorName} moved SL from ${tradeCard.stopLoss} → ${newSL}`;
       break;
@@ -156,6 +156,10 @@ export async function executeTradeAction(
       await db.tradeCard.update({
         where: { id: tradeCard.id },
         data: { targets: newTargets },
+      });
+      await db.trade.update({
+        where: { id: tradeId },
+        data: { tpEverModified: true },
       });
       systemContent = `${actorName} changed targets from [${tradeCard.targets.join(", ")}] → [${newTargets.join(", ")}]`;
       break;
