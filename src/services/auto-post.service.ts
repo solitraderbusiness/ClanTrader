@@ -49,17 +49,11 @@ export async function maybeAutoPost(
 
   if (existing) return false;
 
-  // Create auto channel post with trade card data as content
-  const content = JSON.stringify({
-    instrument: tradeCard.instrument,
-    direction: tradeCard.direction,
-    entry: tradeCard.entry,
-    stopLoss: tradeCard.stopLoss,
-    targets: tradeCard.targets,
-    timeframe: tradeCard.timeframe,
-    note: tradeCard.note,
-    tags: tradeCard.tags,
-  });
+  // Create auto channel post with human-readable content
+  // Structured data is stored via the tradeCardId relation
+  const content = tradeCard.note
+    ? tradeCard.note
+    : `${tradeCard.direction} ${tradeCard.instrument} @ ${tradeCard.entry}`;
 
   const post = await db.channelPost.create({
     data: {

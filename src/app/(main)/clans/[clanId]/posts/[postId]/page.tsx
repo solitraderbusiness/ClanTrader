@@ -6,8 +6,26 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ReactionBar } from "@/components/channel/ReactionBar";
+import { DirectionBadge } from "@/components/shared/DirectionBadge";
+import { StatusBadge } from "@/components/shared/StatusBadge";
 import Link from "next/link";
 import { ArrowLeft, Eye, Crown, Lock } from "lucide-react";
+
+const CLOSED_STATUSES = ["TP_HIT", "SL_HIT", "BE", "CLOSED"];
+
+function extractNote(content: string): string | null {
+  const raw = content.trim();
+  if (!raw) return null;
+  if (raw.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed.note || null;
+    } catch {
+      // Not valid JSON, render as-is
+    }
+  }
+  return raw;
+}
 
 export async function generateMetadata({
   params,
@@ -53,6 +71,7 @@ export default async function PostDetailPage({
   }
 
   const reactions = (post.reactions || {}) as Record<string, string[]>;
+  const tc = post.tradeCard;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -106,9 +125,21 @@ export default async function PostDetailPage({
       {/* Content */}
       {canView ? (
         <>
-          <div className="whitespace-pre-wrap text-sm leading-relaxed">
-            {post.content}
-          </div>
+          {/* Trade card signal display */}
+          {tc && (
+            <TradeCardDisplay tradeCard={tc} />
+          )}
+
+          {/* Text content — extract note from JSON for old posts */}
+          {(() => {
+            const displayText = tc ? extractNote(post.content) : post.content;
+            if (!displayText) return null;
+            return (
+              <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                {displayText}
+              </div>
+            );
+          })()}
 
           {/* Images */}
           {post.images.length > 0 && (
@@ -149,6 +180,151 @@ export default async function PostDetailPage({
       {/* Placeholder */}
       <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
         Comments coming soon
+      </div>
+    </div>
+  );
+}
+
+function TradeCardDisplay({
+  tradeCard: tc,
+}: {
+  tradeCard: {
+    instrument: string;
+    direction: string;
+    entry: number;
+    stopLoss: number;
+    targets: number[];
+    timeframe: string;
+    tags: string[];
+    trade?: {
+      id: string;
+      status: string;
+      finalRR: number | null;
+      netProfit: number | null;
+      closePrice: number | null;
+    } | null;
+  };
+}) {
+  const trade = tc.trade;
+  const isClosed = trade && CLOSED_STATUSES.includes(trade.status);
+
+  const computeStaticRR = (): string | null => {
+    const { entry, stopLoss, targets, direction } = tc;
+    const target = targets[0];
+    if (!target || !stopLoss || !entry) return null;
+    const risk = Math.abs(entry - stopLoss);
+    if (risk === 0) return null;
+    const reward = direction === "LONG" ? target - entry : entry - target;
+    const rr = reward / risk;
+    if (rr <= 0) return null;
+    return `1:${rr.toFixed(1)}`;
+  };
+
+  const hasFourthCol =
+    (isClosed && trade.finalRR != null) || computeStaticRR() != null;
+
+  return (
+    <div className="relative overflow-hidden rounded-xl border bg-card shadow-sm">
+      {/* Colored accent bar */}
+      <div
+        className={`absolute inset-y-0 start-0 w-1 ${
+          tc.direction === "LONG" ? "bg-green-500" : "bg-red-500"
+        }`}
+      />
+      <div
+        className={`absolute inset-0 pointer-events-none ${
+          tc.direction === "LONG"
+            ? "bg-gradient-to-b from-green-500/5 to-transparent"
+            : "bg-gradient-to-b from-red-500/5 to-transparent"
+        }`}
+      />
+
+      <div className="relative p-4 ps-5 space-y-3">
+        {/* Direction + Instrument + Timeframe + Status */}
+        <div className="flex flex-wrap items-center gap-2">
+          <DirectionBadge direction={tc.direction as "LONG" | "SHORT"} />
+          <span className="text-lg font-bold tracking-tight">
+            {tc.instrument}
+          </span>
+          <Badge variant="outline" className="text-xs">
+            {tc.timeframe === "AUTO" ? "Auto" : tc.timeframe}
+          </Badge>
+          {trade && <StatusBadge status={trade.status} />}
+        </div>
+
+        {/* Price grid */}
+        <div
+          className={`grid gap-3 text-sm ${
+            hasFourthCol ? "grid-cols-4" : "grid-cols-3"
+          }`}
+        >
+          <div className="rounded-lg bg-muted/30 px-3 py-2 text-center">
+            <span className="text-xs text-muted-foreground">Entry</span>
+            <p className="font-mono font-medium">{tc.entry}</p>
+          </div>
+          <div className="rounded-lg bg-muted/30 px-3 py-2 text-center">
+            <span className="text-xs text-muted-foreground">Stop Loss</span>
+            <p className="font-mono font-medium text-red-500">
+              {tc.stopLoss}
+            </p>
+          </div>
+          <div className="rounded-lg bg-muted/30 px-3 py-2 text-center">
+            <span className="text-xs text-muted-foreground">Target</span>
+            <p className="font-mono font-medium text-green-500">
+              {tc.targets[0]}
+            </p>
+          </div>
+          {isClosed && trade.finalRR != null && (
+            <div className="rounded-lg bg-muted/30 px-3 py-2 text-center">
+              <span className="text-xs text-muted-foreground">Result</span>
+              <p
+                className={`font-mono font-bold ${
+                  trade.finalRR > 0
+                    ? "text-green-500"
+                    : trade.finalRR < 0
+                      ? "text-red-500"
+                      : "text-muted-foreground"
+                }`}
+              >
+                {trade.finalRR > 0 ? "+" : ""}
+                {trade.finalRR.toFixed(2)}R
+              </p>
+              {trade.netProfit != null && (
+                <p
+                  className={`font-mono text-xs ${
+                    trade.netProfit > 0
+                      ? "text-green-500/70"
+                      : trade.netProfit < 0
+                        ? "text-red-500/70"
+                        : "text-muted-foreground/60"
+                  }`}
+                >
+                  {trade.netProfit > 0 ? "+" : ""}
+                  {trade.netProfit.toFixed(2)}
+                </p>
+              )}
+            </div>
+          )}
+          {!isClosed && computeStaticRR() && (
+            <div className="rounded-lg bg-muted/30 px-3 py-2 text-center">
+              <span className="text-xs text-muted-foreground">R:R</span>
+              <p className="font-mono font-medium text-muted-foreground">
+                {computeStaticRR()}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Tags */}
+        {tc.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {tc.tags.map((tag) => (
+              <Badge key={tag} variant="secondary" className="text-xs">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

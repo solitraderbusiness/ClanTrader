@@ -15,8 +15,27 @@ import {
 } from "lucide-react";
 import { AddEmailBanner } from "@/components/shared/AddEmailBanner";
 import { MissionDashboard } from "@/components/home/MissionDashboard";
+import { DirectionBadge } from "@/components/shared/DirectionBadge";
+import { StatusBadge } from "@/components/shared/StatusBadge";
 import { BarChart3 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
+
+interface FeedTradeCard {
+  instrument: string;
+  direction: string;
+  entry: number;
+  stopLoss: number;
+  targets: number[];
+  timeframe: string;
+  tags: string[];
+  trade?: {
+    id: string;
+    status: string;
+    finalRR: number | null;
+    netProfit: number | null;
+    closePrice: number | null;
+  } | null;
+}
 
 interface FeedPost {
   id: string;
@@ -30,12 +49,7 @@ interface FeedPost {
   clanId: string;
   clan: { name: string; avatar: string | null };
   author: { id: string; name: string | null; avatar: string | null };
-  tradeCard: {
-    instrument: string;
-    direction: string;
-    entry: number;
-    tags: string[];
-  } | null;
+  tradeCard: FeedTradeCard | null;
 }
 
 interface HomeFeedProps {
@@ -214,8 +228,200 @@ export function HomeFeed({
   );
 }
 
+const CLOSED_STATUSES = ["TP_HIT", "SL_HIT", "BE", "CLOSED"];
+
+function extractNote(content: string): string | null {
+  const raw = content.trim();
+  if (!raw) return null;
+  if (raw.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed.note || null;
+    } catch {
+      // Not valid JSON, render as-is
+    }
+  }
+  return raw;
+}
+
+function computeStaticRR(tc: FeedTradeCard): string | null {
+  const { entry, stopLoss, targets, direction } = tc;
+  const target = targets[0];
+  if (!target || !stopLoss || !entry) return null;
+  const risk = Math.abs(entry - stopLoss);
+  if (risk === 0) return null;
+  const reward = direction === "LONG" ? target - entry : entry - target;
+  const rr = reward / risk;
+  if (rr <= 0) return null;
+  return `1:${rr.toFixed(1)}`;
+}
+
 function FeedPostCard({ post }: { post: FeedPost }) {
   const { t } = useTranslation();
+  const tc = post.tradeCard;
+
+  // Signal card layout for trade card posts
+  if (tc) {
+    const trade = tc.trade;
+    const isClosed = trade && CLOSED_STATUSES.includes(trade.status);
+    const hasFourthCol =
+      (isClosed && trade.finalRR != null) || computeStaticRR(tc) != null;
+    const note = extractNote(post.content);
+
+    return (
+      <Link href={`/clans/${post.clanId}/posts/${post.id}`}>
+        <div className="relative overflow-hidden rounded-xl border bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg">
+          {/* Colored accent bar */}
+          <div
+            className={`absolute inset-y-0 start-0 w-1 ${
+              tc.direction === "LONG" ? "bg-green-500" : "bg-red-500"
+            }`}
+          />
+          <div
+            className={`absolute inset-0 pointer-events-none ${
+              tc.direction === "LONG"
+                ? "bg-gradient-to-b from-green-500/5 to-transparent"
+                : "bg-gradient-to-b from-red-500/5 to-transparent"
+            }`}
+          />
+
+          <div className="relative p-3 ps-4 space-y-2">
+            {/* Header: clan + author + time */}
+            <div className="flex items-center gap-2">
+              <Avatar className="h-6 w-6">
+                <AvatarImage
+                  src={post.clan.avatar || undefined}
+                  alt={post.clan.name}
+                />
+                <AvatarFallback className="text-[10px]">
+                  {post.clan.name.slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-xs font-medium">{post.clan.name}</span>
+              <span className="text-[11px] text-muted-foreground">
+                · {post.author.name}
+              </span>
+              <span className="ms-auto text-[11px] text-muted-foreground">
+                {timeAgo(post.createdAt)}
+              </span>
+            </div>
+
+            {/* Direction + Instrument + Timeframe + Status */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <DirectionBadge direction={tc.direction as "LONG" | "SHORT"} />
+              <span className="text-sm font-bold tracking-tight">
+                {tc.instrument}
+              </span>
+              <Badge variant="outline" className="text-[10px]">
+                {tc.timeframe === "AUTO" ? "Auto" : tc.timeframe}
+              </Badge>
+              {trade && <StatusBadge status={trade.status} />}
+            </div>
+
+            {/* Price grid */}
+            <div
+              className={`grid gap-2 text-xs ${
+                hasFourthCol ? "grid-cols-4" : "grid-cols-3"
+              }`}
+            >
+              <div className="rounded-lg bg-muted/30 px-2 py-1 text-center">
+                <span className="text-muted-foreground">{t("trade.entry")}</span>
+                <p className="font-mono font-medium">{tc.entry}</p>
+              </div>
+              <div className="rounded-lg bg-muted/30 px-2 py-1 text-center">
+                <span className="text-muted-foreground">{t("trade.stopLoss")}</span>
+                <p className="font-mono font-medium text-red-500">
+                  {tc.stopLoss}
+                </p>
+              </div>
+              <div className="rounded-lg bg-muted/30 px-2 py-1 text-center">
+                <span className="text-muted-foreground">{t("trade.target")}</span>
+                <p className="font-mono font-medium text-green-500">
+                  {tc.targets[0]}
+                </p>
+              </div>
+              {isClosed && trade.finalRR != null && (
+                <div className="rounded-lg bg-muted/30 px-2 py-1 text-center">
+                  <span className="text-muted-foreground">{t("trade.result")}</span>
+                  <p
+                    className={`font-mono font-bold ${
+                      trade.finalRR > 0
+                        ? "text-green-500"
+                        : trade.finalRR < 0
+                          ? "text-red-500"
+                          : "text-muted-foreground"
+                    }`}
+                  >
+                    {trade.finalRR > 0 ? "+" : ""}
+                    {trade.finalRR.toFixed(2)}R
+                  </p>
+                  {trade.netProfit != null && (
+                    <p
+                      className={`font-mono text-[10px] ${
+                        trade.netProfit > 0
+                          ? "text-green-500/70"
+                          : trade.netProfit < 0
+                            ? "text-red-500/70"
+                            : "text-muted-foreground/60"
+                      }`}
+                    >
+                      {trade.netProfit > 0 ? "+" : ""}
+                      {trade.netProfit.toFixed(2)}
+                    </p>
+                  )}
+                </div>
+              )}
+              {!isClosed && computeStaticRR(tc) && (
+                <div className="rounded-lg bg-muted/30 px-2 py-1 text-center">
+                  <span className="text-muted-foreground">{t("trade.riskReward")}</span>
+                  <p className="font-mono font-medium text-muted-foreground">
+                    {computeStaticRR(tc)}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Tags */}
+            {tc.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {tc.tags.map((tag) => (
+                  <Badge key={tag} variant="secondary" className="text-[10px]">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            {/* Note from content */}
+            {note && (
+              <p className="text-xs text-muted-foreground italic line-clamp-2">
+                {note}
+              </p>
+            )}
+
+            {/* Footer */}
+            <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Eye className="h-3 w-3" /> {post.viewCount}
+              </span>
+              {post.isPremium && (
+                <Badge variant="secondary" className="text-[10px]">
+                  PRO
+                </Badge>
+              )}
+              {post.sourceType === "AUTO_TAG" && (
+                <Badge variant="outline" className="text-[10px]">
+                  {t("home.autoPosted")}
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+      </Link>
+    );
+  }
+
+  // Text post layout (no tradeCard)
   return (
     <Link href={`/clans/${post.clanId}/posts/${post.id}`}>
       <Card className="glass-card transition-all hover:-translate-y-0.5 hover:shadow-lg">
@@ -239,20 +445,6 @@ function FeedPostCard({ post }: { post: FeedPost }) {
               {timeAgo(post.createdAt)}
             </span>
           </div>
-
-          {/* Trade card badge */}
-          {post.tradeCard && (
-            <div className="flex items-center gap-1.5">
-              <Badge variant="outline" className="text-[10px] bg-gradient-to-r from-primary/10 to-primary/5">
-                {post.tradeCard.direction} {post.tradeCard.instrument}
-              </Badge>
-              {post.tradeCard.tags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="text-[10px]">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          )}
 
           {/* Title + content preview */}
           {post.title && (
@@ -281,11 +473,6 @@ function FeedPostCard({ post }: { post: FeedPost }) {
             {post.isPremium && (
               <Badge variant="secondary" className="text-[10px]">
                 PRO
-              </Badge>
-            )}
-            {post.sourceType === "AUTO_TAG" && (
-              <Badge variant="outline" className="text-[10px]">
-                {t("home.autoPosted")}
               </Badge>
             )}
           </div>

@@ -55,6 +55,26 @@ export async function getPost(postId: string) {
     include: {
       author: { select: { id: true, name: true, avatar: true } },
       clan: { select: { id: true, name: true, avatar: true } },
+      tradeCard: {
+        select: {
+          instrument: true,
+          direction: true,
+          entry: true,
+          stopLoss: true,
+          targets: true,
+          timeframe: true,
+          tags: true,
+          trade: {
+            select: {
+              id: true,
+              status: true,
+              finalRR: true,
+              netProfit: true,
+              closePrice: true,
+            },
+          },
+        },
+      },
     },
   });
 
