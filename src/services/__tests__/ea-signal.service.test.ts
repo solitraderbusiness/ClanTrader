@@ -503,6 +503,49 @@ describe("syncSignalModification", () => {
     );
   });
 
+  it("BUG REGRESSION: re-evaluates eligibility after initial risk captured on modification", async () => {
+    const mtTrade = makeMtTrade({
+      matchedTradeId: "trade-1",
+      stopLoss: 84.238,
+      takeProfit: 102.517,
+    });
+
+    // Trade was created as ANALYSIS with no SL → initialRiskMissing = true
+    const trade = makeTradeWithCard({
+      initialRiskMissing: true,
+      initialStopLoss: 0,
+      initialRiskAbs: 0,
+      tradeCard: {
+        id: "card-1",
+        instrument: "XAGUSD",
+        direction: "LONG",
+        entry: 89.868,
+        stopLoss: 0,
+        targets: [0],
+        tags: ["analysis"],
+        cardType: "ANALYSIS",
+        timeframe: "AUTO",
+        riskPct: null,
+        note: "Auto-generated",
+        message: { id: "msg-1", topicId: "topic-1", clanId: "clan-1" },
+      },
+    });
+
+    mockRedisSet.mockResolvedValue("OK" as never);
+    mockTradeFindUnique.mockResolvedValue(trade as never);
+    mockTradeCardVersionCreate.mockResolvedValue({} as never);
+    mockTradeUpdate.mockResolvedValue({} as never);
+    mockTradeCardUpdate.mockResolvedValue({} as never);
+    mockTradeEventCreate.mockResolvedValue({} as never);
+    mockMessageCreate.mockResolvedValue({ id: "sys-1" } as never);
+    mockMessageFindUnique.mockResolvedValue(null as never);
+
+    await syncSignalModification(mtTrade as never, "user-1");
+
+    // computeAndSetEligibility MUST be called after initial risk is captured
+    expect(computeAndSetEligibility).toHaveBeenCalledWith("trade-1");
+  });
+
   it("normal SL change updates trade.riskStatus and tradeCard.stopLoss", async () => {
     const mtTrade = makeMtTrade({
       matchedTradeId: "trade-1",

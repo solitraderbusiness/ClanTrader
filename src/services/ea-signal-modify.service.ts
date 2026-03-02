@@ -3,6 +3,7 @@ import { redis } from "@/lib/redis";
 import { log } from "@/lib/audit";
 import { deriveRiskStatus } from "@/lib/risk-utils";
 import { maybeAutoPost, updateChannelPostRiskWarning, updateChannelPostTargets } from "@/services/auto-post.service";
+import { computeAndSetEligibility } from "@/services/integrity.service";
 import { createSystemMessage, broadcastMessages } from "./ea-signal-helpers";
 import type { MtTrade } from "@prisma/client";
 
@@ -168,6 +169,9 @@ export async function syncSignalModification(
           },
         });
 
+        // Re-evaluate eligibility after upgrade + risk capture
+        await computeAndSetEligibility(trade.id);
+
         maybeAutoPost(tradeCard.id, clanId, userId).catch((err) =>
           log("ea_signal.auto_post_error", "ERROR", "EA", { error: String(err), context: "tag_upgrade" }, userId)
         );
@@ -189,6 +193,11 @@ export async function syncSignalModification(
           } : {}),
         },
       });
+
+      // Re-evaluate eligibility when initial risk is first captured
+      if (captureInitialRisk) {
+        await computeAndSetEligibility(trade.id);
+      }
 
       await db.tradeCard.update({
         where: { id: tradeCard.id },
