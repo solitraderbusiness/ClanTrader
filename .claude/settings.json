@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=\"$CLAUDE_FILE_PATH\"; if [ -n \"$file\" ] && echo \"$file\" | grep -qE '\\.(ts|tsx)$' && echo \"$file\" | grep -qvE 'node_modules|.next|scripts/'; then npx eslint --no-warn-ignored --max-warnings 50 \"$file\" 2>&1 | tail -5; fi",
+            "timeout": 15000
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=\"$CLAUDE_FILE_PATH\"; if [ -n \"$file\" ] && echo \"$file\" | grep -qE 'prisma/migrations/'; then echo 'BLOCK: Do not modify migration files directly. Use prisma migrate dev to create new migrations.'; exit 2; fi",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
+  }
+}
