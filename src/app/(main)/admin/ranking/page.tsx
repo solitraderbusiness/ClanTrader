@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { InfoTip } from "@/components/ui/info-tip";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 import type { RankingWeights } from "@/types/ranking";
 
 interface RankingConfig {
@@ -30,6 +31,7 @@ const WEIGHT_TIPS: Record<string, string> = {
 };
 
 export default function RankingConfigPage() {
+  const { t } = useTranslation();
   const [config, setConfig] = useState<RankingConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -38,9 +40,9 @@ export default function RankingConfigPage() {
     fetch("/api/admin/ranking-config")
       .then((r) => r.json())
       .then((data) => setConfig(data.config))
-      .catch(() => toast.error("Failed to load config"))
+      .catch(() => toast.error(t("admin.failedToLoadConfig")))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   async function handleSave() {
     if (!config) return;
@@ -56,16 +58,16 @@ export default function RankingConfigPage() {
       });
 
       if (!res.ok) throw new Error();
-      toast.success("Ranking config saved");
+      toast.success(t("admin.rankingConfigSaved"));
     } catch {
-      toast.error("Failed to save config");
+      toast.error(t("admin.failedToSaveConfig"));
     } finally {
       setSaving(false);
     }
   }
 
   if (loading || !config) {
-    return <p className="text-muted-foreground">Loading...</p>;
+    return <p className="text-muted-foreground">{t("common.loading")}</p>;
   }
 
   const totalWeight = Object.values(config.weights).reduce(
@@ -77,18 +79,16 @@ export default function RankingConfigPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Ranking Config</h1>
+        <h1 className="text-2xl font-bold">{t("admin.rankingConfig")}</h1>
         <p className="text-sm text-muted-foreground">
-          Configure how the composite leaderboard score is calculated. Each
-          weight controls how much a particular metric contributes to the final
-          ranking. Weights should add up to 1.0.
+          {t("admin.rankingConfigDesc")}
         </p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium">
-            Composite Weights
+            {t("admin.compositeWeights")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -158,7 +158,7 @@ export default function RankingConfigPage() {
           </div>
 
           <Button onClick={handleSave} disabled={saving || !isValid} className="mt-4">
-            {saving ? "Saving..." : "Save Config"}
+            {saving ? t("common.saving") : t("admin.saveConfig")}
           </Button>
         </CardContent>
       </Card>

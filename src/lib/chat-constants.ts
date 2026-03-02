@@ -109,5 +109,8 @@ export const SOCKET_EVENTS = {
   DM_USER_STOP_TYPING: "dm_user_stop_typing",
   DM_MARKED_READ: "dm_marked_read",
 
+  // Server -> Client (Events)
+  EVENT_REMINDER: "event_reminder",
+
   ERROR: "error",
 } as const;

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 interface PhoneOtpFormProps {
   mode: "login" | "add-phone";
@@ -15,6 +16,7 @@ interface PhoneOtpFormProps {
 const COUNTDOWN_SECONDS = 120;
 
 export function PhoneOtpForm({ mode, onVerified, onNewUser }: PhoneOtpFormProps) {
+  const { t } = useTranslation();
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
@@ -52,11 +54,11 @@ export function PhoneOtpForm({ mode, onVerified, onNewUser }: PhoneOtpFormProps)
       setStep("otp");
       setCountdown(COUNTDOWN_SECONDS);
     } catch {
-      setError("Network error. Please try again.");
+      setError(t("auth.networkError"));
     } finally {
       setLoading(false);
     }
-  }, [phone]);
+  }, [phone, t]);
 
   async function handleVerify() {
     setError(null);
@@ -85,7 +87,7 @@ export function PhoneOtpForm({ mode, onVerified, onNewUser }: PhoneOtpFormProps)
         onVerified(data.token);
       }
     } catch {
-      setError("Network error. Please try again.");
+      setError(t("auth.networkError"));
     } finally {
       setLoading(false);
     }
@@ -111,7 +113,7 @@ export function PhoneOtpForm({ mode, onVerified, onNewUser }: PhoneOtpFormProps)
             id="phone"
             type="tel"
             dir="ltr"
-            placeholder="09123456789"
+            placeholder={t("auth.phonePlaceholder")}
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             maxLength={11}
@@ -155,7 +157,7 @@ export function PhoneOtpForm({ mode, onVerified, onNewUser }: PhoneOtpFormProps)
           type="text"
           inputMode="numeric"
           dir="ltr"
-          placeholder="123456"
+          placeholder={t("auth.otpPlaceholder")}
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
           maxLength={6}

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { CreatePostForm } from "./CreatePostForm";
 import { toast } from "sonner";
 import { Plus, Trash2, Eye, Crown } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 interface PostData {
   id: string;
@@ -22,6 +23,7 @@ interface ChannelPostManagerProps {
 }
 
 export function ChannelPostManager({ clanId }: ChannelPostManagerProps) {
+  const { t } = useTranslation();
   const router = useRouter();
   const [posts, setPosts] = useState<PostData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +48,7 @@ export function ChannelPostManager({ clanId }: ChannelPostManagerProps) {
   }, [fetchPosts]);
 
   async function handleDelete(postId: string) {
-    if (!confirm("Are you sure you want to delete this post?")) return;
+    if (!confirm(t("chat.deletePostConfirm"))) return;
 
     try {
       const res = await fetch(`/api/clans/${clanId}/posts/${postId}`, {
@@ -54,7 +56,7 @@ export function ChannelPostManager({ clanId }: ChannelPostManagerProps) {
       });
 
       if (res.ok) {
-        toast.success("Post deleted");
+        toast.success(t("chat.postDeleted"));
         setPosts((prev) => prev.filter((p) => p.id !== postId));
         router.refresh();
       } else {
@@ -62,12 +64,12 @@ export function ChannelPostManager({ clanId }: ChannelPostManagerProps) {
         toast.error(data.error || "Failed to delete post");
       }
     } catch {
-      toast.error("Something went wrong");
+      toast.error(t("common.somethingWentWrong"));
     }
   }
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Loading posts...</p>;
+    return <p className="text-sm text-muted-foreground">{t("channel.loadingPosts")}</p>;
   }
 
   return (

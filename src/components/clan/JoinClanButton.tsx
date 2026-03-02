@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useUsernamePromptStore } from "@/stores/username-prompt-store";
+import { useTranslation } from "@/lib/i18n";
 
 interface JoinClanButtonProps {
   clanId: string;
@@ -34,6 +35,7 @@ export function JoinClanButton({
   const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const openUsernamePrompt = useUsernamePromptStore((s) => s.open);
+  const { t } = useTranslation();
 
   async function handleRequestJoin() {
     // Require username before joining a clan
@@ -51,21 +53,21 @@ export function JoinClanButton({
       });
 
       if (res.ok) {
-        toast.success("Join request sent!");
+        toast.success(t("clan.joinRequestSent"));
         router.refresh();
       } else {
         const data = await res.json();
-        toast.error(data.error || "Failed to send request");
+        toast.error(data.error || t("clan.failedSendRequest"));
       }
     } catch {
-      toast.error("Something went wrong");
+      toast.error(t("common.somethingWentWrong"));
     } finally {
       setLoading(false);
     }
   }
 
   async function handleLeave() {
-    if (!confirm("Are you sure you want to leave this clan?")) return;
+    if (!confirm(t("clan.confirmLeave"))) return;
 
     setLoading(true);
     try {
@@ -74,14 +76,14 @@ export function JoinClanButton({
       });
 
       if (res.ok) {
-        toast.success("Left clan");
+        toast.success(t("clan.leftClan"));
         router.refresh();
       } else {
         const data = await res.json();
-        toast.error(data.error || "Failed to leave clan");
+        toast.error(data.error || t("clan.failedLeaveClan"));
       }
     } catch {
-      toast.error("Something went wrong");
+      toast.error(t("common.somethingWentWrong"));
     } finally {
       setLoading(false);
     }
@@ -90,7 +92,7 @@ export function JoinClanButton({
   if (isMember && isLeader) {
     return (
       <Button variant="outline" disabled>
-        Leader
+        {t("clan.leader")}
       </Button>
     );
   }
@@ -98,7 +100,7 @@ export function JoinClanButton({
   if (isMember) {
     return (
       <Button variant="outline" onClick={handleLeave} disabled={loading}>
-        {loading ? "Leaving..." : "Leave Clan"}
+        {loading ? t("clan.leaving") : t("clan.leaveClan")}
       </Button>
     );
   }
@@ -106,7 +108,7 @@ export function JoinClanButton({
   if (isInAnotherClan) {
     return (
       <Button variant="outline" disabled>
-        Leave your clan first
+        {t("clan.leaveFirst")}
       </Button>
     );
   }
@@ -114,7 +116,7 @@ export function JoinClanButton({
   if (isFull) {
     return (
       <Button variant="outline" disabled>
-        Clan Full
+        {t("clan.clanFull")}
       </Button>
     );
   }
@@ -122,7 +124,7 @@ export function JoinClanButton({
   if (existingRequestStatus === "PENDING") {
     return (
       <Button variant="outline" disabled>
-        Request Pending
+        {t("clan.requestPending")}
       </Button>
     );
   }
@@ -130,7 +132,7 @@ export function JoinClanButton({
   if (joinRequestsEnabled) {
     return (
       <Button onClick={handleRequestJoin} disabled={loading}>
-        {loading ? "Sending..." : "Request to Join"}
+        {loading ? t("clan.sending") : t("clan.requestToJoin")}
       </Button>
     );
   }
@@ -138,7 +140,7 @@ export function JoinClanButton({
   // Not public and no join requests — invite only
   return (
     <Button variant="outline" disabled>
-      Invite Only
+      {t("clan.inviteOnly")}
     </Button>
   );
 }

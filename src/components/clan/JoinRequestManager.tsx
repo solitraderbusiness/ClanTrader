@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { TraderBadge } from "@/components/shared/TraderBadge";
 import { Check, X } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 
 interface JoinRequest {
   id: string;
@@ -29,6 +30,7 @@ export function JoinRequestManager({ clanId }: JoinRequestManagerProps) {
   const [requests, setRequests] = useState<JoinRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     fetchRequests();
@@ -61,27 +63,27 @@ export function JoinRequestManager({ clanId }: JoinRequestManagerProps) {
       );
 
       if (res.ok) {
-        toast.success(action === "APPROVED" ? "Request approved" : "Request rejected");
+        toast.success(action === "APPROVED" ? t("clan.requestApproved") : t("clan.requestRejected"));
         setRequests((prev) => prev.filter((r) => r.id !== requestId));
       } else {
         const data = await res.json();
-        toast.error(data.error || "Failed to review request");
+        toast.error(data.error || t("clan.failedReviewRequest"));
       }
     } catch {
-      toast.error("Something went wrong");
+      toast.error(t("common.somethingWentWrong"));
     } finally {
       setReviewingId(null);
     }
   }
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground py-4">Loading requests...</p>;
+    return <p className="text-sm text-muted-foreground py-4">{t("clan.loadingRequests")}</p>;
   }
 
   if (requests.length === 0) {
     return (
       <div className="py-8 text-center">
-        <p className="text-sm text-muted-foreground">No pending join requests</p>
+        <p className="text-sm text-muted-foreground">{t("clan.noPendingRequests")}</p>
       </div>
     );
   }

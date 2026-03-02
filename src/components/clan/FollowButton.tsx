@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Heart } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 
 interface FollowButtonProps {
   clanId: string;
@@ -15,6 +16,7 @@ export function FollowButton({ clanId, initialFollowing }: FollowButtonProps) {
   const router = useRouter();
   const [following, setFollowing] = useState(initialFollowing);
   const [loading, setLoading] = useState(false);
+  const { t } = useTranslation();
 
   async function handleToggle() {
     setLoading(true);
@@ -27,10 +29,10 @@ export function FollowButton({ clanId, initialFollowing }: FollowButtonProps) {
         setFollowing(!following);
         router.refresh();
       } else {
-        toast.error("Failed to update follow status");
+        toast.error(t("clan.failedFollow"));
       }
     } catch {
-      toast.error("Something went wrong");
+      toast.error(t("common.somethingWentWrong"));
     } finally {
       setLoading(false);
     }
@@ -46,7 +48,7 @@ export function FollowButton({ clanId, initialFollowing }: FollowButtonProps) {
       <Heart
         className={`me-1 h-4 w-4 ${following ? "fill-current" : ""}`}
       />
-      {following ? "Following" : "Follow"}
+      {following ? t("clan.following") : t("clan.follow")}
     </Button>
   );
 }

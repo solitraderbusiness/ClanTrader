@@ -21,6 +21,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { BadgeIconUpload } from "./BadgeIconUpload";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 
 interface BadgeFormData {
   id?: string;
@@ -58,6 +59,7 @@ export function BadgeFormDialog({
   badge,
   onSaved,
 }: BadgeFormDialogProps) {
+  const { t } = useTranslation();
   const [form, setForm] = useState<BadgeFormData>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const isEdit = !!badge?.id;
@@ -140,14 +142,14 @@ export function BadgeFormDialog({
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to save badge");
+        throw new Error(data.error || t("admin.failedToSaveBadge"));
       }
 
-      toast.success(isEdit ? "Badge updated" : "Badge created");
+      toast.success(isEdit ? t("admin.badgeUpdated") : t("admin.badgeCreated"));
       onSaved();
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save");
+      toast.error(err instanceof Error ? err.message : t("admin.failedToSave"));
     } finally {
       setSaving(false);
     }
@@ -157,7 +159,7 @@ export function BadgeFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit Badge" : "Create Badge"}</DialogTitle>
+          <DialogTitle>{isEdit ? t("admin.editBadge") : t("admin.createBadge")}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -174,7 +176,7 @@ export function BadgeFormDialog({
                   ...(!isEdit ? { key: autoSlug(name) } : {}),
                 }));
               }}
-              placeholder="e.g. Gold"
+              placeholder={t("admin.placeholderBadgeName")}
               required
             />
           </div>
@@ -185,7 +187,7 @@ export function BadgeFormDialog({
               <Input
                 value={form.key}
                 onChange={(e) => setForm((f) => ({ ...f, key: e.target.value }))}
-                placeholder="e.g. rank-gold"
+                placeholder={t("admin.placeholderBadgeKey")}
                 pattern="^[a-z0-9-]+$"
                 required
               />
@@ -221,7 +223,7 @@ export function BadgeFormDialog({
               onChange={(e) =>
                 setForm((f) => ({ ...f, description: e.target.value || null }))
               }
-              placeholder="Optional description"
+              placeholder={t("admin.optionalDescription")}
               rows={2}
             />
           </div>
@@ -327,7 +329,7 @@ export function BadgeFormDialog({
                   <Input
                     value={(form.requirementsJson.season_id as string) ?? "*"}
                     onChange={(e) => updateReq("season_id", e.target.value)}
-                    placeholder='* = most recent'
+                    placeholder={t("admin.mostRecent")}
                   />
                 </div>
                 <div className="space-y-1">
@@ -416,10 +418,10 @@ export function BadgeFormDialog({
               variant="outline"
               onClick={() => onOpenChange(false)}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? "Saving..." : isEdit ? "Update" : "Create"}
+              {saving ? t("common.saving") : isEdit ? t("common.save") : t("common.create")}
             </Button>
           </div>
         </form>

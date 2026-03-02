@@ -15,6 +15,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Eye } from "lucide-react";
 import type { BadgeCategory } from "@prisma/client";
+import { useTranslation } from "@/lib/i18n";
 
 interface BadgeDef {
   id: string;
@@ -37,6 +38,7 @@ interface DryRunResult {
 }
 
 export function DryRunPreview() {
+  const { t } = useTranslation();
   const [badges, setBadges] = useState<BadgeDef[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [overrides, setOverrides] = useState<Record<string, unknown>>({});
@@ -47,8 +49,8 @@ export function DryRunPreview() {
     fetch("/api/admin/badges?enabled=true")
       .then((r) => r.json())
       .then((data) => setBadges(data.badges || []))
-      .catch(() => toast.error("Failed to load badges"));
-  }, []);
+      .catch(() => toast.error(t("admin.failedToLoadBadges")));
+  }, [t]);
 
   function handleBadgeSelect(id: string) {
     setSelectedId(id);
@@ -65,7 +67,7 @@ export function DryRunPreview() {
 
   async function runDryRun() {
     if (!selectedId) {
-      toast.error("Select a badge first");
+      toast.error(t("admin.selectBadgeFirst"));
       return;
     }
 
@@ -82,13 +84,13 @@ export function DryRunPreview() {
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Dry run failed");
+        throw new Error(data.error || t("admin.dryRunFailed"));
       }
 
       const data: DryRunResult = await res.json();
       setResult(data);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Dry run failed");
+      toast.error(err instanceof Error ? err.message : t("admin.dryRunFailed"));
     } finally {
       setLoading(false);
     }
@@ -98,10 +100,9 @@ export function DryRunPreview() {
     <div className="space-y-4">
       <Card>
         <CardHeader className="space-y-3 pb-4">
-          <CardTitle className="text-sm">Dry Run Preview</CardTitle>
+          <CardTitle className="text-sm">{t("admin.dryRunPreview")}</CardTitle>
           <p className="text-[10px] text-muted-foreground">
-            Preview the impact of changing badge requirements. No data is
-            modified.
+            {t("admin.dryRunDesc")}
           </p>
 
           <div className="space-y-3">
@@ -109,7 +110,7 @@ export function DryRunPreview() {
               <Label className="text-xs">Badge</Label>
               <Select value={selectedId} onValueChange={handleBadgeSelect}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select badge..." />
+                  <SelectValue placeholder={t("admin.selectBadgePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {badges.map((b) => (
@@ -199,7 +200,7 @@ export function DryRunPreview() {
               disabled={loading || !selectedId}
             >
               <Eye className="me-2 h-3 w-3" />
-              {loading ? "Running..." : "Preview Impact"}
+              {loading ? t("common.loading") : t("admin.previewImpact")}
             </Button>
           </div>
         </CardHeader>
@@ -211,10 +212,10 @@ export function DryRunPreview() {
           <Card className="border-green-200 dark:border-green-900">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm text-green-600">
-                Would Gain ({result.wouldGain.length})
+                {t("admin.wouldGain")} ({result.wouldGain.length})
               </CardTitle>
               {result.wouldGain.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No users would gain this badge.</p>
+                <p className="text-xs text-muted-foreground">{t("admin.noUsersWouldGain")}</p>
               ) : (
                 <div className="max-h-48 overflow-y-auto space-y-1">
                   {result.wouldGain.map((u) => (
@@ -238,10 +239,10 @@ export function DryRunPreview() {
           <Card className="border-red-200 dark:border-red-900">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm text-red-600">
-                Would Lose ({result.wouldLose.length})
+                {t("admin.wouldLose")} ({result.wouldLose.length})
               </CardTitle>
               {result.wouldLose.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No users would lose this badge.</p>
+                <p className="text-xs text-muted-foreground">{t("admin.noUsersWouldLose")}</p>
               ) : (
                 <div className="max-h-48 overflow-y-auto space-y-1">
                   {result.wouldLose.map((u) => (
@@ -258,7 +259,7 @@ export function DryRunPreview() {
           </Card>
 
           <div className="sm:col-span-2 text-xs text-muted-foreground">
-            {result.unchanged} users unchanged.
+            {t("admin.usersUnchanged", { count: result.unchanged })}
           </div>
         </div>
       )}

@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { Camera } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 interface ClanSettingsFormProps {
   clan: {
@@ -35,6 +36,7 @@ export function ClanSettingsForm({ clan }: ClanSettingsFormProps) {
     !!(clan.settings as Record<string, unknown> | null)?.joinRequestsEnabled
   );
   const [avatarUrl, setAvatarUrl] = useState(clan.avatar);
+  const { t } = useTranslation();
 
   const {
     register,
@@ -66,14 +68,14 @@ export function ClanSettingsForm({ clan }: ClanSettingsFormProps) {
       if (res.ok) {
         const data = await res.json();
         setAvatarUrl(data.avatar);
-        toast.success("Avatar updated");
+        toast.success(t("clan.avatarUpdated"));
         router.refresh();
       } else {
         const data = await res.json();
-        toast.error(data.error || "Failed to upload avatar");
+        toast.error(data.error || t("clan.failedUploadAvatar"));
       }
     } catch {
-      toast.error("Failed to upload avatar");
+      toast.error(t("clan.failedUploadAvatar"));
     }
   }
 
@@ -88,14 +90,14 @@ export function ClanSettingsForm({ clan }: ClanSettingsFormProps) {
       });
 
       if (res.ok) {
-        toast.success("Clan settings updated");
+        toast.success(t("clan.settingsUpdated"));
         router.refresh();
       } else {
         const result = await res.json();
-        toast.error(result.error || "Failed to update clan");
+        toast.error(result.error || t("clan.failedUpdateClan"));
       }
     } catch {
-      toast.error("Something went wrong");
+      toast.error(t("common.somethingWentWrong"));
     } finally {
       setLoading(false);
     }
@@ -126,12 +128,12 @@ export function ClanSettingsForm({ clan }: ClanSettingsFormProps) {
           </label>
         </div>
         <p className="text-sm text-muted-foreground">
-          Click the camera icon to change the clan avatar
+          {t("clan.avatarHint")}
         </p>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="name">Clan Name</Label>
+        <Label htmlFor="name">{t("clan.clanName")}</Label>
         <Input id="name" {...register("name")} />
         {errors.name && (
           <p className="text-sm text-destructive">{errors.name.message}</p>
@@ -139,7 +141,7 @@ export function ClanSettingsForm({ clan }: ClanSettingsFormProps) {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="description">Description</Label>
+        <Label htmlFor="description">{t("clan.description")}</Label>
         <Textarea id="description" rows={3} {...register("description")} />
         {errors.description && (
           <p className="text-sm text-destructive">
@@ -149,13 +151,13 @@ export function ClanSettingsForm({ clan }: ClanSettingsFormProps) {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="tradingFocus">Trading Focus</Label>
+        <Label htmlFor="tradingFocus">{t("clan.tradingFocus")}</Label>
         <select
           id="tradingFocus"
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           {...register("tradingFocus")}
         >
-          <option value="">Select a focus</option>
+          <option value="">{t("clan.selectFocus")}</option>
           {TRADING_FOCUSES.map((focus) => (
             <option key={focus} value={focus}>
               {focus}
@@ -171,7 +173,7 @@ export function ClanSettingsForm({ clan }: ClanSettingsFormProps) {
           onCheckedChange={setIsPublic}
         />
         <Label htmlFor="isPublic">
-          {isPublic ? "Public — discoverable in search" : "Private — hidden from search"}
+          {isPublic ? t("clan.publicDiscoverable") : t("clan.privateHidden")}
         </Label>
       </div>
 
@@ -183,13 +185,13 @@ export function ClanSettingsForm({ clan }: ClanSettingsFormProps) {
         />
         <Label htmlFor="joinRequestsEnabled">
           {joinRequestsEnabled
-            ? "Join requests enabled — users can request to join"
-            : "Join requests disabled — invite only"}
+            ? t("clan.joinRequestsEnabledLabel")
+            : t("clan.joinRequestsDisabledLabel")}
         </Label>
       </div>
 
       <Button type="submit" disabled={loading}>
-        {loading ? "Saving..." : "Save Settings"}
+        {loading ? t("common.saving") : t("clan.saveSettings")}
       </Button>
     </form>
   );

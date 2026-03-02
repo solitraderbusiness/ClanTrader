@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { InfoTip } from "@/components/ui/info-tip";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 
 interface AdminClan {
   id: string;
@@ -21,6 +22,7 @@ interface AdminClan {
 }
 
 export default function AdminClansPage() {
+  const { t } = useTranslation();
   const [clans, setClans] = useState<AdminClan[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -28,9 +30,9 @@ export default function AdminClansPage() {
     fetch("/api/admin/clans")
       .then((r) => r.json())
       .then((data) => setClans(data.clans || []))
-      .catch(() => toast.error("Failed to load clans"))
+      .catch(() => toast.error(t("admin.failedToLoadClans")))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   async function toggleFeatured(clanId: string, isFeatured: boolean) {
     try {
@@ -45,14 +47,14 @@ export default function AdminClansPage() {
       setClans((prev) =>
         prev.map((c) => (c.id === clanId ? { ...c, isFeatured } : c))
       );
-      toast.success(`Clan ${isFeatured ? "featured" : "unfeatured"}`);
+      toast.success(isFeatured ? t("admin.clanFeatured") : t("admin.clanUnfeatured"));
     } catch {
-      toast.error("Failed to update clan");
+      toast.error(t("admin.failedToUpdateClan"));
     }
   }
 
   if (loading) {
-    return <p className="text-muted-foreground">Loading...</p>;
+    return <p className="text-muted-foreground">{t("common.loading")}</p>;
   }
 
   const featuredCount = clans.filter((c) => c.isFeatured).length;
@@ -60,16 +62,16 @@ export default function AdminClansPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Clan Management</h1>
+        <h1 className="text-2xl font-bold">{t("admin.clanManagement")}</h1>
         <p className="text-sm text-muted-foreground">
-          Manage clan visibility and featured status on the Discover page.{" "}
+          {t("admin.manageClanVisibility")}{" "}
           <span className="font-medium">{featuredCount}</span> featured out of{" "}
           <span className="font-medium">{clans.length}</span> total clans.
         </p>
       </div>
 
       {clans.length === 0 ? (
-        <p className="text-muted-foreground">No clans found</p>
+        <p className="text-muted-foreground">{t("admin.noClansFound")}</p>
       ) : (
         <div className="space-y-3">
           {clans.map((clan) => (
@@ -101,11 +103,9 @@ export default function AdminClansPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      Featured
+                      {t("admin.featuredLabel")}
                       <InfoTip side="left">
-                        Featured clans appear at the top of the Discover page
-                        with a special badge. Use this to promote high-quality
-                        or trusted clans.
+                        {t("admin.featuredTip")}
                       </InfoTip>
                     </span>
                     <Switch
@@ -119,7 +119,7 @@ export default function AdminClansPage() {
               </CardHeader>
               <CardContent className="pt-0 space-y-1">
                 <p className="text-xs text-muted-foreground">
-                  Created by{" "}
+                  {t("admin.createdBy")}{" "}
                   <span className="font-medium">
                     {clan.createdBy.name || "Unknown"}
                   </span>

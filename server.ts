@@ -77,6 +77,24 @@ app.prepare().then(() => {
     }
   }, EVAL_INTERVAL_MS);
 
+  // Event reminder checker — runs every 30s
+  let reminderRunning = false;
+
+  setInterval(async () => {
+    if (reminderRunning) return;
+    try {
+      reminderRunning = true;
+      const { checkEventReminders } = await import(
+        "@/services/event-reminder.service"
+      );
+      await checkEventReminders(io);
+    } catch (err) {
+      console.error("[EventReminder] error:", err);
+    } finally {
+      reminderRunning = false;
+    }
+  }, 30_000);
+
   httpServer.listen(port, hostname, () => {
     console.log(`> Ready on http://${hostname}:${port}`);
   });

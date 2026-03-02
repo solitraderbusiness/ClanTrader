@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useTranslation } from "@/lib/i18n";
 import type { TraderStatementMetrics } from "@/types/trader-statement";
 
 interface TraderStatementCardProps {
@@ -22,6 +23,7 @@ export function TraderStatementCard({
   metrics,
   calculatedAt,
 }: TraderStatementCardProps) {
+  const { t } = useTranslation();
   const winRatePct = (metrics.winRate * 100).toFixed(1);
 
   return (
@@ -42,7 +44,7 @@ export function TraderStatementCard({
       <CardContent>
         <div className="grid grid-cols-4 gap-3 text-center text-xs">
           <div>
-            <p className="text-muted-foreground">Signals</p>
+            <p className="text-muted-foreground">{t("statements.signals")}</p>
             <p className="text-lg font-bold">{tradeCount}</p>
           </div>
           <div>

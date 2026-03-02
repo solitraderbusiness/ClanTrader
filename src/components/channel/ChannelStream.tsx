@@ -290,10 +290,10 @@ function EditPostDialog({
         onOpenChange(false);
       } else {
         const data = await res.json();
-        toast.error(data.error || "Failed to update post");
+        toast.error(data.error || t("channel.failedToUpdatePost"));
       }
     } catch {
-      toast.error("Failed to update post");
+      toast.error(t("channel.failedToUpdatePost"));
     } finally {
       setSaving(false);
     }
@@ -366,10 +366,10 @@ function DeletePostDialog({
         onOpenChange(false);
       } else {
         const data = await res.json();
-        toast.error(data.error || "Failed to delete post");
+        toast.error(data.error || t("channel.failedToDeletePost"));
       }
     } catch {
-      toast.error("Failed to delete post");
+      toast.error(t("channel.failedToDeletePost"));
     } finally {
       setDeleting(false);
     }

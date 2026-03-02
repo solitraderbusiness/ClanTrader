@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Send, X, Reply, ImagePlus, Loader2 } from "lucide-react";
 import { ImageAttachmentPreview } from "@/components/shared/ImageAttachmentPreview";
 import { useDmStore } from "@/stores/dm-store";
+import { useTranslation } from "@/lib/i18n";
 
 interface DmMessageInputProps {
   recipientId: string;
@@ -23,6 +24,7 @@ export function DmMessageInput({ recipientId, disabled }: DmMessageInputProps) {
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { t } = useTranslation();
 
   const replyingTo = useDmStore((s) => s.replyingTo);
   const setReplyingTo = useDmStore((s) => s.setReplyingTo);
@@ -155,7 +157,7 @@ export function DmMessageInput({ recipientId, disabled }: DmMessageInputProps) {
           className="h-[40px] w-[40px] shrink-0"
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled || imageFiles.length >= CHAT_IMAGES_MAX}
-          title="Attach Images"
+          title={t("chat.attachImages")}
         >
           <ImagePlus className="h-4 w-4" />
         </Button>
@@ -168,7 +170,7 @@ export function DmMessageInput({ recipientId, disabled }: DmMessageInputProps) {
             emitTyping();
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Type a message..."
+          placeholder={t("chat.typeMessage")}
           disabled={disabled}
           maxLength={DM_CONTENT_MAX}
           rows={1}

@@ -531,20 +531,36 @@ model Watchlist {
   @@index([userId, clanId])
 }
 
+enum EventImpact {
+  HIGH
+  MEDIUM
+  LOW
+  NONE
+}
+
 model TradingEvent {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
+  externalId  String?
   title       String
   description String?
+  country     String?
+  currency    String?
   instrument  String?
-  impact      String?
+  impact      EventImpact  @default(LOW)
   startTime   DateTime
   endTime     DateTime?
+  actual      String?
+  forecast    String?
+  previous    String?
   source      String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
+  @@unique([externalId, source])
   @@index([isActive, startTime])
+  @@index([currency])
+  @@index([impact, startTime])
 }
 
 enum ChannelPostSource {
@@ -965,4 +981,97 @@ model EaPendingAction {
   @@index([mtAccountId, status])
   @@index([tradeId])
   @@index([status, expiresAt])
+}
+
+// --- Admin Kanban Project Board ---
+
+enum KanbanColumn {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  TESTING
+  DONE
+}
+
+enum KanbanPriority {
+  CRITICAL
+  HIGH
+  NORMAL
+  LOW
+}
+
+model ProjectTask {
+  id          String         @id @default(cuid())
+  title       String
+  description String?
+  phase       String
+  priority    KanbanPriority @default(NORMAL)
+  column      KanbanColumn   @default(BACKLOG)
+  position    Int            @default(0)
+  notes       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([column, position])
+}
+
+// --- PM Roadmap Items ---
+
+enum PmStatus {
+  PLANNED
+  IMPLEMENTED
+  INTEGRATED
+  CONFIGURED
+  VERIFIED
+  HARDENED
+  OPERABLE
+  DEPRECATED
+}
+
+enum PmPriority {
+  P0
+  P1
+  P2
+}
+
+enum PmWorkstream {
+  PRODUCT_CORE
+  TRUST_INTEGRITY
+  PLATFORM_OPS
+  MONETIZATION_GROWTH
+}
+
+enum PmMilestone {
+  MVP_BETA
+  PUBLIC_LAUNCH
+  POST_LAUNCH
+}
+
+model PmItem {
+  id                 String        @id @default(cuid())
+  key                String        @unique           // stable key for upsert e.g. "auth.phone-otp"
+  title              String
+  description        String?
+  epicKey            String                           // grouping e.g. "auth", "clans", "integrity"
+  epicTitle          String                           // display name e.g. "Authentication"
+  workstream         PmWorkstream
+  phase              String                           // "P1" through "P8"
+  priority           PmPriority    @default(P1)
+  status             PmStatus      @default(PLANNED)
+  milestone          PmMilestone   @default(MVP_BETA)
+  owner              String?
+  notes              String?
+  isLaunchBlocker    Boolean       @default(false)
+  acceptanceCriteria String?
+  risks              String?
+  dependencies       Json?                            // string[] of PmItem keys
+  evidence           Json?                            // { files: string[], envVars: string[], tests: string[] }
+  lastVerifiedAt     DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@index([workstream])
+  @@index([status])
+  @@index([phase])
+  @@index([isLaunchBlocker])
 }

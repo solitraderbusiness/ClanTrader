@@ -10,6 +10,7 @@ import { ImageAttachmentPreview } from "@/components/shared/ImageAttachmentPrevi
 
 import { useChatStore, type ClanMember } from "@/stores/chat-store";
 import { SlashCommandMenu } from "./SlashCommandMenu";
+import { useTranslation } from "@/lib/i18n";
 
 type PanelType = "trades" | "watchlist" | "events" | "summary" | "digest";
 
@@ -23,6 +24,7 @@ interface MessageInputProps {
 }
 
 export function MessageInput({ clanId, topicId, disabled, onOpenPanel, onOpenTradeCard, onOpenAnalysisCard }: MessageInputProps) {
+  const { t } = useTranslation();
   const editingMsg = useChatStore((s) => s.editingMessage);
   const [content, setContent] = useState(editingMsg?.content || "");
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -303,7 +305,7 @@ export function MessageInput({ clanId, topicId, disabled, onOpenPanel, onOpenTra
             <>
               <Pencil className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
-                <span className="font-medium">Editing message</span>
+                <span className="font-medium">{t("chat.editingMessage")}</span>
               </div>
             </>
           )}

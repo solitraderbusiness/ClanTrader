@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Upload } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 
 interface BadgeIconUploadProps {
   currentUrl: string | null;
@@ -11,6 +12,7 @@ interface BadgeIconUploadProps {
 }
 
 export function BadgeIconUpload({ currentUrl, onUploaded }: BadgeIconUploadProps) {
+  const { t } = useTranslation();
   const [uploading, setUploading] = useState(false);
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -34,9 +36,9 @@ export function BadgeIconUpload({ currentUrl, onUploaded }: BadgeIconUploadProps
 
       const data = await res.json();
       onUploaded(data.iconUrl);
-      toast.success("Icon uploaded");
+      toast.success(t("admin.iconUploaded"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload failed");
+      toast.error(err instanceof Error ? err.message : t("admin.uploadFailed"));
     } finally {
       setUploading(false);
     }

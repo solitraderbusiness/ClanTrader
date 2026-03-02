@@ -18,7 +18,10 @@ const CLOSE_TOLERANCE_PIPS = 5;
 
 // --- Helpers ---
 
-function serializeMessageForSocket(message: Awaited<ReturnType<typeof createTradeCardMessage>>, clanId: string) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function serializeMessageForSocket(message: any, clanId: string) {
+  const tc = message.tradeCard;
+  const trade = tc?.trade;
   return {
     id: message.id,
     clanId,
@@ -30,33 +33,36 @@ function serializeMessageForSocket(message: Awaited<ReturnType<typeof createTrad
     isEdited: message.isEdited,
     reactions: null,
     replyTo: message.replyTo,
-    createdAt: message.createdAt.toISOString(),
+    createdAt: message.createdAt instanceof Date ? message.createdAt.toISOString() : message.createdAt,
     user: message.user,
-    tradeCard: message.tradeCard
+    tradeCard: tc
       ? {
-          id: message.tradeCard.id,
-          instrument: message.tradeCard.instrument,
-          direction: message.tradeCard.direction,
-          entry: message.tradeCard.entry,
-          stopLoss: message.tradeCard.stopLoss,
-          targets: message.tradeCard.targets,
-          timeframe: message.tradeCard.timeframe,
-          riskPct: message.tradeCard.riskPct,
-          note: message.tradeCard.note,
-          tags: message.tradeCard.tags,
-          cardType: (message.tradeCard as Record<string, unknown>).cardType as string | undefined,
-          trade: message.tradeCard.trade
+          id: tc.id,
+          instrument: tc.instrument,
+          direction: tc.direction,
+          entry: tc.entry,
+          stopLoss: tc.stopLoss,
+          targets: tc.targets,
+          timeframe: tc.timeframe,
+          riskPct: tc.riskPct,
+          note: tc.note,
+          tags: tc.tags,
+          cardType: tc.cardType,
+          trade: trade
             ? {
-                id: message.tradeCard.trade.id,
-                status: message.tradeCard.trade.status,
-                userId: message.tradeCard.trade.userId,
-                mtLinked: (message.tradeCard.trade as Record<string, unknown>).mtLinked as boolean | undefined,
-                riskStatus: (message.tradeCard.trade as Record<string, unknown>).riskStatus as string | undefined,
-                initialRiskAbs: (message.tradeCard.trade as Record<string, unknown>).initialRiskAbs as number | undefined,
-                initialEntry: (message.tradeCard.trade as Record<string, unknown>).initialEntry as number | undefined,
-                finalRR: (message.tradeCard.trade as Record<string, unknown>).finalRR as number | undefined,
-                netProfit: (message.tradeCard.trade as Record<string, unknown>).netProfit as number | undefined,
-                closePrice: (message.tradeCard.trade as Record<string, unknown>).closePrice as number | undefined,
+                id: trade.id,
+                status: trade.status,
+                userId: trade.userId,
+                mtLinked: trade.mtLinked,
+                riskStatus: trade.riskStatus,
+                initialRiskAbs: trade.initialRiskAbs,
+                initialEntry: trade.initialEntry,
+                statementEligible: trade.statementEligible,
+                integrityStatus: trade.integrityStatus,
+                cardType: trade.cardType,
+                finalRR: trade.finalRR,
+                netProfit: trade.netProfit,
+                closePrice: trade.closePrice,
               }
             : null,
         }
@@ -290,7 +296,7 @@ export async function syncSignalModification(
         replyToId
       );
 
-      broadcastMessages(clanId, topicId, warnMsg, replyToId);
+      await broadcastMessages(clanId, topicId, warnMsg, replyToId);
 
       updateChannelPostRiskWarning(tradeCard.id, "SL_REMOVED").catch((err) =>
         log("ea_signal.channel_post_risk_warning_error", "ERROR", "EA", { error: String(err) }, userId)
@@ -323,7 +329,7 @@ export async function syncSignalModification(
         replyToId
       );
 
-      broadcastMessages(clanId, topicId, infoMsg, replyToId);
+      await broadcastMessages(clanId, topicId, infoMsg, replyToId);
 
       updateChannelPostTargets(tradeCard.id, []).catch((err) =>
         log("ea_signal.channel_post_targets_error", "ERROR", "EA", { error: String(err) }, userId)
@@ -341,9 +347,16 @@ export async function syncSignalModification(
         if (!newTags.includes("signal")) newTags.push("signal");
         newCardType = "SIGNAL";
 
+        // Also capture initial risk snapshot if not yet set
+        const riskData: Record<string, unknown> = { cardType: "SIGNAL" };
+        if (trade.initialRiskMissing || !trade.initialStopLoss || trade.initialStopLoss <= 0) {
+          riskData.initialStopLoss = newSL;
+          riskData.initialRiskAbs = Math.abs(tradeCard.entry - newSL);
+          riskData.initialRiskMissing = false;
+        }
         await db.trade.update({
           where: { id: trade.id },
-          data: { cardType: "SIGNAL" },
+          data: riskData,
         });
 
         await db.tradeEvent.create({
@@ -365,12 +378,19 @@ export async function syncSignalModification(
       }
 
       const newRiskStatus = deriveRiskStatus(tradeCard.direction, tradeCard.entry, newSL);
+      // Capture initial risk if SL was added and not yet recorded
+      const captureInitialRisk = newSL > 0 && (trade.initialRiskMissing || !trade.initialStopLoss || trade.initialStopLoss <= 0);
       await db.trade.update({
         where: { id: trade.id },
         data: {
           riskStatus: newRiskStatus,
           ...(newSL !== oldSL ? { slEverModified: true } : {}),
           ...(newTP !== oldTP ? { tpEverModified: true } : {}),
+          ...(captureInitialRisk ? {
+            initialStopLoss: newSL,
+            initialRiskAbs: Math.abs(tradeCard.entry - newSL),
+            initialRiskMissing: false,
+          } : {}),
         },
       });
 
@@ -408,7 +428,7 @@ export async function syncSignalModification(
         replyToId
       );
 
-      broadcastMessages(clanId, topicId, systemMsg, replyToId);
+      await broadcastMessages(clanId, topicId, systemMsg, replyToId);
     }
   } catch (err) {
     log("ea_signal.sync_modification_error", "ERROR", "EA", { error: String(err), tradeId: mtTrade.matchedTradeId }, userId);
@@ -436,8 +456,54 @@ export async function syncSignalClose(
     });
     if (!trade) return;
 
-    // Already closed
-    if (trade.closedAt) return;
+    // If already closed, only proceed if we have a better close price
+    if (trade.closedAt) {
+      const newClosePrice = mtTrade.closePrice;
+      if (!newClosePrice || newClosePrice === trade.closePrice) return;
+      // We have a better close price — update the trade with correct data
+      const tradeCard = trade.tradeCard;
+      const initialEntry = trade.initialEntry ?? tradeCard.entry;
+      const sl = tradeCard.stopLoss;
+      const riskAbs = (trade.initialRiskAbs && trade.initialRiskAbs > 0)
+        ? trade.initialRiskAbs
+        : Math.abs(initialEntry - sl);
+      let finalRR: number | null = null;
+      if (riskAbs > 0) {
+        const dir = tradeCard.direction === "LONG" ? 1 : -1;
+        finalRR = Math.round((dir * (newClosePrice - initialEntry)) / riskAbs * 100) / 100;
+      }
+      const netProfit = (mtTrade.profit ?? 0) + (mtTrade.commission ?? 0) + (mtTrade.swap ?? 0);
+      const instrument = tradeCard.instrument;
+      const tp = tradeCard.targets[0] ?? 0;
+
+      let outcome: "TP_HIT" | "SL_HIT" | "BE" | "CLOSED" = "CLOSED";
+      if (tp > 0 && pipDistance(instrument, newClosePrice, tp) <= CLOSE_TOLERANCE_PIPS) {
+        outcome = "TP_HIT";
+      } else if (sl > 0 && pipDistance(instrument, newClosePrice, sl) <= CLOSE_TOLERANCE_PIPS) {
+        outcome = "SL_HIT";
+      } else if (pipDistance(instrument, newClosePrice, initialEntry) <= CLOSE_TOLERANCE_PIPS) {
+        outcome = "BE";
+      }
+
+      await db.trade.update({
+        where: { id: trade.id },
+        data: { status: outcome, closePrice: newClosePrice, finalRR, netProfit: Math.round(netProfit * 100) / 100 },
+      });
+      await computeAndSetEligibility(trade.id);
+
+      // Recalculate statement with corrected data
+      const { clanId } = tradeCard.message;
+      const now = new Date();
+      const periodKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      calculateStatement(userId, clanId, "MONTHLY", periodKey).catch(() => {});
+      calculateStatement(userId, clanId, "ALL_TIME", "all-time").catch(() => {});
+
+      log("ea_signal.close_price_corrected", "INFO", "EA", {
+        tradeId: trade.id, oldClose: trade.closePrice, newClose: newClosePrice,
+        oldOutcome: trade.status, newOutcome: outcome, finalRR,
+      }, userId);
+      return;
+    }
 
     const tradeCard = trade.tradeCard;
     const entry = tradeCard.entry;
@@ -513,7 +579,6 @@ export async function syncSignalClose(
 
     // System message — reply to trade card message
     const rrText = finalRR != null ? ` | ${finalRR > 0 ? "+" : ""}${finalRR}R` : "";
-    const plText = netProfit !== 0 ? ` | P&L: ${netProfit > 0 ? "+" : ""}${netProfit.toFixed(2)}` : "";
     const { clanId, topicId } = tradeCard.message;
     const replyToId = tradeCard.message.id;
     const systemMsg = await db.message.create({
@@ -521,7 +586,7 @@ export async function syncSignalClose(
         clanId,
         topicId,
         userId,
-        content: `Trade closed at ${closePrice} → ${outcome}${rrText}${plText}`,
+        content: `Trade closed at ${closePrice} → ${outcome}${rrText}`,
         type: "TRADE_ACTION",
         replyToId,
       },
@@ -611,7 +676,14 @@ const messageInclude = {
   },
   tradeCard: {
     include: {
-      trade: { select: { id: true, status: true, userId: true, mtLinked: true, riskStatus: true, initialRiskAbs: true, initialEntry: true } },
+      trade: {
+        select: {
+          id: true, status: true, userId: true, mtLinked: true,
+          riskStatus: true, initialRiskAbs: true, initialEntry: true,
+          statementEligible: true, integrityStatus: true, cardType: true,
+          finalRR: true, netProfit: true, closePrice: true,
+        },
+      },
     },
   },
 } as const;
@@ -636,7 +708,7 @@ async function createSystemMessage(
   });
 }
 
-function broadcastMessages(
+async function broadcastMessages(
   clanId: string,
   topicId: string | null,
   systemMsg: Awaited<ReturnType<typeof createSystemMessage>>,
@@ -651,17 +723,18 @@ function broadcastMessages(
   );
 
   // Re-fetch and emit MESSAGE_EDITED so clients update the trade card inline
-  db.message.findUnique({
-    where: { id: tradeCardMessageId },
-    include: messageInclude,
-  }).then((updatedMessage) => {
+  try {
+    const updatedMessage = await db.message.findUnique({
+      where: { id: tradeCardMessageId },
+      include: messageInclude,
+    });
     if (updatedMessage) {
       io.to(topicRoom(clanId, topicId)).emit(
         SOCKET_EVENTS.MESSAGE_EDITED,
         serializeMessageForSocket(updatedMessage, clanId)
       );
     }
-  }).catch((err) => {
+  } catch (err) {
     log("ea_signal.broadcast_refetch_error", "ERROR", "EA", { error: String(err) });
-  });
+  }
 }

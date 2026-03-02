@@ -111,6 +111,10 @@ interface ChatState {
   highlightMessageId: string | null;
   setHighlightMessageId: (id: string | null) => void;
 
+  // Seek state (auto-load older messages to find a reply target)
+  seekMessageId: string | null;
+  setSeekMessageId: (id: string | null) => void;
+
   messages: ChatMessage[];
   setMessages: (messages: ChatMessage[]) => void;
   addMessage: (message: ChatMessage) => void;
@@ -168,6 +172,7 @@ const initialState = {
   topics: [] as ChatTopic[],
   openPanel: null as OpenPanel,
   highlightMessageId: null as string | null,
+  seekMessageId: null as string | null,
   messages: [] as ChatMessage[],
   hasMore: false,
   nextCursor: null as string | null,
@@ -209,6 +214,9 @@ export const useChatStore = create<ChatState>((set) => ({
 
   // Highlight actions
   setHighlightMessageId: (id) => set({ highlightMessageId: id }),
+
+  // Seek actions
+  setSeekMessageId: (id) => set({ seekMessageId: id }),
 
   setMessages: (messages) => set({ messages }),
   addMessage: (message) =>
@@ -323,5 +331,5 @@ export const useChatStore = create<ChatState>((set) => ({
       return { tradePnl: newPnl };
     }),
 
-  reset: () => set({ ...initialState, typingUsers: new Map() }),
+  reset: () => set({ ...initialState, typingUsers: new Map(), seekMessageId: null }),
 }));

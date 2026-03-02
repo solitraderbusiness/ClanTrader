@@ -23,6 +23,7 @@ import { useTradePanelStore } from "@/stores/trade-panel-store";
 import { useChatStore } from "@/stores/chat-store";
 import { TRADE_STATUSES } from "@/lib/chat-constants";
 import { Loader2, ArrowRight, BarChart3 } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 interface TradeItem {
   id: string;
@@ -57,6 +58,7 @@ export function LatestTradesSheet({
   clanId,
   onOpenDetail,
 }: LatestTradesSheetProps) {
+  const { t } = useTranslation();
   const [trades, setTrades] = useState<TradeItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -124,7 +126,7 @@ export function LatestTradesSheet({
             onValueChange={(v) => setStatusFilter(v === "all" ? null : v)}
           >
             <SelectTrigger className="w-[120px]">
-              <SelectValue placeholder="Status" />
+              <SelectValue placeholder={t("chat.status")} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
@@ -141,7 +143,7 @@ export function LatestTradesSheet({
             onValueChange={(v) => setDirectionFilter(v === "all" ? null : v)}
           >
             <SelectTrigger className="w-[100px]">
-              <SelectValue placeholder="Direction" />
+              <SelectValue placeholder={t("trade.direction")} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>

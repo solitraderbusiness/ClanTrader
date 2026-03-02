@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { ImagePlus, X } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 interface CreatePostFormProps {
   clanId: string;
@@ -23,6 +24,7 @@ interface CreatePostFormProps {
 }
 
 export function CreatePostForm({ clanId, onSuccess }: CreatePostFormProps) {
+  const { t } = useTranslation();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
@@ -111,7 +113,7 @@ export function CreatePostForm({ clanId, onSuccess }: CreatePostFormProps) {
       });
 
       if (res.ok) {
-        toast.success("Post published!");
+        toast.success(t("channel.postPublished"));
         reset();
         setImageFiles([]);
         setImagePreviews([]);
@@ -120,10 +122,10 @@ export function CreatePostForm({ clanId, onSuccess }: CreatePostFormProps) {
         onSuccess?.();
       } else {
         const result = await res.json();
-        toast.error(result.error || "Failed to create post");
+        toast.error(result.error || t("channel.failedToCreatePost"));
       }
     } catch {
-      toast.error("Something went wrong");
+      toast.error(t("common.somethingWentWrong"));
     } finally {
       setLoading(false);
     }
@@ -135,7 +137,7 @@ export function CreatePostForm({ clanId, onSuccess }: CreatePostFormProps) {
         <Label htmlFor="title">Title (optional)</Label>
         <Input
           id="title"
-          placeholder="Post title..."
+          placeholder={t("channel.postTitlePlaceholder")}
           {...register("title")}
         />
         {errors.title && (
@@ -147,7 +149,7 @@ export function CreatePostForm({ clanId, onSuccess }: CreatePostFormProps) {
         <Label htmlFor="content">Content</Label>
         <Textarea
           id="content"
-          placeholder="Write your post..."
+          placeholder={t("channel.writePostPlaceholder")}
           rows={5}
           {...register("content")}
         />

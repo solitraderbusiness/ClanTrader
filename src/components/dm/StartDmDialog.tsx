@@ -11,6 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Search } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 interface SearchUser {
   id: string;
@@ -30,6 +31,7 @@ export function StartDmDialog({ open, onOpenChange }: StartDmDialogProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchUser[]>([]);
   const [loading, setLoading] = useState(false);
+  const { t } = useTranslation();
 
   const searchUsers = useCallback(async (q: string) => {
     if (q.length < 2) {
@@ -69,13 +71,13 @@ export function StartDmDialog({ open, onOpenChange }: StartDmDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>New Message</DialogTitle>
+          <DialogTitle>{t("dm.newMessage")}</DialogTitle>
         </DialogHeader>
 
         <div className="relative">
           <Search className="absolute start-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search users..."
+            placeholder={t("dm.searchUsers")}
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
             className="ps-8"
@@ -86,12 +88,12 @@ export function StartDmDialog({ open, onOpenChange }: StartDmDialogProps) {
         <div className="max-h-64 overflow-y-auto">
           {loading && (
             <p className="py-4 text-center text-sm text-muted-foreground">
-              Searching...
+              {t("dm.searching")}
             </p>
           )}
           {!loading && query.length >= 2 && results.length === 0 && (
             <p className="py-4 text-center text-sm text-muted-foreground">
-              No users found
+              {t("dm.noUsersFound")}
             </p>
           )}
           {results.map((user) => (

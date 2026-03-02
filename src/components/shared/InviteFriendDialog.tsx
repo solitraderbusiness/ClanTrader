@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Copy, Check, Share2, MousePointerClick, UserPlus, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { useUsernamePromptStore } from "@/stores/username-prompt-store";
+import { useTranslation } from "@/lib/i18n";
 
 interface InviteFriendDialogProps {
   open: boolean;
@@ -31,6 +32,7 @@ export function InviteFriendDialog({ open, onOpenChange }: InviteFriendDialogPro
   const [copied, setCopied] = useState(false);
   const [stats, setStats] = useState<ReferralStats | null>(null);
   const openUsernamePrompt = useUsernamePromptStore((s) => s.open);
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (open && session?.user?.username) {
@@ -66,11 +68,11 @@ export function InviteFriendDialog({ open, onOpenChange }: InviteFriendDialogPro
     try {
       await navigator.clipboard.writeText(inviteLink);
       setCopied(true);
-      toast.success("Link copied!");
+      toast.success(t("common.linkCopied"));
       trackReferralEvent("LINK_COPIED");
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Failed to copy link");
+      toast.error(t("common.failedCopyLink"));
     }
   }
 
@@ -97,17 +99,16 @@ export function InviteFriendDialog({ open, onOpenChange }: InviteFriendDialogPro
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Invite a Friend</DialogTitle>
+          <DialogTitle>{t("common.inviteFriend")}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Share your personal invite link with friends. When they sign up,
-            they&apos;ll be linked to your account.
+            {t("common.inviteFriendDesc")}
           </p>
 
           <div className="space-y-2">
-            <Label>Your invite link</Label>
+            <Label>{t("common.yourInviteLink")}</Label>
             <div className="flex gap-2">
               <Input
                 readOnly
@@ -133,12 +134,12 @@ export function InviteFriendDialog({ open, onOpenChange }: InviteFriendDialogPro
           <div className="flex gap-2">
             <Button onClick={handleCopy} className="flex-1">
               <Copy className="me-2 h-4 w-4" />
-              Copy Link
+              {t("common.copyLink")}
             </Button>
             {typeof navigator !== "undefined" && "share" in navigator && (
               <Button variant="outline" onClick={handleShare} className="flex-1">
                 <Share2 className="me-2 h-4 w-4" />
-                Share
+                {t("common.share")}
               </Button>
             )}
           </div>
@@ -146,23 +147,23 @@ export function InviteFriendDialog({ open, onOpenChange }: InviteFriendDialogPro
           {stats && (stats.shares > 0 || stats.clicks > 0 || stats.signups > 0) && (
             <div className="rounded-lg border bg-muted/30 p-3">
               <p className="mb-2 text-xs font-medium text-muted-foreground">
-                Your Stats
+                {t("common.yourStats")}
               </p>
               <div className="flex gap-4 text-sm">
                 <div className="flex items-center gap-1.5">
                   <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="font-medium">{stats.shares}</span>
-                  <span className="text-muted-foreground">shares</span>
+                  <span className="text-muted-foreground">{t("common.shares")}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <MousePointerClick className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="font-medium">{stats.clicks}</span>
-                  <span className="text-muted-foreground">clicks</span>
+                  <span className="text-muted-foreground">{t("common.clicks")}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="font-medium">{stats.signups}</span>
-                  <span className="text-muted-foreground">signups</span>
+                  <span className="text-muted-foreground">{t("common.signups")}</span>
                 </div>
               </div>
             </div>

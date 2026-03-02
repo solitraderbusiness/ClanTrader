@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Pencil, Trash2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import type { BadgeCategory } from "@prisma/client";
+import { useTranslation } from "@/lib/i18n";
 
 interface BadgeDef {
   id: string;
@@ -50,6 +51,7 @@ function formatRequirements(req: Record<string, unknown>): string {
 }
 
 export function BadgeTable({ badges, onEdit, onRefresh }: BadgeTableProps) {
+  const { t } = useTranslation();
   async function toggleEnabled(id: string, enabled: boolean) {
     try {
       const res = await fetch(`/api/admin/badges/${id}`, {
@@ -58,10 +60,10 @@ export function BadgeTable({ badges, onEdit, onRefresh }: BadgeTableProps) {
         body: JSON.stringify({ enabled }),
       });
       if (!res.ok) throw new Error();
-      toast.success(enabled ? "Badge enabled" : "Badge disabled");
+      toast.success(enabled ? t("admin.badgeEnabled") : t("admin.badgeDisabled"));
       onRefresh();
     } catch {
-      toast.error("Failed to toggle badge");
+      toast.error(t("admin.failedToToggleBadge"));
     }
   }
 
@@ -71,10 +73,10 @@ export function BadgeTable({ badges, onEdit, onRefresh }: BadgeTableProps) {
         method: "DELETE",
       });
       if (!res.ok) throw new Error();
-      toast.success("Badge soft-deleted");
+      toast.success(t("admin.badgeSoftDeleted"));
       onRefresh();
     } catch {
-      toast.error("Failed to delete badge");
+      toast.error(t("admin.failedToDeleteBadge"));
     }
   }
 
@@ -86,17 +88,17 @@ export function BadgeTable({ badges, onEdit, onRefresh }: BadgeTableProps) {
         body: JSON.stringify({ enabled: false }),
       });
       if (!res.ok) throw new Error();
-      toast.success("Badge restored (disabled)");
+      toast.success(t("admin.badgeRestored"));
       onRefresh();
     } catch {
-      toast.error("Failed to restore badge");
+      toast.error(t("admin.failedToRestoreBadge"));
     }
   }
 
   if (badges.length === 0) {
     return (
       <p className="text-muted-foreground text-sm">
-        No badges found. Create one to get started.
+        {t("admin.noBadgesFound")}
       </p>
     );
   }

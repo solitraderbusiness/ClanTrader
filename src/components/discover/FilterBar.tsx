@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 import { Label } from "@/components/ui/label";
+import { useTranslation } from "@/lib/i18n";
 
 const TRADING_STYLES = [
   "Scalping",
@@ -14,18 +15,6 @@ const TRADING_STYLES = [
 
 const SESSIONS = ["Asian", "London", "New York", "All Sessions"];
 
-const SORT_OPTIONS_AGENTS = [
-  { value: "winRate", label: "Win Rate" },
-  { value: "profitFactor", label: "Profit Factor" },
-  { value: "totalTrades", label: "Total Trades" },
-];
-
-const SORT_OPTIONS_CLANS = [
-  { value: "memberCount", label: "Members" },
-  { value: "followerCount", label: "Followers" },
-  { value: "createdAt", label: "Newest" },
-];
-
 const TRADING_FOCUSES = ["Forex", "Crypto", "Gold & Metals", "Indices", "Mixed"];
 
 interface FilterBarProps {
@@ -33,8 +22,21 @@ interface FilterBarProps {
 }
 
 export function FilterBar({ mode }: FilterBarProps) {
+  const { t } = useTranslation();
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const SORT_OPTIONS_AGENTS = [
+    { value: "winRate", label: t("discover.sortWinRate") },
+    { value: "profitFactor", label: t("discover.sortProfitFactor") },
+    { value: "totalTrades", label: t("discover.sortTotalTrades") },
+  ];
+
+  const SORT_OPTIONS_CLANS = [
+    { value: "memberCount", label: t("discover.sortMembers") },
+    { value: "followerCount", label: t("discover.sortFollowers") },
+    { value: "createdAt", label: t("discover.sortNewest") },
+  ];
 
   const updateParam = useCallback(
     (key: string, value: string) => {
@@ -57,13 +59,13 @@ export function FilterBar({ mode }: FilterBarProps) {
     return (
       <div className="flex flex-wrap items-end gap-4">
         <div className="space-y-1">
-          <Label className="text-xs">Style</Label>
+          <Label className="text-xs">{t("discover.filterStyle")}</Label>
           <select
             className={selectClass}
             value={searchParams.get("tradingStyle") || ""}
             onChange={(e) => updateParam("tradingStyle", e.target.value)}
           >
-            <option value="">All styles</option>
+            <option value="">{t("discover.allStyles")}</option>
             {TRADING_STYLES.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -73,13 +75,13 @@ export function FilterBar({ mode }: FilterBarProps) {
         </div>
 
         <div className="space-y-1">
-          <Label className="text-xs">Session</Label>
+          <Label className="text-xs">{t("discover.filterSession")}</Label>
           <select
             className={selectClass}
             value={searchParams.get("sessionPreference") || ""}
             onChange={(e) => updateParam("sessionPreference", e.target.value)}
           >
-            <option value="">All sessions</option>
+            <option value="">{t("discover.allSessions")}</option>
             {SESSIONS.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -89,18 +91,18 @@ export function FilterBar({ mode }: FilterBarProps) {
         </div>
 
         <div className="space-y-1">
-          <Label className="text-xs">Pair</Label>
+          <Label className="text-xs">{t("discover.filterPair")}</Label>
           <input
             type="text"
             className={selectClass}
-            placeholder="e.g. XAUUSD"
+            placeholder={t("discover.pairPlaceholder")}
             value={searchParams.get("preferredPair") || ""}
             onChange={(e) => updateParam("preferredPair", e.target.value.toUpperCase())}
           />
         </div>
 
         <div className="space-y-1">
-          <Label className="text-xs">Sort by</Label>
+          <Label className="text-xs">{t("discover.sortBy")}</Label>
           <select
             className={selectClass}
             value={searchParams.get("sort") || "winRate"}
@@ -120,13 +122,13 @@ export function FilterBar({ mode }: FilterBarProps) {
   return (
     <div className="flex flex-wrap items-end gap-4">
       <div className="space-y-1">
-        <Label className="text-xs">Focus</Label>
+        <Label className="text-xs">{t("discover.filterFocus")}</Label>
         <select
           className={selectClass}
           value={searchParams.get("tradingFocus") || ""}
           onChange={(e) => updateParam("tradingFocus", e.target.value)}
         >
-          <option value="">All focuses</option>
+          <option value="">{t("discover.allFocuses")}</option>
           {TRADING_FOCUSES.map((f) => (
             <option key={f} value={f}>
               {f}
@@ -136,7 +138,7 @@ export function FilterBar({ mode }: FilterBarProps) {
       </div>
 
       <div className="space-y-1">
-        <Label className="text-xs">Sort by</Label>
+        <Label className="text-xs">{t("discover.sortBy")}</Label>
         <select
           className={selectClass}
           value={searchParams.get("sort") || "createdAt"}

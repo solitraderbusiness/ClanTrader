@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useUsernamePromptStore } from "@/stores/username-prompt-store";
+import { useTranslation } from "@/lib/i18n";
 
 const setUsernameFormSchema = z.object({
   username: usernameSchema,
@@ -28,6 +29,7 @@ type SetUsernameForm = z.infer<typeof setUsernameFormSchema>;
 
 export function SetUsernameDialog() {
   const { isOpen, close } = useUsernamePromptStore();
+  const { t } = useTranslation();
   const { update } = useSession();
   const [loading, setLoading] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<
@@ -66,12 +68,12 @@ export function SetUsernameDialog() {
         setUsernameStatus("available");
       } else {
         setUsernameStatus("taken");
-        setUsernameError("This username is already taken");
+        setUsernameError(t("auth.usernameTaken"));
       }
     } catch {
       setUsernameStatus("idle");
     }
-  }, []);
+  }, [t]);
 
   async function onSubmit(data: SetUsernameForm) {
     setLoading(true);
@@ -85,13 +87,13 @@ export function SetUsernameDialog() {
     setLoading(false);
 
     if (res.ok) {
-      toast.success("Username set!");
+      toast.success(t("common.usernameSet"));
       // Refresh the JWT so session.user.username is updated
       await update();
       close();
     } else {
       const result = await res.json();
-      toast.error(result.error || "Failed to set username");
+      toast.error(result.error || t("common.failedSetUsername"));
     }
   }
 
@@ -99,23 +101,22 @@ export function SetUsernameDialog() {
     <Dialog open={isOpen} onOpenChange={(open) => !open && close()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Choose your username</DialogTitle>
+          <DialogTitle>{t("common.chooseUsername")}</DialogTitle>
           <DialogDescription>
-            Pick a unique username for your ClanTrader profile. This will be
-            visible to other users and used for mentions.
+            {t("common.chooseUsernameDesc")}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="set-username">Username</Label>
+            <Label htmlFor="set-username">{t("auth.username")}</Label>
             <div className="relative">
               <span className="absolute start-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                 @
               </span>
               <Input
                 id="set-username"
-                placeholder="alitrader"
+                placeholder={t("common.usernamePlaceholder")}
                 className="ps-7"
                 autoFocus
                 {...register("username", {
@@ -141,13 +142,12 @@ export function SetUsernameDialog() {
               <p className="text-sm text-destructive">{usernameError}</p>
             )}
             <p className="text-xs text-muted-foreground">
-              3-30 characters, lowercase letters, numbers, and underscores only.
-              Must start with a letter.
+              {t("common.usernameHint")}
             </p>
           </div>
 
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Setting username..." : "Set username"}
+            {loading ? t("common.settingUsername") : t("common.setUsername")}
           </Button>
         </form>
       </DialogContent>

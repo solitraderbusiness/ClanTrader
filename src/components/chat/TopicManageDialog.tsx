@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { TOPIC_NAME_MAX, TOPIC_NAME_MIN, TOPIC_DESCRIPTION_MAX } from "@/lib/chat-constants";
+import { useTranslation } from "@/lib/i18n";
 
 interface TopicManageDialogProps {
   open: boolean;
@@ -28,6 +29,7 @@ export function TopicManageDialog({
   clanId,
   onTopicCreated,
 }: TopicManageDialogProps) {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
@@ -74,9 +76,9 @@ export function TopicManageDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Create Topic</DialogTitle>
+          <DialogTitle>{t("chat.createTopic")}</DialogTitle>
           <DialogDescription>
-            Create a new chat topic for your clan.
+            {t("chat.createTopicDesc")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -111,10 +113,10 @@ export function TopicManageDialog({
               variant="outline"
               onClick={() => onOpenChange(false)}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={loading || name.trim().length < TOPIC_NAME_MIN}>
-              {loading ? "Creating..." : "Create"}
+              {loading ? t("common.creating") : t("common.create")}
             </Button>
           </div>
         </form>

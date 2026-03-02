@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { UserMinus } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 interface Member {
   id: string;
@@ -46,6 +47,7 @@ export function MemberList({
 }: MemberListProps) {
   const router = useRouter();
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const { t } = useTranslation();
 
   async function handleRoleChange(userId: string, newRole: string) {
     setLoadingId(userId);
@@ -57,21 +59,21 @@ export function MemberList({
       });
 
       if (res.ok) {
-        toast.success("Role updated");
+        toast.success(t("clan.roleUpdated"));
         router.refresh();
       } else {
         const data = await res.json();
-        toast.error(data.error || "Failed to update role");
+        toast.error(data.error || t("clan.failedUpdateRole"));
       }
     } catch {
-      toast.error("Something went wrong");
+      toast.error(t("common.somethingWentWrong"));
     } finally {
       setLoadingId(null);
     }
   }
 
   async function handleRemove(userId: string) {
-    if (!confirm("Are you sure you want to remove this member?")) return;
+    if (!confirm(t("clan.confirmRemoveMember"))) return;
 
     setLoadingId(userId);
     try {
@@ -80,14 +82,14 @@ export function MemberList({
       });
 
       if (res.ok) {
-        toast.success("Member removed");
+        toast.success(t("clan.memberRemoved"));
         router.refresh();
       } else {
         const data = await res.json();
-        toast.error(data.error || "Failed to remove member");
+        toast.error(data.error || t("clan.failedRemoveMember"));
       }
     } catch {
-      toast.error("Something went wrong");
+      toast.error(t("common.somethingWentWrong"));
     } finally {
       setLoadingId(null);
     }
@@ -156,8 +158,8 @@ export function MemberList({
                 disabled={loadingId === member.userId}
                 className="h-8 rounded-md border border-input bg-background px-2 text-xs"
               >
-                <option value="CO_LEADER">Co-Leader</option>
-                <option value="MEMBER">Member</option>
+                <option value="CO_LEADER">{t("clan.coLeader")}</option>
+                <option value="MEMBER">{t("clan.member")}</option>
               </select>
             )}
 

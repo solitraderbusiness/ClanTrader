@@ -97,7 +97,7 @@ export function AnalysisCardComposerDialog({
             <Input
               value={instrument}
               onChange={(e) => setInstrument(e.target.value)}
-              placeholder="e.g. EURUSD, XAUUSD"
+              placeholder={t("chat.instrumentPlaceholder")}
               list="common-instruments"
               maxLength={20}
             />
@@ -140,7 +140,7 @@ export function AnalysisCardComposerDialog({
                 step="any"
                 value={entry}
                 onChange={(e) => setEntry(e.target.value)}
-                placeholder="0.00"
+                placeholder={t("common.optional")}
               />
             </div>
             <div className="space-y-1.5">

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 
 interface AuditLog {
   id: string;
@@ -73,6 +74,7 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function AuditLogsPage() {
+  const { t } = useTranslation();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -123,11 +125,11 @@ export default function AuditLogsPage() {
       setPagination(data.pagination);
       if (data.stats) setStats(data.stats);
     } catch {
-      toast.error("Failed to load audit logs");
+      toast.error(t("admin.failedToLoadAuditLogs"));
     } finally {
       setLoading(false);
     }
-  }, [category, level, debouncedSearch, dateFrom, dateTo, page]);
+  }, [category, level, debouncedSearch, dateFrom, dateTo, page, t]);
 
   useEffect(() => {
     fetchLogs();
@@ -145,9 +147,9 @@ export default function AuditLogsPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Activity Logs</h1>
+          <h1 className="text-2xl font-bold">{t("admin.activityLogs")}</h1>
           <p className="text-sm text-muted-foreground">
-            Structured activity log for all system and admin events.
+            {t("admin.activityLogsDesc")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -265,17 +267,17 @@ export default function AuditLogsPage() {
               setPage(1);
             }}
           >
-            Clear filters
+            {t("admin.clearFilters")}
           </Button>
         )}
       </div>
 
       {/* Log list */}
       {loading && logs.length === 0 ? (
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-muted-foreground">{t("common.loading")}</p>
       ) : logs.length === 0 ? (
         <p className="text-muted-foreground">
-          No logs found. Try adjusting your filters.
+          {t("admin.noLogsFound")}
         </p>
       ) : (
         <>

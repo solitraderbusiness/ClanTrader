@@ -208,7 +208,7 @@ export function DmPanel({
   }
 
   function handleDelete(msgId: string) {
-    if (!confirm("Delete this message?")) return;
+    if (!confirm(t("dm.confirmDeleteMessage"))) return;
     const socket = socketRef.current;
     socket.emit(SOCKET_EVENTS.DELETE_DM, {
       messageId: msgId,

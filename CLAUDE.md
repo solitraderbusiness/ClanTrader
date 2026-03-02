@@ -1,106 +1,118 @@
-# ClanTrader - Claude Code Rules
+# ClanTrader
 
-## Project Overview
-ClanTrader is a competitive social trading platform where verified traders form clans, compete in seasons, and share content. Iranian-first architecture: every feature must work without international APIs at runtime.
+Competitive social trading platform — clans, seasons, leaderboards, real-time chat. Next.js 16.1 / React 19 / Prisma 7 / PostgreSQL 16 / Socket.io 4.8 / Redis / TypeScript strict.
 
-## Critical Rules
-- Never deploy untested code to production
-- Always validate inputs with Zod at API boundaries
-- Always use Prisma for database access (no raw SQL unless needed for performance)
-- Iranian-first: every feature must work without international APIs at runtime
-- Run `npm run lint` and `npm run build` before considering any task complete
-- Never commit .env files or secrets to git
-- Use App Router patterns (not Pages Router)
-- Use Server Components by default, Client Components only when needed (interactivity, hooks, browser APIs)
-- Multilingual support: Persian (fa), English (en), Arabic (ar) — RTL support required
-- Use logical CSS properties (ms/me/ps/pe) not physical (ml/mr/pl/pr) in new code
-- All fonts are self-hosted in `src/fonts/` — never use external font CDNs
+## Key Directories
 
-## Tech Stack
-- Next.js 16.1 (App Router, TypeScript, Tailwind CSS 4)
-- React 19
-- shadcn/ui + Radix UI components
-- Prisma ORM 7 + PostgreSQL 16
-- Auth.js v5 (next-auth@beta) with Credentials provider, JWT sessions
-- Redis (ioredis) for caching and Socket.io rate limiting
-- Socket.io 4.8 for real-time chat (custom server in `server.ts`)
-- Zod 4 for validation
-- React Hook Form for forms
-- Zustand for client state
-- sharp for image processing
-- Nodemailer for transactional emails
-- Playwright for E2E testing
-- PWA with custom service worker for offline support
+- `server.ts` — Custom HTTP server wrapping Next.js + Socket.io + background intervals
+- `src/services/` — All business logic (35 services); routes are thin wrappers
+- `src/lib/validators.ts` — All Zod schemas; every API boundary validates with these
+- `src/lib/auth.ts` — Auth.js v5 (Credentials, JWT sessions)
+- `src/lib/chat-constants.ts` — Socket.io event constants — never use raw event strings
+- `src/lib/socket-handlers.ts` — All Socket.io event handlers
+- `src/stores/` — Zustand stores (chat, dm, locale, nav, sidebar, font, zoom, trade-panel)
+- `src/locales/{en,fa}.json` — i18n translations (31 sections)
+- `src/types/` — Shared types + `next-auth.d.ts` augmentation
+- `scripts/` — Deploy scripts, cron jobs, backfills (excluded from TSConfig/ESLint)
+- `e2e/` — Playwright tests (smoke, simulator, full suites)
 
-## File Conventions
-- API routes: `src/app/api/[resource]/route.ts`
+## Commands
+
+- `npm run dev` — Dev server (tsx watch + tsconfig-paths)
+- `npm run build` — Production build (Turbopack)
+- `npm run lint` — ESLint (next/core-web-vitals + typescript)
+- `npm run type-check` — TypeScript noEmit
+- `npm run test:unit` — Vitest unit tests (`src/**/__tests__/`)
+- `npm run test:e2e` — Playwright full suite; `test:e2e:smoke` for quick subset
+- `npm run db:push` — Schema push (dev); `db:migrate` for proper migrations
+- `npm run db:generate` — Run after every schema change
+- `npm run db:seed` — Seed database; `db:studio` for GUI
+- **Always run `npm run lint && npm run build` before considering any task complete**
+
+## Code Style & Conventions
+
+### Components & Files
+- Server Components by default; `"use client"` only for hooks/browser APIs/interactivity
+- Components: `src/components/[feature]/PascalCase.tsx`
 - Pages: `src/app/(main)/[page]/page.tsx` (authenticated) or `src/app/(auth)/[page]/page.tsx`
-- Components: `src/components/[feature]/[ComponentName].tsx`
-- Services: `src/services/[name].service.ts`
-- Lib utilities: `src/lib/[name].ts`
-- Zustand stores: `src/stores/[name]-store.ts`
-- Type definitions: `src/types/[name].ts`
-- Self-hosted fonts: `src/fonts/`
-- E2E tests: `e2e/`
-- Custom Socket.io server: `server.ts` (wraps Next.js HTTP server)
+- Services: `src/services/kebab-case.service.ts`; Stores: `src/stores/kebab-case-store.ts`
 
-## Database
-- Schema: `prisma/schema.prisma` (26 models)
-- Always run `npx prisma generate` after schema changes
-- Always run `npx prisma migrate dev --name descriptive_name` for migrations
-- Seed data: `npx tsx prisma/seed.ts`
+### CSS & RTL
+- **Logical CSS properties only**: `ms-`/`me-`/`ps-`/`pe-` — never `ml-`/`mr-`/`pl-`/`pr-`
+- Tailwind CSS 4 (PostCSS plugin); fonts self-hosted in `src/fonts/` — never external CDNs
 
-## Socket.io
-- Custom server in `server.ts` handles Socket.io alongside Next.js
-- Auth middleware in `src/lib/socket-auth.ts` (JWT-based)
-- All event handlers in `src/lib/socket-handlers.ts`
-- Client connection in `src/lib/socket-client.ts`
-- Event constants in `src/lib/chat-constants.ts`
+### i18n
+- Client: `import { useTranslation } from "@/lib/i18n"` → `const { t } = useTranslation()`
+- Server: `import { t } from "@/lib/i18n-core"` (no hook)
+- Keys: camelCase under nested sections — `t("events.noUpcoming")`; `{{var}}` for interpolation
+- **Every user-visible string must use `t()`** — add keys to both `en.json` and `fa.json`
+- Persian translations: proper Farsi, not transliteration
 
-## Infrastructure & Deployment
+### API Routes
+- Thin handlers → delegate to service functions
+- Auth: `const session = await auth(); if (!session?.user?.id) return 401`
+- EA routes: Bearer token via `extractApiKey()` → `authenticateByApiKey()` (not session)
+- Validate with Zod: `schema.safeParse(body)` → 400 on failure
+- Errors: `{ error: message, code: "ERROR_CODE" }` with appropriate status
 
-### Servers
-- **Dev VPS (US)**: `31.97.211.86` (Hostinger, Phoenix) — user `root`, project at `/root/projects/clantrader`
-- **Production VPS (Iran)**: `37.32.10.153` — user `ubuntu`, project at `/home/ubuntu/clantrader`
-- **Domains**: `clantrader.com` (dev, US), `clantrader.ir` (production, Iran)
+### Services
+- Pure functions — typed args in, data out (or throw custom error class)
+- DB: `import { db } from "@/lib/db"`; Redis: `import { redis } from "@/lib/redis"`
 
-### Auth: Phone-First (Kavenegar SMS OTP)
-- Primary identity: phone number with SMS OTP via Kavenegar (works over cellular during blackouts)
-- Secondary (optional): email + password, added from settings
-- Existing email-only users redirected to `/add-phone` to add phone
-- Redis keys: `otp:{phone}`, `otp-limit:{phone}`, `login-token:{token}`, `signup-token:{token}`, `phone-verify-token:{token}`
-- Dev mode: OTP codes logged to console (no KAVENEGAR_API_KEY needed)
-- Env vars needed for production: `KAVENEGAR_API_KEY`, `KAVENEGAR_OTP_TEMPLATE`
+### State Management
+- Zustand + `persist` for user preferences (locale, font, zoom)
+- Zustand without persist for transient state (chat, sidebar)
+- Socket.io events update stores directly in `socket-handlers.ts`
 
-### Staging + Production (Iran VPS)
-- **Staging**: `/home/ubuntu/clantrader-staging` (port 3001, `staging.clantrader.ir`, DB: `clantrader_staging`, Redis DB 1)
-- **Production**: `/home/ubuntu/clantrader` (port 3000, `clantrader.ir`, DB: `clantrader_prod`, Redis DB 0)
+## Architecture
 
-### Deployment Pipeline
-- Build on US VPS, transfer pre-built tarball to Iran VPS (no npm install needed on Iran)
-- Scripts in `scripts/`:
-  - `setup-iran-vps.sh` — one-time Iran VPS setup (Node, PostgreSQL, Redis, nginx, PM2) with dual staging+production
-  - `deploy-pack.sh` — builds app + creates `deploy.tar.gz` on US VPS
-  - `deploy-staging.sh` — extracts tarball to staging, runs health check
-  - `promote-to-prod.sh` — syncs staging to production with backup + auto-rollback
-  - `deploy-unpack.sh` — (legacy) direct deploy to production
-- Deploy flow: `deploy-pack.sh` (US) → scp to laptop → scp to Iran VPS → `deploy-staging.sh` → test → `promote-to-prod.sh`
-- Blackout flow: same, but switch internet (Starlink for US VPS, Iranian ISP for Iran VPS)
+### Auth
+- Primary: phone + SMS OTP via Kavenegar; Secondary: email + password (optional)
+- EA/MT5: username + password (no email verification)
+- JWT sessions via Auth.js v5, extended in `src/types/next-auth.d.ts`
+- Dev mode: OTP codes logged to console; Redis keys: `otp:{phone}`, `otp-limit:{phone}`
 
-### Claude Code on Iran VPS
-- SSH tunnel: `ssh -D 1080 -N -f root@31.97.211.86` then `ALL_PROXY=socks5://127.0.0.1:1080 claude`
-- Iran VPS Claude Code reads `CLAUDE.md` in staging dir (from `CLAUDE.iran.md`)
-- Restrictions: no npm/git/build, staging-only edits, never touch production
+### Socket.io
+- Path `/api/socketio`; auth in `src/lib/socket-auth.ts` (JWT)
+- Rooms: `clan:{id}`, `topic:{clanId}:{topicId}`, `dm:{sortedUserIds}`
+- Client: `getSocket()` from `src/lib/socket-client.ts` (lazy singleton)
 
-### Runtime versions (match on both servers)
-- Node 20, npm 10, PostgreSQL 16, Redis 7, nginx, PM2 6
+### EA (MetaTrader) Integration
+- EA → Server: heartbeat, trade-event, calendar-events (Bearer auth)
+- Signal flow: `ea.service.ts` → `ea-signal.service.ts` → Socket.io broadcast
+- Redis locks: `ea-signal-lock:`, `ea-mod-lock:`, `ea-heartbeat:`, `calendar-sync-limit:`
 
-## Current Progress (as of Feb 2026)
-- Phase 1 (Auth & Profiles): COMPLETE
-- Phase 2 (Statements & Verification): COMPLETE
-- Phase 3 (Clans & Chat): COMPLETE
-- Phase 4 (Leaderboards & Seasons): COMPLETE
-- Phase 5 (Content & Channels): COMPLETE
-- Phase 6 (AI / AIRouter): NOT STARTED
-- Phase 7 (Payments / ZarinPal): NOT STARTED
-- Phase 8 (Polish & Launch): IN PROGRESS (PWA, mobile responsive, testing infra done)
+### Database
+- Prisma 7 with PrismaPg adapter (not default connector); singleton `db` in `src/lib/db.ts`
+- Schema: `prisma/schema.prisma` (~1000 lines, 30+ models)
+- Dev: `db push --accept-data-loss`; Prod: `prisma migrate dev --name descriptive_name`
+
+## Testing
+
+- **Unit**: Vitest — `src/services/__tests__/*.test.ts`
+- **E2E**: Playwright — `e2e/` (smoke, simulator, full)
+- Mocks: `vi.mock("@/lib/db")`, `vi.mock("@/lib/redis")`, `vi.mock("@/lib/socket-io-global")`
+- Trade services: test both LONG/SHORT; Redis logic: test lock-acquired vs already-locked
+
+## Infrastructure
+
+- **Dev (US)**: `31.97.211.86`, `root`, `/root/projects/clantrader`, `clantrader.com`
+- **Prod (Iran)**: `37.32.10.153`, `ubuntu`, `/home/ubuntu/clantrader`, `clantrader.ir`
+- **Staging**: `/home/ubuntu/clantrader-staging` (port 3001, Redis DB 1)
+- Deploy: `deploy-pack.sh` (US) → scp → `deploy-staging.sh` → `promote-to-prod.sh`
+- Runtime: Node 20, PostgreSQL 16, Redis 7, PM2 6, nginx
+
+## Gotchas
+
+- After `npm run build`, must `pm2 restart clantrader` — stale chunks cause 500s
+- `prisma migrate dev` may fail on broken migrations — use `db push` for dev instead
+- Always include `t` in `useCallback`/`useEffect` deps when using `useTranslation()`
+- `broadcastMessages` in `ea-signal.service.ts` must be awaited — never fire-and-forget
+- `messageInclude` must include ALL fields used by `serializeMessageForSocket`
+- Iranian-first: no external CDNs, fonts, or international API deps at runtime
+- Never commit `.env` — reference `.env.example`
+
+## Commit Style
+
+- Imperative verb prefix: `Fix`, `Add`, `Update`, `Refactor`, `Remove`
+- Multi-change: `Fix live R:R + weekend price persistence`

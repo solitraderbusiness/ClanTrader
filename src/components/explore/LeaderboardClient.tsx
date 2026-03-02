@@ -44,7 +44,7 @@ export function LeaderboardClient() {
       const data = await res.json();
       setEntries(data.entries || []);
     } catch {
-      toast.error("Failed to load leaderboard");
+      toast.error(t("leaderboard.loadFailed"));
     } finally {
       setLoading(false);
     }

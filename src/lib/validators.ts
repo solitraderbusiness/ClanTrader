@@ -706,3 +706,91 @@ export const badgeDryRunSchema = z.object({
 });
 
 export type BadgeDryRunInput = z.infer<typeof badgeDryRunSchema>;
+
+// --- Economic Calendar schemas ---
+
+export const eaCalendarEventSchema = z.object({
+  externalId: z.string().max(50),
+  title: z.string().max(200),
+  description: z.string().max(500).optional(),
+  country: z.string().max(10).optional(),
+  currency: z.string().max(10).optional(),
+  impact: z.enum(["HIGH", "MEDIUM", "LOW", "NONE"]),
+  startTime: z.string().datetime(),
+  actual: z.string().max(50).optional(),
+  forecast: z.string().max(50).optional(),
+  previous: z.string().max(50).optional(),
+});
+
+export type EaCalendarEventInput = z.infer<typeof eaCalendarEventSchema>;
+
+export const eaCalendarEventsSchema = z.object({
+  events: z.array(eaCalendarEventSchema).max(500),
+});
+
+export type EaCalendarEventsInput = z.infer<typeof eaCalendarEventsSchema>;
+
+// --- Kanban Project Board schemas ---
+
+const kanbanPhases = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"] as const;
+const kanbanColumns = ["BACKLOG", "TODO", "IN_PROGRESS", "TESTING", "DONE"] as const;
+const kanbanPriorities = ["CRITICAL", "HIGH", "NORMAL", "LOW"] as const;
+
+export const createProjectTaskSchema = z.object({
+  title: z.string().min(1, "Title is required").max(200),
+  description: z.string().max(2000).optional(),
+  phase: z.enum(kanbanPhases),
+  priority: z.enum(kanbanPriorities).optional(),
+  column: z.enum(kanbanColumns).optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+export type CreateProjectTaskInput = z.infer<typeof createProjectTaskSchema>;
+
+export const updateProjectTaskSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  description: z.string().max(2000).optional().nullable(),
+  phase: z.enum(kanbanPhases).optional(),
+  priority: z.enum(kanbanPriorities).optional(),
+  column: z.enum(kanbanColumns).optional(),
+  notes: z.string().max(2000).optional().nullable(),
+});
+
+export type UpdateProjectTaskInput = z.infer<typeof updateProjectTaskSchema>;
+
+export const kanbanReorderSchema = z.object({
+  column: z.enum(kanbanColumns),
+  taskIds: z.array(z.string().min(1)).min(0),
+});
+
+export type KanbanReorderInput = z.infer<typeof kanbanReorderSchema>;
+
+// --- PM Roadmap schemas ---
+
+const pmStatuses = ["PLANNED", "IMPLEMENTED", "INTEGRATED", "CONFIGURED", "VERIFIED", "HARDENED", "OPERABLE", "DEPRECATED"] as const;
+const pmPriorities = ["P0", "P1", "P2"] as const;
+const pmWorkstreams = ["PRODUCT_CORE", "TRUST_INTEGRITY", "PLATFORM_OPS", "MONETIZATION_GROWTH"] as const;
+const pmMilestones = ["MVP_BETA", "PUBLIC_LAUNCH", "POST_LAUNCH"] as const;
+
+export const updatePmItemSchema = z.object({
+  status: z.enum(pmStatuses).optional(),
+  priority: z.enum(pmPriorities).optional(),
+  owner: z.string().max(100).optional().nullable(),
+  notes: z.string().max(5000).optional().nullable(),
+  lastVerifiedAt: z.string().datetime().optional().nullable(),
+});
+
+export type UpdatePmItemInput = z.infer<typeof updatePmItemSchema>;
+
+export const pmItemQuerySchema = z.object({
+  workstream: z.enum(pmWorkstreams).optional(),
+  phase: z.string().optional(),
+  status: z.enum(pmStatuses).optional(),
+  milestone: z.enum(pmMilestones).optional(),
+  priority: z.enum(pmPriorities).optional(),
+  owner: z.string().optional(),
+  blockersOnly: z.coerce.boolean().optional(),
+  search: z.string().max(100).optional(),
+});
+
+export type PmItemQueryInput = z.infer<typeof pmItemQuerySchema>;

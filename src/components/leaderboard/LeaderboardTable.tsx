@@ -2,6 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { useTranslation } from "@/lib/i18n";
 import type { TraderStatementMetrics } from "@/types/trader-statement";
 
 interface LeaderboardEntry {
@@ -19,6 +20,7 @@ interface LeaderboardTableProps {
 }
 
 export function LeaderboardTable({ entries }: LeaderboardTableProps) {
+  const { t } = useTranslation();
   if (entries.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -37,7 +39,7 @@ export function LeaderboardTable({ entries }: LeaderboardTableProps) {
             <th className="px-3 py-2 text-end">Score</th>
             <th className="hidden px-3 py-2 text-end sm:table-cell">Win Rate</th>
             <th className="hidden px-3 py-2 text-end sm:table-cell">Total R</th>
-            <th className="hidden px-3 py-2 text-end md:table-cell">Signals</th>
+            <th className="hidden px-3 py-2 text-end md:table-cell">{t("leaderboard.signals")}</th>
           </tr>
         </thead>
         <tbody>

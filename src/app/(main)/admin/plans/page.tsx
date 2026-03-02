@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { InfoTip } from "@/components/ui/info-tip";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 
 interface Plan {
   id: string;
@@ -35,6 +36,7 @@ const ENTITLEMENT_TIPS: Record<string, string> = {
 };
 
 export default function PlansPage() {
+  const { t } = useTranslation();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -42,9 +44,9 @@ export default function PlansPage() {
     fetch("/api/admin/plans")
       .then((r) => r.json())
       .then((data) => setPlans(data.plans || []))
-      .catch(() => toast.error("Failed to load plans"))
+      .catch(() => toast.error(t("admin.failedToLoadPlans")))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   async function toggleActive(id: string, isActive: boolean) {
     try {
@@ -59,14 +61,14 @@ export default function PlansPage() {
       setPlans((prev) =>
         prev.map((p) => (p.id === id ? { ...p, isActive } : p))
       );
-      toast.success(`Plan ${isActive ? "activated" : "deactivated"}`);
+      toast.success(isActive ? t("admin.planActivated") : t("admin.planDeactivated"));
     } catch {
-      toast.error("Failed to update plan");
+      toast.error(t("admin.failedToUpdatePlan"));
     }
   }
 
   if (loading) {
-    return <p className="text-muted-foreground">Loading...</p>;
+    return <p className="text-muted-foreground">{t("common.loading")}</p>;
   }
 
   const activeCount = plans.filter((p) => p.isActive).length;
@@ -74,10 +76,9 @@ export default function PlansPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Subscription Plans</h1>
+        <h1 className="text-2xl font-bold">{t("admin.subscriptionPlansTitle")}</h1>
         <p className="text-sm text-muted-foreground">
-          Manage subscription tiers and their entitlements. Active plans are
-          visible to users on the pricing page.{" "}
+          {t("admin.subscriptionPlansDesc")}{" "}
           <span className="font-medium">
             {activeCount}/{plans.length}
           </span>{" "}
@@ -87,7 +88,7 @@ export default function PlansPage() {
 
       {plans.length === 0 ? (
         <p className="text-muted-foreground">
-          No plans configured. Run seed to create defaults.
+          {t("admin.noPlansConfigured")}
         </p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">

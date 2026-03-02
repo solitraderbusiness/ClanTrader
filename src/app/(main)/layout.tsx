@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { AppShell } from "@/components/layout/AppShell";
 import { SessionProvider } from "@/components/providers/SessionProvider";
 import { OnboardingIntentModal } from "@/components/onboarding/OnboardingIntentModal";
+import { EventReminderListener } from "@/components/chat/EventReminderListener";
 
 export default async function MainLayout({
   children,
@@ -13,6 +14,7 @@ export default async function MainLayout({
   return (
     <SessionProvider>
       <AppShell>{children}</AppShell>
+      <EventReminderListener />
       {session?.user && !session.user.onboardingComplete && (
         <OnboardingIntentModal />
       )}

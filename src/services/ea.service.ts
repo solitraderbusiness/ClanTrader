@@ -249,12 +249,11 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
           data: { isOpen: false },
         });
 
-        // If linked, sync close
-        if (dbTrade.matchedTradeId) {
-          syncSignalClose(dbTrade, account.userId).catch((err) =>
-            log("ea.sync_close_error", "ERROR", "EA", { error: String(err), ticket: String(dbTrade.ticket) }, account.userId)
-          );
-        }
+        // Don't call syncSignalClose from heartbeat — heartbeat doesn't have
+        // close price data. The explicit trade-event "close" will handle it
+        // with the correct close price. If the EA never sends the close event,
+        // the trade remains open in the Trade table (acceptable — manual close
+        // or next statement recalc will catch it).
       }
     }
   }

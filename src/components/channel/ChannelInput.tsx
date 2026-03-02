@@ -65,7 +65,7 @@ export function ChannelInput({ clanId, onPostCreated }: ChannelInputProps) {
           { method: "POST", body: formData }
         );
         if (!uploadRes.ok) {
-          toast.error("Failed to upload images");
+          toast.error(t("channel.failedToUploadImages"));
           setSending(false);
           return;
         }
@@ -112,7 +112,7 @@ export function ChannelInput({ clanId, onPostCreated }: ChannelInputProps) {
       setImageFiles([]);
       setImagePreviews([]);
     } catch {
-      toast.error("Something went wrong");
+      toast.error(t("common.somethingWentWrong"));
     } finally {
       setSending(false);
     }

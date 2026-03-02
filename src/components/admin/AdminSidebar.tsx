@@ -15,6 +15,8 @@ import {
   Database,
   FlaskConical,
   UserCheck,
+  Kanban,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -84,6 +86,18 @@ const NAV_ITEMS = [
     label: "Test Runner",
     desc: "E2E test execution",
     icon: FlaskConical,
+  },
+  {
+    href: "/admin/pm",
+    label: "Project Management",
+    desc: "PM roadmap & status",
+    icon: ClipboardList,
+  },
+  {
+    href: "/admin/kanban",
+    label: "Project Board",
+    desc: "Feature tracking board",
+    icon: Kanban,
   },
   {
     href: "/admin/impersonate",

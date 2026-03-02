@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowUp, ArrowDown, Save } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 
 interface BadgeItem {
   id: string;
@@ -18,6 +19,7 @@ interface BadgeReorderListProps {
 }
 
 export function BadgeReorderList({ badges: initial, onSaved }: BadgeReorderListProps) {
+  const { t } = useTranslation();
   const [items, setItems] = useState<BadgeItem[]>(
     [...initial].sort((a, b) => a.displayOrder - b.displayOrder)
   );
@@ -51,10 +53,10 @@ export function BadgeReorderList({ badges: initial, onSaved }: BadgeReorderListP
       });
 
       if (!res.ok) throw new Error();
-      toast.success("Badge order saved");
+      toast.success(t("admin.badgeOrderSaved"));
       onSaved();
     } catch {
-      toast.error("Failed to save order");
+      toast.error(t("admin.failedToSaveOrder"));
     } finally {
       setSaving(false);
     }
@@ -96,7 +98,7 @@ export function BadgeReorderList({ badges: initial, onSaved }: BadgeReorderListP
       ))}
       <Button onClick={save} disabled={saving} size="sm" className="mt-2">
         <Save className="me-2 h-3 w-3" />
-        {saving ? "Saving..." : "Save Order"}
+        {saving ? t("common.saving") : t("admin.saveOrder")}
       </Button>
     </div>
   );

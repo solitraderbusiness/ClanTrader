@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { AvatarUpload } from "./AvatarUpload";
 import { toast } from "sonner";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 const TRADING_STYLES = [
   "Scalping",
@@ -52,6 +53,7 @@ interface ProfileEditFormProps {
 }
 
 export function ProfileEditForm({ user }: ProfileEditFormProps) {
+  const { t } = useTranslation();
   const router = useRouter();
   const { update: updateSession } = useSession();
   const [loading, setLoading] = useState(false);
@@ -137,13 +139,13 @@ export function ProfileEditForm({ user }: ProfileEditFormProps) {
     setLoading(false);
 
     if (res.ok) {
-      toast.success("Profile updated");
+      toast.success(t("profile.profileUpdated"));
       // Refresh JWT so session reflects username/name changes
       await updateSession();
       router.refresh();
     } else {
       const result = await res.json();
-      toast.error(result.error || "Failed to update profile");
+      toast.error(result.error || t("profile.updateFailed"));
     }
   }
 
@@ -171,7 +173,7 @@ export function ProfileEditForm({ user }: ProfileEditFormProps) {
           </span>
           <Input
             id="username"
-            placeholder="alitrader"
+            placeholder={t("profile.usernamePlaceholder")}
             className="ps-7"
             {...register("username", {
               onBlur: (e) => checkUsername(e.target.value),

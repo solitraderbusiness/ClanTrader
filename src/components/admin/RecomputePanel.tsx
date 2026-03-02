@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { RefreshCw, AlertTriangle } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 interface RecomputeProgress {
   total: number;
@@ -16,6 +17,7 @@ interface RecomputeProgress {
 }
 
 export function RecomputePanel() {
+  const { t } = useTranslation();
   const [userId, setUserId] = useState("");
   const [badgeId, setBadgeId] = useState("");
   const [jobId, setJobId] = useState<string | null>(null);
@@ -33,7 +35,7 @@ export function RecomputePanel() {
     const targetId = scope === "user" ? userId : scope === "badge" ? badgeId : undefined;
 
     if ((scope === "user" && !userId.trim()) || (scope === "badge" && !badgeId.trim())) {
-      toast.error("Please enter an ID");
+      toast.error(t("admin.pleaseEnterId"));
       return;
     }
 
@@ -57,10 +59,10 @@ export function RecomputePanel() {
         setProgress({ total: 0, processed: 0, errors: 0, status: "running" });
         pollProgress(data.jobId);
       } else {
-        toast.success("Recompute complete");
+        toast.success(t("admin.recomputeComplete"));
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Recompute failed");
+      toast.error(err instanceof Error ? err.message : t("admin.recomputeFailed"));
     } finally {
       setLoading(null);
     }
@@ -91,13 +93,13 @@ export function RecomputePanel() {
       {/* User Recompute */}
       <Card>
         <CardHeader className="space-y-3 pb-4">
-          <CardTitle className="text-sm">Recompute User</CardTitle>
+          <CardTitle className="text-sm">{t("admin.recomputeUser")}</CardTitle>
           <div className="space-y-2">
             <Label className="text-xs">User ID</Label>
             <Input
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
-              placeholder="cuid..."
+              placeholder={t("admin.placeholderCuid")}
               className="text-xs"
             />
           </div>
@@ -115,13 +117,13 @@ export function RecomputePanel() {
       {/* Badge Recompute */}
       <Card>
         <CardHeader className="space-y-3 pb-4">
-          <CardTitle className="text-sm">Recompute Badge</CardTitle>
+          <CardTitle className="text-sm">{t("admin.recomputeBadge")}</CardTitle>
           <div className="space-y-2">
             <Label className="text-xs">Badge ID</Label>
             <Input
               value={badgeId}
               onChange={(e) => setBadgeId(e.target.value)}
-              placeholder="cuid..."
+              placeholder={t("admin.placeholderCuid")}
               className="text-xs"
             />
           </div>
@@ -141,11 +143,10 @@ export function RecomputePanel() {
         <CardHeader className="space-y-3 pb-4">
           <CardTitle className="flex items-center gap-2 text-sm">
             <AlertTriangle className="h-4 w-4 text-amber-500" />
-            Global Recompute
+            {t("admin.globalRecompute")}
           </CardTitle>
           <p className="text-[10px] text-muted-foreground">
-            Re-evaluates all badges for all users with trades. This may take a
-            while.
+            {t("admin.globalRecomputeDesc")}
           </p>
           <Button
             size="sm"

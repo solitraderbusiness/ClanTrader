@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Copy, Trash2, Plus } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 interface Invite {
   id: string;
@@ -27,6 +28,7 @@ export function InviteManager({ clanId }: InviteManagerProps) {
   const [showForm, setShowForm] = useState(false);
   const [expiresInHours, setExpiresInHours] = useState("");
   const [maxUses, setMaxUses] = useState("");
+  const { t } = useTranslation();
 
   const fetchInvites = useCallback(async () => {
     try {
@@ -36,7 +38,7 @@ export function InviteManager({ clanId }: InviteManagerProps) {
         setInvites(data);
       }
     } catch {
-      toast.error("Failed to load invites");
+      toast.error(t("clan.failedLoadInvites"));
     } finally {
       setLoading(false);
     }
@@ -60,17 +62,17 @@ export function InviteManager({ clanId }: InviteManagerProps) {
       });
 
       if (res.ok) {
-        toast.success("Invite created");
+        toast.success(t("clan.inviteCreated"));
         setShowForm(false);
         setExpiresInHours("");
         setMaxUses("");
         fetchInvites();
       } else {
         const data = await res.json();
-        toast.error(data.error || "Failed to create invite");
+        toast.error(data.error || t("clan.failedCreateInvite"));
       }
     } catch {
-      toast.error("Something went wrong");
+      toast.error(t("common.somethingWentWrong"));
     } finally {
       setCreating(false);
     }
@@ -83,58 +85,58 @@ export function InviteManager({ clanId }: InviteManagerProps) {
       });
 
       if (res.ok) {
-        toast.success("Invite revoked");
+        toast.success(t("clan.inviteRevoked"));
         setInvites((prev) => prev.filter((i) => i.id !== inviteId));
       } else {
-        toast.error("Failed to revoke invite");
+        toast.error(t("clan.failedRevokeInvite"));
       }
     } catch {
-      toast.error("Something went wrong");
+      toast.error(t("common.somethingWentWrong"));
     }
   }
 
   function copyLink(code: string) {
     const url = `${window.location.origin}/invite/${code}`;
     navigator.clipboard.writeText(url);
-    toast.success("Invite link copied!");
+    toast.success(t("clan.inviteLinkCopied"));
   }
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Loading invites...</p>;
+    return <p className="text-sm text-muted-foreground">{t("clan.loadingInvites")}</p>;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold">Invite Links</h3>
+        <h3 className="font-semibold">{t("clan.inviteLinks")}</h3>
         <Button
           size="sm"
           variant="outline"
           onClick={() => setShowForm(!showForm)}
         >
           <Plus className="me-1 h-4 w-4" />
-          New Invite
+          {t("clan.newInvite")}
         </Button>
       </div>
 
       {showForm && (
         <div className="space-y-3 rounded-lg border p-4">
           <div className="space-y-2">
-            <Label htmlFor="expiresInHours">Expires in (hours)</Label>
+            <Label htmlFor="expiresInHours">{t("clan.expiresInHours")}</Label>
             <Input
               id="expiresInHours"
               type="number"
-              placeholder="No expiry"
+              placeholder={t("clan.noExpiry")}
               value={expiresInHours}
               onChange={(e) => setExpiresInHours(e.target.value)}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="maxUses">Max uses</Label>
+            <Label htmlFor="maxUses">{t("clan.maxUses")}</Label>
             <Input
               id="maxUses"
               type="number"
-              placeholder="Unlimited"
+              placeholder={t("clan.unlimited")}
               min={1}
               max={100}
               value={maxUses}
@@ -142,14 +144,14 @@ export function InviteManager({ clanId }: InviteManagerProps) {
             />
           </div>
           <Button onClick={handleCreate} disabled={creating} size="sm">
-            {creating ? "Creating..." : "Create"}
+            {creating ? t("common.creating") : t("clan.createInvite")}
           </Button>
         </div>
       )}
 
       {invites.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No active invites. Create one to share with others.
+          {t("clan.noActiveInvites")}
         </p>
       ) : (
         <div className="space-y-2">
@@ -168,17 +170,17 @@ export function InviteManager({ clanId }: InviteManagerProps) {
                   <code className="text-sm">{invite.code}</code>
                   <div className="flex gap-3 text-xs text-muted-foreground">
                     <span>
-                      Uses: {invite.uses}
+                      {t("clan.uses")}: {invite.uses}
                       {invite.maxUses ? `/${invite.maxUses}` : ""}
                     </span>
                     {invite.expiresAt && (
                       <span>
                         {isExpired
-                          ? "Expired"
-                          : `Expires ${new Date(invite.expiresAt).toLocaleDateString()}`}
+                          ? t("clan.expired")
+                          : t("clan.expiresDate", { date: new Date(invite.expiresAt!).toLocaleDateString() })}
                       </span>
                     )}
-                    {isMaxed && <span className="text-destructive">Maxed</span>}
+                    {isMaxed && <span className="text-destructive">{t("clan.maxed")}</span>}
                   </div>
                 </div>
                 <Button

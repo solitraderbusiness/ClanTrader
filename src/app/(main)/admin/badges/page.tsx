@@ -23,6 +23,7 @@ import {
 import { Plus, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useTranslation } from "@/lib/i18n";
 import type { BadgeCategory } from "@prisma/client";
 
 interface BadgeDef {
@@ -40,6 +41,7 @@ interface BadgeDef {
 }
 
 export default function AdminBadgesPage() {
+  const { t } = useTranslation();
   const [badges, setBadges] = useState<BadgeDef[]>([]);
   const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
@@ -62,11 +64,11 @@ export default function AdminBadgesPage() {
       const data = await res.json();
       setBadges(data.badges || []);
     } catch {
-      toast.error("Failed to load badges");
+      toast.error(t("admin.failedToLoadBadges"));
     } finally {
       setLoading(false);
     }
-  }, [categoryFilter, enabledFilter, showDeleted]);
+  }, [categoryFilter, enabledFilter, showDeleted, t]);
 
   useEffect(() => {
     fetchBadges();
@@ -85,21 +87,21 @@ export default function AdminBadgesPage() {
   const rankBadges = badges.filter((b) => b.category === "RANK" && !b.isDeleted);
 
   if (loading) {
-    return <p className="text-muted-foreground">Loading...</p>;
+    return <p className="text-muted-foreground">{t("common.loading")}</p>;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Badges</h1>
+          <h1 className="text-2xl font-bold">{t("admin.badgesTitle")}</h1>
           <p className="text-sm text-muted-foreground">
-            Manage rank, performance, and trophy badges.{" "}
+            {t("admin.badgesDesc")}{" "}
             <Link
               href="/admin/badges/recompute"
               className="text-primary hover:underline"
             >
-              Recompute & Dry-run
+              {t("admin.recomputeDryRun")}
             </Link>
           </p>
         </div>
@@ -111,12 +113,12 @@ export default function AdminBadgesPage() {
               onClick={() => setReorderOpen(true)}
             >
               <ArrowUpDown className="me-2 h-3.5 w-3.5" />
-              Reorder Ladder
+              {t("admin.reorderLadder")}
             </Button>
           )}
           <Button size="sm" onClick={handleCreate}>
             <Plus className="me-2 h-3.5 w-3.5" />
-            Create Badge
+            {t("admin.createBadge")}
           </Button>
         </div>
       </div>
@@ -149,7 +151,7 @@ export default function AdminBadgesPage() {
 
         <div className="flex items-center gap-2">
           <Switch checked={showDeleted} onCheckedChange={setShowDeleted} />
-          <Label className="text-xs">Show deleted</Label>
+          <Label className="text-xs">{t("admin.showDeleted")}</Label>
         </div>
       </div>
 
@@ -172,7 +174,7 @@ export default function AdminBadgesPage() {
       <Dialog open={reorderOpen} onOpenChange={setReorderOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Reorder Rank Ladder</DialogTitle>
+            <DialogTitle>{t("admin.reorderRankLadder")}</DialogTitle>
           </DialogHeader>
           <BadgeReorderList
             badges={rankBadges}

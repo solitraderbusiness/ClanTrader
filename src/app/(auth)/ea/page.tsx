@@ -12,8 +12,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "@/lib/i18n";
 
 function EaCallbackInner() {
+  const { t } = useTranslation();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +31,7 @@ function EaCallbackInner() {
       const result = await signIn("ea", { token, redirect: false });
 
       if (result?.error) {
-        setError("Token expired or invalid. Please try again from MetaTrader.");
+        setError(t("auth.eaTokenExpired"));
         return;
       }
 
@@ -38,7 +40,7 @@ function EaCallbackInner() {
     }
 
     doLogin();
-  }, [token, router]);
+  }, [token, router, t]);
 
   // No token
   if (!token) {

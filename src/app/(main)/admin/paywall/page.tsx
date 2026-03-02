@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { InfoTip } from "@/components/ui/info-tip";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 
 interface PaywallRule {
   id: string;
@@ -32,6 +33,7 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 export default function PaywallPage() {
+  const { t } = useTranslation();
   const [rules, setRules] = useState<PaywallRule[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -39,9 +41,9 @@ export default function PaywallPage() {
     fetch("/api/admin/paywall-rules")
       .then((r) => r.json())
       .then((data) => setRules(data.rules || []))
-      .catch(() => toast.error("Failed to load rules"))
+      .catch(() => toast.error(t("admin.failedToLoadRules")))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   async function toggleRule(id: string, enabled: boolean) {
     try {
@@ -56,29 +58,28 @@ export default function PaywallPage() {
       setRules((prev) =>
         prev.map((r) => (r.id === id ? { ...r, enabled } : r))
       );
-      toast.success(`Rule ${enabled ? "enabled" : "disabled"}`);
+      toast.success(enabled ? t("admin.ruleEnabled") : t("admin.ruleDisabled"));
     } catch {
-      toast.error("Failed to toggle rule");
+      toast.error(t("admin.failedToToggleRule"));
     }
   }
 
   if (loading) {
-    return <p className="text-muted-foreground">Loading...</p>;
+    return <p className="text-muted-foreground">{t("common.loading")}</p>;
   }
 
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Paywall Rules</h1>
+        <h1 className="text-2xl font-bold">{t("admin.paywallRulesTitle")}</h1>
         <p className="text-sm text-muted-foreground">
-          Control what free users can see vs. what requires a Pro subscription.
-          Each rule defines which fields are visible or hidden for free users.
+          {t("admin.paywallRulesDesc")}
         </p>
       </div>
 
       {rules.length === 0 ? (
         <p className="text-muted-foreground">
-          No paywall rules configured. Run seed to create defaults.
+          {t("admin.noRulesConfigured")}
         </p>
       ) : (
         <div className="space-y-3">

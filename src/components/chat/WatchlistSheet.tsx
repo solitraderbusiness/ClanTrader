@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 
 interface InstrumentRow {
   instrument: string;
@@ -112,6 +113,7 @@ export function WatchlistSheet({
   onOpenChange,
   clanId,
 }: WatchlistSheetProps) {
+  const { t } = useTranslation();
   const [instruments, setInstruments] = useState<InstrumentRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -180,7 +182,7 @@ export function WatchlistSheet({
     } catch {
       // Revert on failure
       fetchData();
-      toast.error("Failed to update watchlist");
+      toast.error(t("chat.failedToUpdateWatchlist"));
     }
   }
 
@@ -243,7 +245,7 @@ export function WatchlistSheet({
         toast.error(data.error || "Failed to add");
       }
     } catch {
-      toast.error("Failed to add to watchlist");
+      toast.error(t("chat.failedToAddToWatchlist"));
     } finally {
       setAdding(false);
     }
@@ -278,7 +280,7 @@ export function WatchlistSheet({
             <Input
               value={addInput}
               onChange={(e) => setAddInput(e.target.value)}
-              placeholder="Add symbol (e.g. XAUUSD)"
+              placeholder={t("chat.addSymbolPlaceholder")}
               maxLength={20}
               className="h-8 text-sm"
               autoFocus

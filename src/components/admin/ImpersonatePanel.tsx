@@ -48,10 +48,10 @@ export function ImpersonatePanel({
         router.refresh();
       } else {
         const data = await res.json();
-        toast.error(data.error || "Failed to impersonate");
+        toast.error(data.error || t("admin.failedToImpersonate"));
       }
     } catch {
-      toast.error("Something went wrong");
+      toast.error(t("admin.somethingWentWrong"));
     } finally {
       setLoading(null);
     }

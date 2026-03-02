@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { InfoTip } from "@/components/ui/info-tip";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 
 interface FeatureFlag {
   id: string;
@@ -32,6 +33,7 @@ const FLAG_TIPS: Record<string, string> = {
 };
 
 export default function FeatureFlagsPage() {
+  const { t } = useTranslation();
   const [flags, setFlags] = useState<FeatureFlag[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -39,9 +41,9 @@ export default function FeatureFlagsPage() {
     fetch("/api/admin/feature-flags")
       .then((r) => r.json())
       .then((data) => setFlags(data.flags || []))
-      .catch(() => toast.error("Failed to load flags"))
+      .catch(() => toast.error(t("admin.failedToLoadFlags")))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   async function toggleFlag(key: string, enabled: boolean) {
     try {
@@ -58,12 +60,12 @@ export default function FeatureFlagsPage() {
       );
       toast.success(`${key} ${enabled ? "enabled" : "disabled"}`);
     } catch {
-      toast.error("Failed to toggle flag");
+      toast.error(t("admin.failedToToggleFlag"));
     }
   }
 
   if (loading) {
-    return <p className="text-muted-foreground">Loading...</p>;
+    return <p className="text-muted-foreground">{t("common.loading")}</p>;
   }
 
   const enabledCount = flags.filter((f) => f.enabled).length;
@@ -71,16 +73,16 @@ export default function FeatureFlagsPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Feature Flags</h1>
+        <h1 className="text-2xl font-bold">{t("admin.featureFlagsTitle")}</h1>
         <p className="text-sm text-muted-foreground">
-          Turn platform features on or off globally.{" "}
+          {t("admin.featureFlagsDesc")}{" "}
           <span className="font-medium">{enabledCount}/{flags.length}</span> enabled.
         </p>
       </div>
 
       {flags.length === 0 ? (
         <p className="text-muted-foreground">
-          No feature flags configured. Run seed to create defaults.
+          {t("admin.noFlagsConfigured")}
         </p>
       ) : (
         <div className="space-y-2">

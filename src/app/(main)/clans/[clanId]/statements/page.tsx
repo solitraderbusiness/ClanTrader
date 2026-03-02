@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { StatementHistory } from "@/components/statements/StatementHistory";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 import { getSocket } from "@/lib/socket-client";
 import { SOCKET_EVENTS } from "@/lib/chat-constants";
 import type { TraderStatementMetrics } from "@/types/trader-statement";
@@ -20,6 +21,7 @@ interface Statement {
 }
 
 export default function ClanStatementsPage() {
+  const { t } = useTranslation();
   const params = useParams();
   const clanId = params.clanId as string;
   const [statements, setStatements] = useState<Statement[]>([]);
@@ -32,11 +34,11 @@ export default function ClanStatementsPage() {
       const data = await res.json();
       setStatements(data.statements || []);
     } catch {
-      toast.error("Failed to load statements");
+      toast.error(t("statements.failedToLoadStatements"));
     } finally {
       setLoading(false);
     }
-  }, [clanId, periodType]);
+  }, [clanId, periodType, t]);
 
   useEffect(() => {
     fetchStatements();
@@ -58,7 +60,7 @@ export default function ClanStatementsPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Statements</h1>
+        <h1 className="text-2xl font-bold">{t("statements.title")}</h1>
         <div className="flex gap-1">
           {(["MONTHLY", "SEASONAL", "ALL_TIME"] as const).map((pt) => (
             <Button
@@ -74,7 +76,7 @@ export default function ClanStatementsPage() {
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-muted-foreground">{t("common.loading")}</p>
       ) : (
         <StatementHistory statements={statements} showUser={true} />
       )}

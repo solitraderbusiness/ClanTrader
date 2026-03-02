@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChannelPostCard } from "./ChannelPostCard";
 import { Button } from "@/components/ui/button";
 import { Megaphone } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 interface PostData {
   id: string;
@@ -35,6 +36,7 @@ export function ChannelFeed({
   initialPagination,
   currentUserId,
 }: ChannelFeedProps) {
+  const { t } = useTranslation();
   const [posts, setPosts] = useState<PostData[]>(initialPosts);
   const [page, setPage] = useState(initialPagination.page);
   const [totalPages, setTotalPages] = useState(initialPagination.totalPages);
@@ -66,9 +68,9 @@ export function ChannelFeed({
       <div className="flex flex-col items-center gap-3 py-12 text-center">
         <Megaphone className="h-12 w-12 text-muted-foreground" />
         <div>
-          <h3 className="font-semibold">No posts yet</h3>
+          <h3 className="font-semibold">{t("chat.noPostsYet")}</h3>
           <p className="text-sm text-muted-foreground">
-            This clan hasn&apos;t published any channel posts yet.
+            {t("chat.noPostsDesc")}
           </p>
         </div>
       </div>
@@ -93,7 +95,7 @@ export function ChannelFeed({
             onClick={loadMore}
             disabled={loadingMore}
           >
-            {loadingMore ? "Loading..." : "Load more"}
+            {loadingMore ? t("common.loading") : t("common.loadMore")}
           </Button>
         </div>
       )}

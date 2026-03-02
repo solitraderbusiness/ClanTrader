@@ -179,14 +179,25 @@ export async function getMessages(
 ) {
   const limit = Math.min(options.limit || MESSAGES_PER_PAGE, 100);
 
+  // Use createdAt-based pagination instead of Prisma cursor (PrismaPg adapter issue)
+  let cursorDate: Date | undefined;
+  if (options.cursor) {
+    const cursorMsg = await db.message.findUnique({
+      where: { id: options.cursor },
+      select: { createdAt: true },
+    });
+    if (cursorMsg) cursorDate = cursorMsg.createdAt;
+  }
+
   const messages = await db.message.findMany({
-    where: { clanId, topicId },
+    where: {
+      clanId,
+      topicId,
+      ...(cursorDate ? { createdAt: { lt: cursorDate } } : {}),
+    },
     include: messageInclude,
     orderBy: { createdAt: "desc" },
     take: limit + 1,
-    ...(options.cursor
-      ? { cursor: { id: options.cursor }, skip: 1 }
-      : {}),
   });
 
   const hasMore = messages.length > limit;

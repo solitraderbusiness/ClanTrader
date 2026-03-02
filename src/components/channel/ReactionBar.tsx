@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { REACTION_EMOJIS } from "@/lib/clan-constants";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 
 interface ReactionBarProps {
   postId: string;
@@ -20,6 +21,7 @@ export function ReactionBar({
   reactions,
   currentUserId,
 }: ReactionBarProps) {
+  const { t } = useTranslation();
   const router = useRouter();
   const [localReactions, setLocalReactions] =
     useState<Record<string, string[]>>(reactions);
@@ -28,7 +30,7 @@ export function ReactionBar({
 
   async function handleToggle(emoji: string) {
     if (!currentUserId) {
-      toast.error("Sign in to react");
+      toast.error(t("channel.signInToReact"));
       return;
     }
 
@@ -66,11 +68,11 @@ export function ReactionBar({
       } else {
         // Revert optimistic update
         setLocalReactions(reactions);
-        toast.error("Failed to update reaction");
+        toast.error(t("channel.failedToUpdateReaction"));
       }
     } catch {
       setLocalReactions(reactions);
-      toast.error("Something went wrong");
+      toast.error(t("common.somethingWentWrong"));
     } finally {
       setLoading(false);
     }

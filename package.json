@@ -25,6 +25,7 @@
     "test:unit:watch": "vitest"
   },
   "dependencies": {
+    "@hello-pangea/dnd": "^18.0.1",
     "@hookform/resolvers": "^5.2.2",
     "@prisma/adapter-pg": "^7.4.0",
     "@prisma/client": "^7.4.0",

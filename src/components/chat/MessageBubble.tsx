@@ -149,11 +149,14 @@ export function MessageBubble({
           <button
             type="button"
             onClick={() => {
-              const el = document.getElementById(`msg-${message.replyTo!.id}`);
+              const targetId = message.replyTo!.id;
+              const el = document.getElementById(`msg-${targetId}`);
               if (el) {
                 el.scrollIntoView({ behavior: "smooth", block: "center" });
                 el.classList.add("animate-highlight");
                 setTimeout(() => el.classList.remove("animate-highlight"), 2000);
+              } else {
+                useChatStore.getState().setSeekMessageId(targetId);
               }
             }}
             className={`mb-1 flex items-center gap-1 rounded-lg border-s-2 border-primary/50 bg-muted/30 px-2.5 py-1.5 text-xs cursor-pointer hover:bg-muted/50 transition-colors ${isOwn ? "ms-auto" : ""}`}

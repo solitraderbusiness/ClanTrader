@@ -11,8 +11,15 @@ import {
   TrendingUp,
   Link2,
 } from "lucide-react";
+import { t } from "@/lib/i18n-core";
+import { headers } from "next/headers";
+import type { Locale } from "@/lib/locale";
 
 export default async function AdminDashboardPage() {
+  const headersList = await headers();
+  const acceptLang = headersList.get("accept-language") || "";
+  const locale: Locale = acceptLang.includes("fa") ? "fa" : "en";
+
   const [
     flagCount,
     enabledFlagCount,
@@ -42,61 +49,61 @@ export default async function AdminDashboardPage() {
 
   const stats = [
     {
-      label: "Users",
+      label: t(locale, "admin.statsUsers"),
       value: userCount,
       icon: Users,
-      desc: "Registered accounts",
+      desc: t(locale, "admin.registeredAccounts"),
     },
     {
-      label: "Clans",
+      label: t(locale, "admin.statsClans"),
       value: clanCount,
       icon: MessageSquare,
-      desc: "Active clans",
+      desc: t(locale, "admin.activeClansDesc"),
     },
     {
-      label: "Trades",
+      label: t(locale, "admin.statsTrades"),
       value: tradeCount,
       icon: TrendingUp,
-      desc: "Total trades tracked",
+      desc: t(locale, "admin.totalTracked"),
     },
     {
-      label: "Feature Flags",
+      label: t(locale, "admin.statsFeatureFlags"),
       value: `${enabledFlagCount}/${flagCount}`,
       icon: Flag,
-      desc: "Enabled / total",
+      desc: t(locale, "admin.enabledTotal"),
     },
     {
-      label: "Paywall Rules",
+      label: t(locale, "admin.statsPaywallRules"),
       value: ruleCount,
       icon: Shield,
-      desc: "Content access rules",
+      desc: t(locale, "admin.contentAccessRules"),
     },
     {
-      label: "Plans",
+      label: t(locale, "admin.statsPlans"),
       value: planCount,
       icon: CreditCard,
-      desc: "Subscription tiers",
+      desc: t(locale, "admin.subscriptionTiers"),
     },
     {
-      label: "Audit Logs",
+      label: t(locale, "admin.statsAuditLogs"),
       value: logCount.toLocaleString(),
       icon: ScrollText,
-      desc: "Activity entries",
+      desc: t(locale, "admin.activityEntries"),
     },
     {
-      label: "Referrals",
+      label: t(locale, "admin.statsReferrals"),
       value: referralSignups,
       icon: Link2,
-      desc: "Signups from invites",
+      desc: t(locale, "admin.signupsFromInvites"),
     },
   ];
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <h1 className="text-2xl font-bold">{t(locale, "admin.dashboard")}</h1>
         <p className="text-sm text-muted-foreground">
-          Platform overview and recent activity.
+          {t(locale, "admin.platformOverview")}
         </p>
       </div>
 
@@ -120,14 +127,13 @@ export default async function AdminDashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium">
-            Recent Activity
+            {t(locale, "admin.recentActivity")}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {recentLogs.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No activity yet. Actions like toggling feature flags, generating
-              demo data, and managing clans will appear here.
+              {t(locale, "admin.noActivityYet")}
             </p>
           ) : (
             <div className="space-y-2">

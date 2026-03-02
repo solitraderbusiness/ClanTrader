@@ -25,6 +25,7 @@ import { SummarySheet } from "./SummarySheet";
 import { DigestSheet } from "./DigestSheet";
 import { toast } from "sonner";
 import { useNavStore } from "@/stores/nav-store";
+import { useTranslation } from "@/lib/i18n";
 
 interface ChatPanelProps {
   clanId: string;
@@ -41,6 +42,7 @@ export function ChatPanel({
   initialTopics,
   hasMtAccount,
 }: ChatPanelProps) {
+  const { t } = useTranslation();
   const store = useChatStore();
   const socketRef = useRef(getSocket());
   const [topicDialogOpen, setTopicDialogOpen] = useState(false);
@@ -359,10 +361,10 @@ export function ChatPanel({
           setPinnedMessages(data.messages);
         }
       } catch {
-        toast.error("Failed to load messages");
+        toast.error(t("chat.failedToLoad"));
       }
     },
-    [clanId]
+    [clanId, t]
   );
 
   async function loadOlderMessages() {
@@ -378,7 +380,7 @@ export function ChatPanel({
         store.setNextCursor(data.nextCursor);
       }
     } catch {
-      toast.error("Failed to load older messages");
+      toast.error(t("chat.failedToLoadOlder"));
     }
   }
 
@@ -390,6 +392,75 @@ export function ChatPanel({
     setTradeDetailId(tradeId);
     setTradeDetailOpen(true);
   }
+
+  // Auto-load older messages to find a reply target
+  useEffect(() => {
+    if (!store.seekMessageId) return;
+    const targetId = store.seekMessageId;
+    let cancelled = false;
+
+    async function seek() {
+      const MAX_LOADS = 20; // up to 20 pages (1000 messages)
+
+      // Check if already in loaded messages
+      if (useChatStore.getState().messages.some((m) => m.id === targetId)) {
+        scrollToMessage(targetId);
+        useChatStore.getState().setSeekMessageId(null);
+        return;
+      }
+
+      for (let i = 0; i < MAX_LOADS; i++) {
+        if (cancelled) return;
+
+        const { hasMore, nextCursor, currentTopicId } = useChatStore.getState();
+        if (!hasMore || !nextCursor || !currentTopicId) break;
+
+        try {
+          const res = await fetch(
+            `/api/clans/${clanId}/topics/${currentTopicId}/messages?cursor=${nextCursor}`,
+            { cache: "no-store" }
+          );
+          if (!res.ok) break;
+          const data = await res.json();
+          const newMessages = data.messages as ChatMessage[];
+
+          useChatStore.getState().prependMessages(newMessages);
+          useChatStore.getState().setHasMore(data.hasMore);
+          useChatStore.getState().setNextCursor(data.nextCursor);
+
+          if (newMessages.some((m: ChatMessage) => m.id === targetId)) {
+            await new Promise((r) => setTimeout(r, 150));
+            scrollToMessage(targetId);
+            useChatStore.getState().setSeekMessageId(null);
+            return;
+          }
+        } catch {
+          break;
+        }
+      }
+
+      if (!cancelled) {
+        toast.info(t("chat.messageNotFound"));
+        useChatStore.getState().setSeekMessageId(null);
+      }
+    }
+
+    function scrollToMessage(msgId: string) {
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const el = document.getElementById(`msg-${msgId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.classList.add("animate-highlight");
+            setTimeout(() => el.classList.remove("animate-highlight"), 2000);
+          }
+        }, 50);
+      });
+    }
+
+    seek();
+    return () => { cancelled = true; };
+  }, [store.seekMessageId, clanId, t]);
 
   const currentTopicName = store.topics.find(
     (t) => t.id === store.currentTopicId

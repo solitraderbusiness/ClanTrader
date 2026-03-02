@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useTranslation } from "@/lib/i18n";
 
 interface InviteJoinButtonProps {
   code: string;
@@ -19,12 +20,13 @@ export function InviteJoinButton({
 }: InviteJoinButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const { t } = useTranslation();
 
   if (!isLoggedIn) {
     return (
       <Button asChild className="w-full">
         <Link href={`/login?callbackUrl=/invite/${code}`}>
-          Login to Join
+          {t("clan.loginToJoin")}
         </Link>
       </Button>
     );
@@ -33,7 +35,7 @@ export function InviteJoinButton({
   if (isMember) {
     return (
       <Button disabled className="w-full" variant="outline">
-        Already a Member
+        {t("clan.alreadyMember")}
       </Button>
     );
   }
@@ -47,14 +49,14 @@ export function InviteJoinButton({
 
       if (res.ok) {
         const data = await res.json();
-        toast.success("Joined clan!");
+        toast.success(t("clan.joinedClan"));
         router.push(`/clans/${data.clan.id}`);
       } else {
         const data = await res.json();
-        toast.error(data.error || "Failed to join");
+        toast.error(data.error || t("clan.failedJoin"));
       }
     } catch {
-      toast.error("Something went wrong");
+      toast.error(t("common.somethingWentWrong"));
     } finally {
       setLoading(false);
     }
@@ -62,7 +64,7 @@ export function InviteJoinButton({
 
   return (
     <Button onClick={handleJoin} disabled={loading} className="w-full">
-      {loading ? "Joining..." : "Accept Invite"}
+      {loading ? t("clan.joining") : t("clan.acceptInvite")}
     </Button>
   );
 }

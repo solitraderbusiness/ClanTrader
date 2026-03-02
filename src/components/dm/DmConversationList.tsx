@@ -9,6 +9,7 @@ import { MessageSquarePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DmConversation } from "@/stores/dm-store";
 import { StartDmDialog } from "./StartDmDialog";
+import { useTranslation } from "@/lib/i18n";
 
 interface DmConversationListProps {
   conversations: DmConversation[];
@@ -33,11 +34,12 @@ export function DmConversationList({
 }: DmConversationListProps) {
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const { t } = useTranslation();
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b px-3 py-2">
-        <h2 className="text-sm font-semibold">Direct Messages</h2>
+        <h2 className="text-sm font-semibold">{t("dm.directMessages")}</h2>
         <Button
           variant="ghost"
           size="icon"
@@ -51,13 +53,13 @@ export function DmConversationList({
       <div className="flex-1 overflow-y-auto">
         {conversations.length === 0 ? (
           <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
-            <p className="text-sm text-muted-foreground">No conversations yet</p>
+            <p className="text-sm text-muted-foreground">{t("dm.noConversations")}</p>
             <Button
               size="sm"
               variant="outline"
               onClick={() => setDialogOpen(true)}
             >
-              Start a conversation
+              {t("dm.startConversation")}
             </Button>
           </div>
         ) : (
@@ -107,8 +109,8 @@ export function DmConversationList({
                         )}
                       >
                         {conv.lastMessage
-                          ? conv.lastMessage.content || (conv.lastMessage.images?.length ? "Photo" : "No messages yet")
-                          : "No messages yet"}
+                          ? conv.lastMessage.content || (conv.lastMessage.images?.length ? t("dm.photo") : t("dm.noMessagesYet"))
+                          : t("dm.noMessagesYet")}
                       </p>
                       {hasUnread && (
                         <Badge

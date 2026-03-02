@@ -7,9 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { InfoTip } from "@/components/ui/info-tip";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 import { Zap, Database } from "lucide-react";
 
 export default function DemoDataPage() {
+  const { t } = useTranslation();
   const [clanCount, setClanCount] = useState(2);
   const [tradesPerClan, setTradesPerClan] = useState(15);
   const [loading, setLoading] = useState(false);
@@ -48,7 +50,7 @@ export default function DemoDataPage() {
         );
       }
     } catch {
-      toast.error("Failed to generate demo data");
+      toast.error(t("admin.failedToGenerateDemoData"));
     } finally {
       setLoading(false);
       setPopulatingAll(false);
@@ -58,11 +60,9 @@ export default function DemoDataPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Demo Data</h1>
+        <h1 className="text-2xl font-bold">{t("admin.demoData")}</h1>
         <p className="text-sm text-muted-foreground">
-          Generate realistic test data for development and demos. This creates
-          fake clans with members, trade signals, and optionally computes all
-          downstream data (statements, rankings).
+          {t("admin.demoDataDesc")}
         </p>
       </div>
 
@@ -71,7 +71,7 @@ export default function DemoDataPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm font-medium">
             <Zap className="h-4 w-4 text-blue-500" />
-            Populate Everything
+            {t("admin.populateEverything")}
             <InfoTip side="right">
               Creates demo clans &amp; trades, then runs the full pipeline:
               calculates trader statements (monthly performance summaries) for
@@ -137,8 +137,8 @@ export default function DemoDataPage() {
             >
               <Zap className="me-1 h-4 w-4" />
               {populatingAll
-                ? "Populating everything..."
-                : "Populate Everything"}
+                ? t("admin.populateEverything") + "..."
+                : t("admin.populateEverything")}
             </Button>
             <Button
               variant="outline"
@@ -146,7 +146,7 @@ export default function DemoDataPage() {
               disabled={loading || populatingAll}
             >
               <Database className="me-1 h-4 w-4" />
-              {loading ? "Generating..." : "Generate Data Only"}
+              {loading ? t("common.loading") : t("admin.generateDataOnly")}
             </Button>
           </div>
 

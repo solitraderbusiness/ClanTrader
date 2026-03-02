@@ -87,11 +87,11 @@ export function AdminStatementsDashboard({
         setCounts(data.counts);
       }
     } catch {
-      toast.error("Failed to fetch statements");
+      toast.error(t("admin.failedToFetchStatements"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchStatements(activeTab);

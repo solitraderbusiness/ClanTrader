@@ -24,6 +24,7 @@ import {
   MonitorOff,
   AlertTriangle,
 } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 interface TestRun {
   id: string;
@@ -87,6 +88,7 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function TestRunnerPage() {
+  const { t } = useTranslation();
   const [runs, setRuns] = useState<TestRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -157,7 +159,7 @@ export default function TestRunnerPage() {
       fetchRuns();
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to queue test run"
+        err instanceof Error ? err.message : t("admin.failedToQueueTestRun")
       );
     } finally {
       setSubmitting(false);
@@ -173,10 +175,10 @@ export default function TestRunnerPage() {
         const err = await res.json();
         throw new Error(err.error || "Failed");
       }
-      toast.success("Run canceled");
+      toast.success(t("admin.runCanceled"));
       fetchRuns();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to cancel");
+      toast.error(err instanceof Error ? err.message : t("admin.failedToCancel"));
     }
   }
 
@@ -191,7 +193,7 @@ export default function TestRunnerPage() {
     <div className="space-y-6">
       <div>
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Test Runner</h1>
+          <h1 className="text-2xl font-bold">{t("admin.testRunner")}</h1>
           <Button variant="outline" size="sm" onClick={fetchRuns}>
             <RefreshCw className="me-1 h-4 w-4" />
             Refresh

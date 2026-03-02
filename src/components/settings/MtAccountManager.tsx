@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "@/lib/i18n";
 
 interface MtAccountItem {
   id: string;
@@ -21,12 +22,13 @@ interface MtAccountItem {
 }
 
 export function MtAccountManager({ accounts: initial }: { accounts: MtAccountItem[] }) {
+  const { t } = useTranslation();
   const [accounts, setAccounts] = useState(initial);
   const [newKey, setNewKey] = useState<{ accountId: string; key: string } | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
 
   async function handleRegenerate(accountId: string) {
-    if (!confirm("Regenerate API key? The old key will stop working immediately.")) return;
+    if (!confirm(t("settings.regenerateKeyConfirm"))) return;
     setLoading(accountId);
     try {
       const res = await fetch(`/api/ea/accounts/${accountId}/regenerate-key`, {
@@ -36,14 +38,14 @@ export function MtAccountManager({ accounts: initial }: { accounts: MtAccountIte
       const data = await res.json();
       setNewKey({ accountId, key: data.apiKey });
     } catch {
-      alert("Failed to regenerate key");
+      alert(t("settings.regenerateKeyFailed"));
     } finally {
       setLoading(null);
     }
   }
 
   async function handleDisconnect(accountId: string) {
-    if (!confirm("Disconnect this MT account? It will no longer sync trades.")) return;
+    if (!confirm(t("settings.disconnectConfirm"))) return;
     setLoading(accountId);
     try {
       const res = await fetch(`/api/ea/accounts/${accountId}`, {
@@ -54,7 +56,7 @@ export function MtAccountManager({ accounts: initial }: { accounts: MtAccountIte
         prev.map((a) => (a.id === accountId ? { ...a, isActive: false } : a))
       );
     } catch {
-      alert("Failed to disconnect account");
+      alert(t("settings.disconnectFailed"));
     } finally {
       setLoading(null);
     }
@@ -63,9 +65,9 @@ export function MtAccountManager({ accounts: initial }: { accounts: MtAccountIte
   if (accounts.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        <p>No MetaTrader accounts connected.</p>
+        <p>{t("settings.noAccountsConnected")}</p>
         <p className="mt-1 text-sm">
-          Install the ClanTrader EA on MetaTrader to connect your first account.
+          {t("settings.installEaHint")}
         </p>
       </div>
     );
@@ -92,7 +94,7 @@ export function MtAccountManager({ accounts: initial }: { accounts: MtAccountIte
               </span>
               {!account.isActive && (
                 <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                  Disconnected
+                  {t("settings.disconnected")}
                 </span>
               )}
             </div>
@@ -105,7 +107,7 @@ export function MtAccountManager({ accounts: initial }: { accounts: MtAccountIte
                     onClick={() => handleRegenerate(account.id)}
                     disabled={loading === account.id}
                   >
-                    Regenerate Key
+                    {t("settings.regenerateKey")}
                   </Button>
                   <Button
                     variant="destructive"
@@ -113,7 +115,7 @@ export function MtAccountManager({ accounts: initial }: { accounts: MtAccountIte
                     onClick={() => handleDisconnect(account.id)}
                     disabled={loading === account.id}
                   >
-                    Disconnect
+                    {t("settings.disconnect")}
                   </Button>
                 </>
               )}
@@ -130,7 +132,7 @@ export function MtAccountManager({ accounts: initial }: { accounts: MtAccountIte
           {newKey?.accountId === account.id && (
             <div className="rounded-md bg-green-50 p-3 dark:bg-green-900/20">
               <p className="text-sm font-medium text-green-800 dark:text-green-300">
-                New API Key (copy now — won&apos;t be shown again):
+                {t("settings.newApiKeyHint")}
               </p>
               <code className="mt-1 block break-all text-xs font-mono text-green-700 dark:text-green-400">
                 {newKey.key}

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 
 interface SummaryData {
   totalMessages: number;
@@ -44,6 +45,7 @@ export function SummarySheet({
   topicId,
   onSummaryMessage,
 }: SummarySheetProps) {
+  const { t } = useTranslation();
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedHours, setSelectedHours] = useState(24);
@@ -68,12 +70,12 @@ export function SummarySheet({
         const data = await res.json();
         setSummary(data.summary);
         onSummaryMessage?.();
-        toast.success("Summary saved as message in chat");
+        toast.success(t("chat.summarySaved"));
       } else {
-        toast.error("Failed to generate summary");
+        toast.error(t("chat.failedToGenerateSummary"));
       }
     } catch {
-      toast.error("Failed to generate summary");
+      toast.error(t("chat.failedToGenerateSummary"));
     } finally {
       setLoading(false);
     }
