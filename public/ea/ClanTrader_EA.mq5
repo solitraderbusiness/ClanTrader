@@ -4,7 +4,7 @@
 //| Single-file build: no external includes needed                  |
 //+------------------------------------------------------------------+
 #property copyright "ClanTrader"
-#property link      "https://clantrader.ir"
+#property link      "https://clantrader.com"
 #property version   "1.00"
 
 //====================================================================
@@ -213,10 +213,21 @@ int HttpGet(string endpoint, string &response) {
 #define PANEL_USER_INPUT "CT_UserInput"
 #define PANEL_PASS_LABEL "CT_PassLabel"
 #define PANEL_PASS_INPUT "CT_PassInput"
+#define PANEL_BTN_EYE    "CT_BtnEye"
 #define PANEL_BTN_LOGIN  "CT_BtnLogin"
 #define PANEL_BTN_REG    "CT_BtnRegister"
 #define PANEL_STATUS     "CT_Status"
 #define PANEL_ACCT_INFO  "CT_AcctInfo"
+
+string g_RealPassword = "";
+bool   g_PasswordVisible = false;
+
+string MakeDotMask(int len) {
+   string mask = "";
+   for (int i = 0; i < len; i++)
+      mask += "*";
+   return mask;
+}
 
 #define PANEL_X     20
 #define PANEL_Y     30
@@ -281,12 +292,14 @@ void PanelCreate() {
    ObjectSetInteger(0, PANEL_BG, OBJPROP_CORNER, CORNER_LEFT_UPPER);
 
    CreateLabel(PANEL_TITLE, PANEL_X + 10, PANEL_Y + 10, "ClanTrader EA", CLR_TEXT, 12);
-   CreateLabel(PANEL_USER_LABEL, PANEL_X + 10, PANEL_Y + 40, "Username:", CLR_LABEL, 9);
+   CreateLabel(PANEL_USER_LABEL, PANEL_X + 10, PANEL_Y + 40, "Username / Email:", CLR_LABEL, 9);
    CreateEdit(PANEL_USER_INPUT, PANEL_X + 10, PANEL_Y + 58, 240, 22, "");
    CreateLabel(PANEL_PASS_LABEL, PANEL_X + 10, PANEL_Y + 90, "Password:", CLR_LABEL, 9);
-   CreateEdit(PANEL_PASS_INPUT, PANEL_X + 10, PANEL_Y + 108, 240, 22, "");
+   CreateEdit(PANEL_PASS_INPUT, PANEL_X + 10, PANEL_Y + 108, 212, 22, "");
+   CreateButton(PANEL_BTN_EYE, PANEL_X + 222, PANEL_Y + 108, 28, 22, "O", CLR_INPUT);
+   ObjectSetInteger(0, PANEL_BTN_EYE, OBJPROP_BORDER_COLOR, CLR_BORDER);
    CreateButton(PANEL_BTN_LOGIN, PANEL_X + 10, PANEL_Y + 145, 115, 30, "Login", CLR_BTN);
-   CreateButton(PANEL_BTN_REG, PANEL_X + 135, PANEL_Y + 145, 115, 30, "Register", CLR_BTN2);
+   CreateButton(PANEL_BTN_REG, PANEL_X + 135, PANEL_Y + 145, 115, 30, "Sign Up", CLR_BTN2);
    CreateLabel(PANEL_STATUS, PANEL_X + 10, PANEL_Y + 185, "Disconnected", CLR_LABEL, 9);
    CreateLabel(PANEL_ACCT_INFO, PANEL_X + 10, PANEL_Y + 210, " ", CLR_LABEL, 8);
    ChartRedraw();
@@ -299,6 +312,7 @@ void PanelDestroy() {
    ObjectDelete(0, PANEL_USER_INPUT);
    ObjectDelete(0, PANEL_PASS_LABEL);
    ObjectDelete(0, PANEL_PASS_INPUT);
+   ObjectDelete(0, PANEL_BTN_EYE);
    ObjectDelete(0, PANEL_BTN_LOGIN);
    ObjectDelete(0, PANEL_BTN_REG);
    ObjectDelete(0, PANEL_STATUS);
@@ -311,7 +325,31 @@ string PanelGetUsername() {
 }
 
 string PanelGetPassword() {
-   return ObjectGetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT);
+   return g_RealPassword;
+}
+
+void PanelOnPasswordEndEdit() {
+   string fieldText = ObjectGetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT);
+   if (fieldText == MakeDotMask(StringLen(g_RealPassword)) && g_RealPassword != "")
+      return;
+   g_RealPassword = fieldText;
+   if (!g_PasswordVisible && g_RealPassword != "") {
+      ObjectSetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT, MakeDotMask(StringLen(g_RealPassword)));
+      ChartRedraw();
+   }
+}
+
+void PanelTogglePasswordVisibility() {
+   g_PasswordVisible = !g_PasswordVisible;
+   if (g_PasswordVisible) {
+      ObjectSetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT, g_RealPassword);
+      ObjectSetString(0, PANEL_BTN_EYE, OBJPROP_TEXT, "#");
+   } else {
+      if (g_RealPassword != "")
+         ObjectSetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT, MakeDotMask(StringLen(g_RealPassword)));
+      ObjectSetString(0, PANEL_BTN_EYE, OBJPROP_TEXT, "O");
+   }
+   ChartRedraw();
 }
 
 void PanelSetStatus(string text, color clr = CLR_LABEL) {
@@ -417,6 +455,11 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
 }
 
 void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam) {
+   if (id == CHARTEVENT_OBJECT_ENDEDIT && sparam == PANEL_PASS_INPUT) {
+      PanelOnPasswordEndEdit();
+      return;
+   }
+
    if (id != CHARTEVENT_OBJECT_CLICK) return;
 
    if (sparam == PANEL_BTN_LOGIN) {
@@ -425,7 +468,11 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
    }
    else if (sparam == PANEL_BTN_REG) {
       ObjectSetInteger(0, PANEL_BTN_REG, OBJPROP_STATE, false);
-      DoRegister();
+      DoOpenSignup();
+   }
+   else if (sparam == PANEL_BTN_EYE) {
+      ObjectSetInteger(0, PANEL_BTN_EYE, OBJPROP_STATE, false);
+      PanelTogglePasswordVisibility();
    }
 }
 
@@ -433,11 +480,11 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
 //| Login                                                              |
 //+------------------------------------------------------------------+
 void DoLogin() {
-   string username = PanelGetUsername();
+   string usernameOrEmail = PanelGetUsername();
    string password = PanelGetPassword();
 
-   if (username == "" || password == "") {
-      PanelSetStatus("Enter username & password", CLR_ERR);
+   if (usernameOrEmail == "" || password == "") {
+      PanelSetStatus("Enter credentials", CLR_ERR);
       return;
    }
 
@@ -448,7 +495,7 @@ void DoLogin() {
    string server = AccountInfoString(ACCOUNT_SERVER);
 
    string json = JsonStart();
-   json += JsonAddString("username", username);
+   json += JsonAddString("usernameOrEmail", usernameOrEmail);
    json += JsonAddString("password", password);
    json += JsonAddInt("accountNumber", acctNum);
    json += JsonAddString("broker", broker);
@@ -492,70 +539,16 @@ void DoLogin() {
 }
 
 //+------------------------------------------------------------------+
-//| Register                                                           |
+//| Open signup page in browser                                       |
 //+------------------------------------------------------------------+
-void DoRegister() {
-   string username = PanelGetUsername();
-   string password = PanelGetPassword();
+#import "shell32.dll"
+   int ShellExecuteW(int hwnd, string op, string file, string params, string dir, int showCmd);
+#import
 
-   if (username == "" || password == "") {
-      PanelSetStatus("Enter username & password", CLR_ERR);
-      return;
-   }
-
-   if (StringLen(password) < 8) {
-      PanelSetStatus("Password min 8 characters", CLR_ERR);
-      return;
-   }
-
-   PanelSetStatus("Registering...", CLR_LABEL);
-
-   long acctNum = AccountInfoInteger(ACCOUNT_LOGIN);
-   string broker = AccountInfoString(ACCOUNT_COMPANY);
-   string server = AccountInfoString(ACCOUNT_SERVER);
-
-   string json = JsonStart();
-   json += JsonAddString("username", username);
-   json += JsonAddString("password", password);
-   json += JsonAddInt("accountNumber", acctNum);
-   json += JsonAddString("broker", broker);
-   json += JsonAddString("platform", "MT5");
-   json += JsonAddString("serverName", server);
-   JsonEnd(json);
-
-   string response;
-   int code = HttpPost("/api/ea/register", json, response);
-
-   if (code == 201) {
-      string apiKey = JsonGetString(response, "apiKey");
-
-      if (apiKey == "") {
-         PanelSetStatus("Register error: bad response", CLR_ERR);
-         return;
-      }
-
-      SetApiKey(apiKey);
-      g_Connected = true;
-
-      PanelShowConnected(broker, acctNum,
-         AccountInfoDouble(ACCOUNT_BALANCE),
-         AccountInfoString(ACCOUNT_CURRENCY));
-
-      CacheOpenPositions();
-
-      // Send immediate heartbeat so live R:R updates right away
-      SendHeartbeat();
-
-      SyncTradeHistory();
-      g_LastHistorySync = TimeCurrent();
-   }
-   else if (code == 409) {
-      PanelSetStatus("Username already taken", CLR_ERR);
-   }
-   else {
-      string err = JsonGetString(response, "error");
-      PanelSetStatus("Error: " + err, CLR_ERR);
-   }
+void DoOpenSignup() {
+   string url = InpBaseUrl + "/signup";
+   ShellExecuteW(0, "open", url, "", "", 1);
+   PanelSetStatus("Opening signup page...", CLR_LABEL);
 }
 
 //+------------------------------------------------------------------+

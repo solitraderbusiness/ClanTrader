@@ -7,7 +7,7 @@
 #include "ClanTrader_JSON.mqh"
 
 //--- Configuration ---
-string g_BaseUrl = "https://clantrader.ir";
+string g_BaseUrl = "https://clantrader.com";
 string g_ApiKey = "";
 int    g_HttpTimeout = 10000; // 10 seconds
 

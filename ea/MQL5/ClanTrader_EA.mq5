@@ -3,7 +3,7 @@
 //| Connects MT5 to ClanTrader platform                             |
 //+------------------------------------------------------------------+
 #property copyright "ClanTrader"
-#property link      "https://clantrader.ir"
+#property link      "https://clantrader.com"
 #property version   "1.00"
 
 #include <ClanTrader_JSON.mqh>
@@ -11,7 +11,7 @@
 #include <ClanTrader_Panel.mqh>
 
 //--- Input parameters ---
-input string InpBaseUrl = "https://clantrader.ir"; // Server URL
+input string InpBaseUrl = "https://clantrader.com"; // Server URL
 
 //--- Global state ---
 bool     g_Connected = false;
@@ -117,6 +117,11 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
 //| Chart event handler — button clicks                               |
 //+------------------------------------------------------------------+
 void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam) {
+   if (id == CHARTEVENT_OBJECT_ENDEDIT && sparam == PANEL_PASS_INPUT) {
+      PanelOnPasswordEndEdit();
+      return;
+   }
+
    if (id != CHARTEVENT_OBJECT_CLICK) return;
 
    if (sparam == PANEL_BTN_LOGIN) {
@@ -125,7 +130,11 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
    }
    else if (sparam == PANEL_BTN_REG) {
       ObjectSetInteger(0, PANEL_BTN_REG, OBJPROP_STATE, false);
-      DoRegister();
+      DoOpenSignup();
+   }
+   else if (sparam == PANEL_BTN_EYE) {
+      ObjectSetInteger(0, PANEL_BTN_EYE, OBJPROP_STATE, false);
+      PanelTogglePasswordVisibility();
    }
 }
 
@@ -133,11 +142,11 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
 //| Login to ClanTrader                                               |
 //+------------------------------------------------------------------+
 void DoLogin() {
-   string username = PanelGetUsername();
+   string usernameOrEmail = PanelGetUsername();
    string password = PanelGetPassword();
 
-   if (username == "" || password == "") {
-      PanelSetStatus("Enter username & password", CLR_ERR);
+   if (usernameOrEmail == "" || password == "") {
+      PanelSetStatus("Enter credentials", CLR_ERR);
       return;
    }
 
@@ -148,7 +157,7 @@ void DoLogin() {
    string server = AccountInfoString(ACCOUNT_SERVER);
 
    string json = JsonStart();
-   json += JsonAddString("username", username);
+   json += JsonAddString("usernameOrEmail", usernameOrEmail);
    json += JsonAddString("password", password);
    json += JsonAddInt("accountNumber", acctNum);
    json += JsonAddString("broker", broker);
@@ -192,70 +201,16 @@ void DoLogin() {
 }
 
 //+------------------------------------------------------------------+
-//| Register new account                                              |
+//| Open signup page in browser                                       |
 //+------------------------------------------------------------------+
-void DoRegister() {
-   string username = PanelGetUsername();
-   string password = PanelGetPassword();
+#import "shell32.dll"
+   int ShellExecuteW(int hwnd, string op, string file, string params, string dir, int showCmd);
+#import
 
-   if (username == "" || password == "") {
-      PanelSetStatus("Enter username & password", CLR_ERR);
-      return;
-   }
-
-   if (StringLen(password) < 8) {
-      PanelSetStatus("Password min 8 characters", CLR_ERR);
-      return;
-   }
-
-   PanelSetStatus("Registering...", CLR_LABEL);
-
-   long acctNum = AccountInfoInteger(ACCOUNT_LOGIN);
-   string broker = AccountInfoString(ACCOUNT_COMPANY);
-   string server = AccountInfoString(ACCOUNT_SERVER);
-
-   string json = JsonStart();
-   json += JsonAddString("username", username);
-   json += JsonAddString("password", password);
-   json += JsonAddInt("accountNumber", acctNum);
-   json += JsonAddString("broker", broker);
-   json += JsonAddString("platform", "MT5");
-   json += JsonAddString("serverName", server);
-   JsonEnd(json);
-
-   string response;
-   int code = HttpPost("/api/ea/register", json, response);
-
-   if (code == 201) {
-      string apiKey = JsonGetString(response, "apiKey");
-
-      if (apiKey == "") {
-         PanelSetStatus("Register error: bad response", CLR_ERR);
-         return;
-      }
-
-      SetApiKey(apiKey);
-      g_Connected = true;
-
-      PanelShowConnected(broker, acctNum,
-         AccountInfoDouble(ACCOUNT_BALANCE),
-         AccountInfoString(ACCOUNT_CURRENCY));
-
-      CacheOpenPositions();
-
-      // Send immediate heartbeat so live R:R updates right away
-      SendHeartbeat();
-
-      SyncTradeHistory();
-      g_LastHistorySync = TimeCurrent();
-   }
-   else if (code == 409) {
-      PanelSetStatus("Username already taken", CLR_ERR);
-   }
-   else {
-      string err = JsonGetString(response, "error");
-      PanelSetStatus("Error: " + err, CLR_ERR);
-   }
+void DoOpenSignup() {
+   string url = InpBaseUrl + "/signup";
+   ShellExecuteW(0, "open", url, "", "", 1);
+   PanelSetStatus("Opening signup page...", CLR_LABEL);
 }
 
 //+------------------------------------------------------------------+

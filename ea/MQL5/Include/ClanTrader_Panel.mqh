@@ -10,6 +10,7 @@
 #define PANEL_USER_INPUT "CT_UserInput"
 #define PANEL_PASS_LABEL "CT_PassLabel"
 #define PANEL_PASS_INPUT "CT_PassInput"
+#define PANEL_BTN_EYE    "CT_BtnEye"
 #define PANEL_BTN_LOGIN  "CT_BtnLogin"
 #define PANEL_BTN_REG    "CT_BtnRegister"
 #define PANEL_STATUS     "CT_Status"
@@ -32,6 +33,18 @@
 #define CLR_OK     clrLime
 #define CLR_ERR    clrRed
 
+//--- Password masking state ---
+string g_RealPassword = "";
+bool   g_PasswordVisible = false;
+
+//--- Create dot mask of given length ---
+string MakeDotMask(int len) {
+   string mask = "";
+   for (int i = 0; i < len; i++)
+      mask += "*";
+   return mask;
+}
+
 //--- Create the panel ---
 void PanelCreate() {
    ObjectCreate(0, PANEL_BG, OBJ_RECTANGLE_LABEL, 0, 0, 0);
@@ -45,14 +58,18 @@ void PanelCreate() {
 
    CreateLabel(PANEL_TITLE, PANEL_X + 10, PANEL_Y + 10, "ClanTrader EA", CLR_TEXT, 12);
 
-   CreateLabel(PANEL_USER_LABEL, PANEL_X + 10, PANEL_Y + 40, "Username:", CLR_LABEL, 9);
+   CreateLabel(PANEL_USER_LABEL, PANEL_X + 10, PANEL_Y + 40, "Username / Email:", CLR_LABEL, 9);
    CreateEdit(PANEL_USER_INPUT, PANEL_X + 10, PANEL_Y + 58, 240, 22, "");
 
    CreateLabel(PANEL_PASS_LABEL, PANEL_X + 10, PANEL_Y + 90, "Password:", CLR_LABEL, 9);
-   CreateEdit(PANEL_PASS_INPUT, PANEL_X + 10, PANEL_Y + 108, 240, 22, "");
+   CreateEdit(PANEL_PASS_INPUT, PANEL_X + 10, PANEL_Y + 108, 212, 22, "");
+
+   // Eye toggle button (next to password field)
+   CreateButton(PANEL_BTN_EYE, PANEL_X + 222, PANEL_Y + 108, 28, 22, "O", CLR_INPUT);
+   ObjectSetInteger(0, PANEL_BTN_EYE, OBJPROP_BORDER_COLOR, CLR_BORDER);
 
    CreateButton(PANEL_BTN_LOGIN, PANEL_X + 10, PANEL_Y + 145, 115, 30, "Login", CLR_BTN);
-   CreateButton(PANEL_BTN_REG, PANEL_X + 135, PANEL_Y + 145, 115, 30, "Register", CLR_BTN2);
+   CreateButton(PANEL_BTN_REG, PANEL_X + 135, PANEL_Y + 145, 115, 30, "Sign Up", CLR_BTN2);
 
    CreateLabel(PANEL_STATUS, PANEL_X + 10, PANEL_Y + 185, "Disconnected", CLR_LABEL, 9);
    CreateLabel(PANEL_ACCT_INFO, PANEL_X + 10, PANEL_Y + 210, " ", CLR_LABEL, 8);
@@ -67,6 +84,7 @@ void PanelDestroy() {
    ObjectDelete(0, PANEL_USER_INPUT);
    ObjectDelete(0, PANEL_PASS_LABEL);
    ObjectDelete(0, PANEL_PASS_INPUT);
+   ObjectDelete(0, PANEL_BTN_EYE);
    ObjectDelete(0, PANEL_BTN_LOGIN);
    ObjectDelete(0, PANEL_BTN_REG);
    ObjectDelete(0, PANEL_STATUS);
@@ -79,7 +97,40 @@ string PanelGetUsername() {
 }
 
 string PanelGetPassword() {
-   return ObjectGetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT);
+   return g_RealPassword;
+}
+
+//--- Called when password field loses focus (CHARTEVENT_OBJECT_ENDEDIT) ---
+void PanelOnPasswordEndEdit() {
+   string fieldText = ObjectGetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT);
+
+   // If field shows the mask, user didn't change it — keep existing password
+   if (fieldText == MakeDotMask(StringLen(g_RealPassword)) && g_RealPassword != "")
+      return;
+
+   // Otherwise user typed a new password
+   g_RealPassword = fieldText;
+
+   // Auto-mask if not in visible mode
+   if (!g_PasswordVisible && g_RealPassword != "") {
+      ObjectSetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT, MakeDotMask(StringLen(g_RealPassword)));
+      ChartRedraw();
+   }
+}
+
+//--- Toggle password visibility ---
+void PanelTogglePasswordVisibility() {
+   g_PasswordVisible = !g_PasswordVisible;
+
+   if (g_PasswordVisible) {
+      ObjectSetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT, g_RealPassword);
+      ObjectSetString(0, PANEL_BTN_EYE, OBJPROP_TEXT, "#");
+   } else {
+      if (g_RealPassword != "")
+         ObjectSetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT, MakeDotMask(StringLen(g_RealPassword)));
+      ObjectSetString(0, PANEL_BTN_EYE, OBJPROP_TEXT, "O");
+   }
+   ChartRedraw();
 }
 
 void PanelSetStatus(string text, color clr = CLR_LABEL) {
