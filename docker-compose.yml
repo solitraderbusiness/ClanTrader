@@ -31,6 +31,44 @@ services:
       timeout: 5s
       retries: 5
 
+  glitchtip-web:
+    image: glitchtip/glitchtip:latest
+    container_name: glitchtip-web
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8100:8080"
+    environment:
+      DATABASE_URL: postgresql://clantrader:clantrader_dev_2026@postgres:5432/glitchtip
+      REDIS_URL: redis://redis:6379/2
+      SECRET_KEY: ee4fb2519d5748c526fdd2f1eac0e85b46c36808114a36561dae15049823ff9a
+      PORT: "8080"
+      GLITCHTIP_DOMAIN: https://clantrader.com:8100
+      DEFAULT_FROM_EMAIL: glitchtip@clantrader.com
+      CELERY_WORKER_AUTOSCALE: "1,3"
+      CELERY_WORKER_MAX_TASKS_PER_CHILD: "10000"
+
+  glitchtip-worker:
+    image: glitchtip/glitchtip:latest
+    container_name: glitchtip-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ./bin/run-celery-with-beat.sh
+    environment:
+      DATABASE_URL: postgresql://clantrader:clantrader_dev_2026@postgres:5432/glitchtip
+      REDIS_URL: redis://redis:6379/2
+      SECRET_KEY: ee4fb2519d5748c526fdd2f1eac0e85b46c36808114a36561dae15049823ff9a
+      CELERY_WORKER_AUTOSCALE: "1,3"
+      CELERY_WORKER_MAX_TASKS_PER_CHILD: "10000"
+
 volumes:
   pgdata:
   redisdata:

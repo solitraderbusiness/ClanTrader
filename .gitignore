@@ -51,3 +51,11 @@ next-env.d.ts
 # uploads (except .gitkeep)
 public/uploads/*
 !public/uploads/avatars/.gitkeep
+
+# screenshots & temporary images
+*.png
+screenshots/
+
+# deploy artifacts & logs
+deploy.tar.gz
+logs/
