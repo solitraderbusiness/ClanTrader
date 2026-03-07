@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { UserCheck } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
+import { getInitials } from "@/lib/utils";
 
 interface User {
   id: string;
@@ -74,7 +75,7 @@ export function ImpersonatePanel({
                 alt={user.name || ""}
               />
               <AvatarFallback>
-                {(user.name || "?").slice(0, 2).toUpperCase()}
+                {getInitials(user.name || "?")}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">

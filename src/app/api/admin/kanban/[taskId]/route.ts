@@ -1,8 +1,39 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { updateProjectTaskSchema } from "@/lib/validators";
 import { audit } from "@/lib/audit";
+
+/**
+ * Compute auto-set date fields when a task's column changes.
+ * - → IN_PROGRESS: set startedAt (only if null)
+ * - → DONE: set completedAt
+ * - DONE → anything else: clear completedAt
+ */
+function columnTransitionDates(
+  oldColumn: string,
+  newColumn: string | undefined,
+  existing: { startedAt: Date | null; completedAt: Date | null }
+) {
+  if (!newColumn || newColumn === oldColumn) return {};
+
+  const updates: { startedAt?: Date | null; completedAt?: Date | null } = {};
+
+  if (newColumn === "IN_PROGRESS" && !existing.startedAt) {
+    updates.startedAt = new Date();
+  }
+
+  if (newColumn === "DONE" || newColumn === "BUGS_FIXED") {
+    updates.completedAt = new Date();
+  }
+
+  if ((oldColumn === "DONE" || oldColumn === "BUGS_FIXED") && newColumn !== "DONE" && newColumn !== "BUGS_FIXED") {
+    updates.completedAt = null;
+  }
+
+  return updates;
+}
 
 export async function PATCH(
   request: Request,
@@ -30,9 +61,22 @@ export async function PATCH(
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
+    const { dueDate, lastVerifiedAt, dependencies, evidence, ...rest } = parsed.data;
+    const dateTransitions = columnTransitionDates(existing.column, parsed.data.column, existing);
+
     const task = await db.projectTask.update({
       where: { id: taskId },
-      data: parsed.data,
+      data: {
+        ...rest,
+        ...dateTransitions,
+        ...(dueDate !== undefined ? { dueDate: dueDate ? new Date(dueDate) : null } : {}),
+        ...(lastVerifiedAt !== undefined ? { lastVerifiedAt: lastVerifiedAt ? new Date(lastVerifiedAt) : null } : {}),
+        ...(dependencies !== undefined ? { dependencies: (dependencies as Prisma.InputJsonValue) ?? Prisma.JsonNull } : {}),
+        ...(evidence !== undefined ? { evidence: (evidence as Prisma.InputJsonValue) ?? Prisma.JsonNull } : {}),
+      },
+      include: {
+        discoveredFrom: { select: { id: true, title: true } },
+      },
     });
 
     audit("kanban.update", "ProjectTask", task.id, session.user.id, {

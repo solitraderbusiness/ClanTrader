@@ -18,6 +18,7 @@ import { MetricsDisplay } from "@/components/statements/MetricsDisplay";
 import { FileText, CheckCircle, XCircle, Loader2, ExternalLink } from "lucide-react";
 import type { StatementMetrics } from "@/types/statement";
 import { toast } from "sonner";
+import { getInitials } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 
 interface StatementUser {
@@ -171,9 +172,7 @@ export function AdminStatementsDashboard({
               <div className="space-y-3">
                 {statements.map((stmt) => {
                   const config = statusConfig[stmt.verificationStatus] || statusConfig.PENDING;
-                  const initials = stmt.user.name
-                    ? stmt.user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
-                    : "U";
+                  const initials = stmt.user.name ? getInitials(stmt.user.name) : "U";
                   return (
                     <Card key={stmt.id}>
                       <CardHeader>
@@ -276,9 +275,9 @@ export function AdminStatementsDashboard({
                 disabled={submitting}
               >
                 {submitting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="me-2 h-4 w-4 animate-spin" />
                 ) : (
-                  <XCircle className="mr-2 h-4 w-4" />
+                  <XCircle className="me-2 h-4 w-4" />
                 )}
                 {t("admin.reject")}
               </Button>
@@ -287,9 +286,9 @@ export function AdminStatementsDashboard({
                 disabled={submitting}
               >
                 {submitting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="me-2 h-4 w-4 animate-spin" />
                 ) : (
-                  <CheckCircle className="mr-2 h-4 w-4" />
+                  <CheckCircle className="me-2 h-4 w-4" />
                 )}
                 {t("admin.approve")}
               </Button>

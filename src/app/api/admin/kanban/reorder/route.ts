@@ -22,13 +22,35 @@ export async function PUT(request: Request) {
 
     const { column, taskIds } = parsed.data;
 
+    // Fetch existing tasks to detect column transitions
+    const existingTasks = await db.projectTask.findMany({
+      where: { id: { in: taskIds } },
+      select: { id: true, column: true, startedAt: true, completedAt: true },
+    });
+    const existingMap = new Map(existingTasks.map((t) => [t.id, t]));
+
     await db.$transaction(
-      taskIds.map((id, index) =>
-        db.projectTask.update({
+      taskIds.map((id, index) => {
+        const existing = existingMap.get(id);
+        const dateUpdates: { startedAt?: Date | null; completedAt?: Date | null } = {};
+
+        if (existing && existing.column !== column) {
+          if (column === "IN_PROGRESS" && !existing.startedAt) {
+            dateUpdates.startedAt = new Date();
+          }
+          if (column === "DONE" || column === "BUGS_FIXED") {
+            dateUpdates.completedAt = new Date();
+          }
+          if ((existing.column === "DONE" || existing.column === "BUGS_FIXED") && column !== "DONE" && column !== "BUGS_FIXED") {
+            dateUpdates.completedAt = null;
+          }
+        }
+
+        return db.projectTask.update({
           where: { id },
-          data: { column, position: index * 10 },
-        })
-      )
+          data: { column, position: index * 10, ...dateUpdates },
+        });
+      })
     );
 
     return NextResponse.json({ success: true });

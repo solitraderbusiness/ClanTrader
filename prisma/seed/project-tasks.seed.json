@@ -1,0 +1,3471 @@
+[
+  {
+    "key": "auth.phone-otp",
+    "title": "Phone OTP signup/login (Kavenegar)",
+    "description": "Phone-first auth via SMS OTP using Kavenegar API. Console fallback in dev. 3 OTP/10min rate limit. Redis-backed OTP storage with 5-min expiry.",
+    "phase": "W7",
+    "priority": "CRITICAL",
+    "column": "TESTING",
+    "category": "FEATURE",
+    "epicKey": "auth",
+    "epicTitle": "Authentication & Profiles",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "INTEGRATED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "User can sign up and log in via phone OTP on production. Kavenegar sends real SMS. Rate limiting prevents abuse.",
+    "risks": "Kavenegar API key not configured for production. Without it, no phone signups work.",
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/services/sms.service.ts",
+        "src/app/api/auth/send-otp/route.ts",
+        "src/app/api/auth/verify-otp/route.ts",
+        "src/components/auth/PhoneOtpForm.tsx"
+      ],
+      "envVars": [
+        "KAVENEGAR_API_KEY",
+        "KAVENEGAR_OTP_TEMPLATE"
+      ],
+      "tests": [
+        "e2e/simulator/01-auth.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "auth.email-password",
+    "title": "Email + password auth",
+    "description": "Credentials provider with bcrypt hashing. Email + password login/signup flows via Auth.js v5.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "auth",
+    "epicTitle": "Authentication & Profiles",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "User can sign up and log in with email + password. Password hashed with bcrypt.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/lib/auth.ts",
+        "src/app/api/auth/signup/route.ts",
+        "src/app/(auth)/login/page.tsx",
+        "src/app/(auth)/signup/page.tsx"
+      ],
+      "envVars": [
+        "AUTH_SECRET"
+      ],
+      "tests": [
+        "e2e/simulator/01-auth.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "auth.email-verification",
+    "title": "Email verification flow",
+    "description": "Nodemailer sends verification email with 24h token. Needs SMTP credentials for production.",
+    "phase": "W1",
+    "priority": "CRITICAL",
+    "column": "TESTING",
+    "category": "FEATURE",
+    "epicKey": "auth",
+    "epicTitle": "Authentication & Profiles",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "INTEGRATED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "User receives verification email after signup. Clicking link verifies account. Works on production SMTP.",
+    "risks": "SMTP credentials not configured. Console fallback only in dev. Production email doesn't send.",
+    "dependencies": [
+      "stabilize.smtp-prod"
+    ],
+    "evidence": {
+      "files": [
+        "src/lib/email.ts",
+        "src/app/api/auth/verify-email/route.ts",
+        "src/app/(auth)/verify-email/page.tsx"
+      ],
+      "envVars": [
+        "SMTP_HOST",
+        "SMTP_PORT",
+        "SMTP_USER",
+        "SMTP_PASS",
+        "EMAIL_FROM"
+      ],
+      "tests": [
+        "e2e/simulator/01-auth.spec.ts"
+      ]
+    },
+    "estimateBest": 2,
+    "estimateLikely": 4,
+    "estimateWorst": 6
+  },
+  {
+    "key": "auth.password-reset",
+    "title": "Password reset flow",
+    "description": "Forgot password generates 1h expiring token. Reset endpoint validates and updates password. Requires SMTP.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "TESTING",
+    "category": "FEATURE",
+    "epicKey": "auth",
+    "epicTitle": "Authentication & Profiles",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "INTEGRATED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "User can request password reset, receive email, and set new password.",
+    "risks": "Depends on SMTP configuration.",
+    "dependencies": [
+      "stabilize.smtp-prod"
+    ],
+    "evidence": {
+      "files": [
+        "src/app/api/auth/forgot-password/route.ts",
+        "src/app/api/auth/reset-password/route.ts",
+        "src/app/(auth)/forgot-password/page.tsx",
+        "src/app/(auth)/reset-password/page.tsx"
+      ],
+      "envVars": [
+        "SMTP_HOST"
+      ],
+      "tests": [
+        "e2e/simulator/01-auth.spec.ts"
+      ]
+    },
+    "estimateBest": 1,
+    "estimateLikely": 3,
+    "estimateWorst": 5
+  },
+  {
+    "key": "auth.profiles",
+    "title": "User profiles & avatars",
+    "description": "Profile update: name, bio, avatar (Sharp → WebP), tradingStyle, sessionPreference, preferredPairs.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "auth",
+    "epicTitle": "Authentication & Profiles",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "User can edit profile, upload avatar, view other profiles.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/components/profile/ProfileEditForm.tsx",
+        "src/app/api/users/avatar/route.ts",
+        "src/app/(main)/profile/[userId]/page.tsx"
+      ],
+      "envVars": [
+        "UPLOAD_DIR",
+        "MAX_AVATAR_SIZE_MB"
+      ],
+      "tests": [
+        "e2e/simulator/01-auth.spec.ts",
+        "e2e/simulator/22-user-settings.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "auth.username",
+    "title": "Username system + availability check",
+    "description": "Real-time debounced (500ms) availability check. Unique constraint at DB. Reserved username list.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "auth",
+    "epicTitle": "Authentication & Profiles",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Username selection works with real-time validation. Reserved names blocked.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/app/api/users/check-username/route.ts",
+        "src/components/shared/SetUsernameDialog.tsx",
+        "src/lib/reserved-usernames.ts"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/01-auth.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "auth.jwt-sessions",
+    "title": "JWT sessions (Auth.js v5)",
+    "description": "JWT strategy with extended token: id, role, isPro, username, phone, onboardingComplete.",
+    "phase": "W1",
+    "priority": "CRITICAL",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "auth",
+    "epicTitle": "Authentication & Profiles",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Sessions persist across requests. Token contains all required fields.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/lib/auth.ts",
+        "src/types/next-auth.d.ts"
+      ],
+      "envVars": [
+        "AUTH_SECRET",
+        "AUTH_URL",
+        "AUTH_TRUST_HOST"
+      ],
+      "tests": [
+        "e2e/simulator/01-auth.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "auth.i18n-rtl",
+    "title": "i18n + RTL support (en/fa)",
+    "description": "31 translation sections in both en.json and fa.json. Logical CSS properties only (ms/me/ps/pe). Client useTranslation() + server t().",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "auth",
+    "epicTitle": "Authentication & Profiles",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "All user-visible strings use t(). Persian translation is proper Farsi. RTL layout works.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/locales/en.json",
+        "src/locales/fa.json",
+        "src/lib/i18n.ts",
+        "src/lib/i18n-core.ts"
+      ],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "auth.ea-mt",
+    "title": "EA/MetaTrader auth (register + login)",
+    "description": "Username+password auth for MetaTrader EA. API key generation. One-time use login tokens via Redis.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "auth",
+    "epicTitle": "Authentication & Profiles",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "EA can register, log in, and authenticate via API key for subsequent requests.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/app/api/ea/register/route.ts",
+        "src/app/api/ea/login/route.ts",
+        "src/services/ea.service.ts"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/16-ea-auth.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "auth.referral-tracking",
+    "title": "Referral tracking on signup",
+    "description": "Fire-and-forget event tracking: LINK_COPIED, LINK_SHARED, SIGNUP, SUBSCRIPTION. Admin analytics dashboard.",
+    "phase": "W1",
+    "priority": "NORMAL",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "auth",
+    "epicTitle": "Authentication & Profiles",
+    "workstream": "MONETIZATION_GROWTH",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Referral links track signups. Admin sees analytics with top referrers.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/services/referral.service.ts",
+        "src/app/api/admin/referrals/route.ts",
+        "src/app/(main)/admin/referrals/page.tsx"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/23-referrals-analytics.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "statements.upload",
+    "title": "Statement upload + HTML parsing",
+    "description": "Upload MT4/MT5 HTML statement files. Cheerio parser extracts: totalNetProfit, grossProfit/Loss, profitFactor, winRate, maxDrawdown. Stored as JSONB.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "statements",
+    "epicTitle": "Statements & Verification",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "User uploads HTML statement → parser extracts metrics → stored in DB → displayed on profile.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/services/statement-parser.ts",
+        "src/services/mt-statement.service.ts",
+        "src/app/api/statements/me/route.ts"
+      ],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "statements.admin-review",
+    "title": "Admin statement review/approval",
+    "description": "Admin dashboard to review uploaded statements: view original HTML, approve/reject with notes. Status: PENDING/VERIFIED/REJECTED/EXPIRED.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "statements",
+    "epicTitle": "Statements & Verification",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Admin can review, approve, or reject statements with notes.",
+    "risks": null,
+    "dependencies": [
+      "statements.upload"
+    ],
+    "evidence": {
+      "files": [
+        "src/app/(main)/admin/statements/page.tsx",
+        "src/components/admin/AdminStatementsDashboard.tsx"
+      ],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "statements.mt-linking",
+    "title": "MT account linking",
+    "description": "User links multiple MT accounts via settings. MtAccount model: accountNumber, broker, platform, balance, equity, leverage. API key per account.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "statements",
+    "epicTitle": "Statements & Verification",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "User can add/remove MT accounts. API key generated for each. EA connects via key.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/components/settings/MtAccountManager.tsx",
+        "src/app/api/users/[userId]/mt-accounts/route.ts",
+        "src/services/ea.service.ts"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/22-user-settings.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "statements.auto-recalc",
+    "title": "Auto-recalculate trader statements",
+    "description": "statement-calc.service.ts recalculates TraderStatements on trade close. Monthly, seasonal, all-time aggregation. Admin can force recalculation.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "statements",
+    "epicTitle": "Statements & Verification",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Trader statements auto-update when trades close. Admin can trigger manual recalc.",
+    "risks": null,
+    "dependencies": [
+      "statements.upload"
+    ],
+    "evidence": {
+      "files": [
+        "src/services/statement-calc.service.ts",
+        "src/app/api/admin/statements/calculate/route.ts"
+      ],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "clans.crud",
+    "title": "Clan CRUD + settings",
+    "description": "Clan creation, editing, deletion. Settings: name (unique), description, avatar, tradingFocus, isPublic, tier (FREE/PRO). Creator becomes LEADER.",
+    "phase": "W1",
+    "priority": "CRITICAL",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "clans",
+    "epicTitle": "Clans & Chat",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Users can create/edit/delete clans. Roles work (LEADER, CO_LEADER, MEMBER).",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/services/clan.service.ts",
+        "src/app/api/clans/route.ts",
+        "src/app/(main)/clans/[clanId]/page.tsx"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/02-clans-crud.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "clans.chat",
+    "title": "Real-time chat (Socket.io)",
+    "description": "Socket.io on /api/socketio. JWT auth. Rooms: clan:{id}, topic:{clanId}:{topicId}. Messages with replies, edits, deletes. 5msg/60s rate limit.",
+    "phase": "W1",
+    "priority": "CRITICAL",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "clans",
+    "epicTitle": "Clans & Chat",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Users can send/receive messages in real-time. Replies, edits, deletes work. Rate limiting prevents spam.",
+    "risks": null,
+    "dependencies": [
+      "clans.crud"
+    ],
+    "evidence": {
+      "files": [
+        "src/lib/socket-handlers.ts",
+        "src/lib/socket-auth.ts",
+        "src/lib/chat-constants.ts",
+        "src/components/chat/ChatPanel.tsx",
+        "src/services/message.service.ts"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/06-chat-messages.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "clans.topics",
+    "title": "Chat topics & threading",
+    "description": "ChatTopic model with isDefault flag. Sort order. ACTIVE/ARCHIVED status. Create/edit/delete endpoints.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "clans",
+    "epicTitle": "Clans & Chat",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Clan leaders can create topics. Messages are scoped to topics. Archive works.",
+    "risks": null,
+    "dependencies": [
+      "clans.chat"
+    ],
+    "evidence": {
+      "files": [
+        "src/services/topic.service.ts",
+        "src/app/api/clans/[clanId]/topics/route.ts"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/07-chat-topics.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "clans.trade-cards",
+    "title": "Signal & analysis trade cards",
+    "description": "SIGNAL and ANALYSIS card types. Cards created via Socket.io with full validation. Rendered inline in chat. Version history for edits.",
+    "phase": "W1",
+    "priority": "CRITICAL",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "clans",
+    "epicTitle": "Clans & Chat",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Users can create SIGNAL/ANALYSIS cards. Cards render with entry/SL/TP. Edits tracked.",
+    "risks": null,
+    "dependencies": [
+      "clans.chat"
+    ],
+    "evidence": {
+      "files": [
+        "src/services/trade-card.service.ts",
+        "src/components/chat/AnalysisCardComposerDialog.tsx"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/08-trade-cards.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "clans.trade-lifecycle",
+    "title": "Trade tracking & lifecycle",
+    "description": "Trade lifecycle: PENDING → OPEN → TP_HIT/SL_HIT/BE/CLOSED. Full status history with TradeEvent audit. Actions: SET_BE, MOVE_SL, CHANGE_TP, CLOSE.",
+    "phase": "W1",
+    "priority": "CRITICAL",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "clans",
+    "epicTitle": "Clans & Chat",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Trade status progresses correctly. All state changes logged. Actions (BE/SL/TP/close) work.",
+    "risks": null,
+    "dependencies": [
+      "clans.trade-cards"
+    ],
+    "evidence": {
+      "files": [
+        "src/services/trade.service.ts",
+        "src/services/trade-action.service.ts",
+        "src/app/api/clans/[clanId]/trades/[tradeId]/route.ts"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/08-trade-cards.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "clans.dms",
+    "title": "Direct messages",
+    "description": "1:1 DMs with typing indicators, read receipts, image attachments (up to 4). Socket.io rooms: dm:{sortedUserIds}.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "clans",
+    "epicTitle": "Clans & Chat",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Users can send/receive DMs. Read receipts and typing indicators work.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/services/dm.service.ts",
+        "src/app/(main)/dm/page.tsx",
+        "src/components/dm/DmPanel.tsx"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/09-direct-messages.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "clans.join-invites",
+    "title": "Join requests + invite codes",
+    "description": "Join requests (PENDING/APPROVED/REJECTED) for private clans. Invite codes with expiry, maxUses, uses tracking.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "clans",
+    "epicTitle": "Clans & Chat",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Private clan join flow works. Invite codes with limits work.",
+    "risks": null,
+    "dependencies": [
+      "clans.crud"
+    ],
+    "evidence": {
+      "files": [
+        "src/services/join-request.service.ts",
+        "src/services/invite.service.ts",
+        "src/components/clan/InviteManager.tsx"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/04-join-requests.spec.ts",
+        "e2e/simulator/05-invites.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "clans.reactions-pins",
+    "title": "Reactions, pinning, images, typing, presence",
+    "description": "Emoji reactions on messages. Pin/unpin messages. Image uploads (up to 4, Sharp → WebP). Typing indicators via Socket.io. Redis presence (5min TTL).",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "clans",
+    "epicTitle": "Clans & Chat",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "All social features work: reactions, pinning, images, typing indicators, online presence.",
+    "risks": null,
+    "dependencies": [
+      "clans.chat"
+    ],
+    "evidence": {
+      "files": [
+        "src/components/chat/ReactionBar.tsx",
+        "src/lib/socket-handlers.ts"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/06-chat-messages.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "leaderboard.seasons",
+    "title": "Season management",
+    "description": "Season model with UPCOMING/ACTIVE/COMPLETED/ARCHIVED lifecycle. Admin can create/edit/close seasons.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "leaderboard",
+    "epicTitle": "Leaderboards & Badges",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Seasons can be created, activated, and completed. Rankings scoped to seasons.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/services/ranking.service.ts",
+        "src/app/(main)/admin/ranking/page.tsx"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/12-leaderboard.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "leaderboard.rankings",
+    "title": "Multi-lens rankings (6 lenses)",
+    "description": "Composite, profitFactor, winRate, consistency, riskAdjusted, lowRisk. Configurable weights. Min trade threshold.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "leaderboard",
+    "epicTitle": "Leaderboards & Badges",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Leaderboard shows rankings across 6 lenses. Admin can recalculate. Weights configurable.",
+    "risks": null,
+    "dependencies": [
+      "leaderboard.seasons"
+    ],
+    "evidence": {
+      "files": [
+        "src/services/ranking.service.ts",
+        "src/app/(main)/leaderboard/page.tsx",
+        "src/components/leaderboard/LeaderboardTable.tsx"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/12-leaderboard.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "leaderboard.badges",
+    "title": "Badge system (rank/perf/trophy)",
+    "description": "3 categories: rank (min_closed_trades), performance (metric rolling windows), trophy (season placement). Auto-evaluation, admin dry-run, recompute.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "leaderboard",
+    "epicTitle": "Leaderboards & Badges",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Badges auto-awarded on milestones. Admin can dry-run and recompute. Badge CRUD works.",
+    "risks": null,
+    "dependencies": [
+      "leaderboard.rankings"
+    ],
+    "evidence": {
+      "files": [
+        "src/services/badge-engine.service.ts",
+        "src/app/(main)/admin/badges/page.tsx",
+        "src/app/api/admin/badges/route.ts"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/15-badges.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "leaderboard.season-results",
+    "title": "Season results page",
+    "description": "Final standings, awards, highlights after season ends. Not yet implemented.",
+    "phase": "W6",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "leaderboard",
+    "epicTitle": "Leaderboards & Badges",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "After season ends, results page shows final standings, top performers, awards.",
+    "risks": null,
+    "dependencies": [
+      "leaderboard.seasons"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "content.channel-feed",
+    "title": "Channel feed & posts",
+    "description": "ChannelPost model: title, content, images, isPremium. Telegram-style broadcast. View counts. Reactions.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "content",
+    "epicTitle": "Content & Discovery",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Clan channel shows posts. Users can create posts with images. View counts track.",
+    "risks": null,
+    "dependencies": [
+      "clans.crud"
+    ],
+    "evidence": {
+      "files": [
+        "src/services/channel.service.ts",
+        "src/components/channel/ChannelFeed.tsx",
+        "src/app/api/clans/[clanId]/posts/route.ts"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/10-channel-posts.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "content.auto-post",
+    "title": "Auto-post from trade cards",
+    "description": "High-signal trades auto-posted to channel. Feature-flag gated (auto_post). Tag matching against clan settings.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "content",
+    "epicTitle": "Content & Discovery",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Trade cards with matching tags auto-post to channel when feature flag enabled.",
+    "risks": null,
+    "dependencies": [
+      "content.channel-feed",
+      "clans.trade-cards"
+    ],
+    "evidence": {
+      "files": [
+        "src/services/auto-post.service.ts"
+      ],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "content.discover",
+    "title": "Discover page + filters",
+    "description": "Clans tab + Free Agents tab. Search, focus filter, tier filter. Public clans discoverable.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "content",
+    "epicTitle": "Content & Discovery",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Users can discover public clans and free agents. Filters work.",
+    "risks": null,
+    "dependencies": [
+      "clans.crud"
+    ],
+    "evidence": {
+      "files": [
+        "src/app/(main)/discover/page.tsx",
+        "src/components/discover/FilterBar.tsx",
+        "src/app/api/discover/clans/route.ts"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/11-discovery.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "content.follow",
+    "title": "Follow system",
+    "description": "Follow model: followerId, followingType (USER/CLAN), followingId. Follow/unfollow with counts.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "content",
+    "epicTitle": "Content & Discovery",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Users can follow/unfollow clans and users. Follower counts display correctly.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/services/follow.service.ts",
+        "src/components/clan/FollowButton.tsx"
+      ],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "content.calendar",
+    "title": "Economic calendar sync + event reminders",
+    "description": "MT5 EA sends calendar events. Upsert with externalId+source uniqueness. Rate limiting (5-min window). Socket.io event reminders at 1h and 1min before.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "content",
+    "epicTitle": "Content & Discovery",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Calendar events display. Reminders fire via Socket.io before high-impact events.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/app/api/ea/calendar-events/route.ts",
+        "src/services/event-reminder.service.ts",
+        "src/components/chat/EventReminderListener.tsx"
+      ],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "content.stories",
+    "title": "Stories system",
+    "description": "DB model exists (Story: userId, imageUrl, expiresAt). No API routes or UI built. Ephemeral 24h content.",
+    "phase": "W7",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "content",
+    "epicTitle": "Content & Discovery",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Users can create stories (image + text). Stories expire after 24h. Viewable in feed.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "prisma/schema.prisma (Story model)"
+      ],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "integrity.contract",
+    "title": "Integrity contract (deny-by-default)",
+    "description": "6-condition eligibility check: MT-linked, integrityStatus, resolutionSource, card-before-trade timing, initial SL snapshot, no duplicate MT ticket. 12+ loopholes identified and fixed.",
+    "phase": "W1",
+    "priority": "CRITICAL",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "integrity",
+    "epicTitle": "Trade Integrity",
+    "workstream": "TRUST_INTEGRITY",
+    "milestone": "MVP_BETA",
+    "pmStatus": "HARDENED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "No trade is counted for rankings unless all 6 conditions pass. Reason codes displayed in UI. Unit tests pass.",
+    "risks": "Complex logic — any regression could allow fraudulent trades to count.",
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/services/integrity.service.ts",
+        "src/lib/trade-evaluator.ts",
+        "src/lib/trade-policy.ts",
+        "src/types/trade-integrity.ts"
+      ],
+      "envVars": [],
+      "tests": [
+        "src/services/__tests__/integrity.service.test.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "integrity.admin-override",
+    "title": "Admin override governance",
+    "description": "Admin can manually override trade eligibility. All overrides logged in TradeEvent with MANUAL_OVERRIDE reason. API returns 422 for ineligible trades.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "integrity",
+    "epicTitle": "Trade Integrity",
+    "workstream": "TRUST_INTEGRITY",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Admin can override. All overrides auditable. Non-admin cannot override.",
+    "risks": null,
+    "dependencies": [
+      "integrity.contract"
+    ],
+    "evidence": {
+      "files": [
+        "src/app/api/admin/trades/[tradeId]/route.ts",
+        "src/services/integrity.service.ts"
+      ],
+      "envVars": [],
+      "tests": [
+        "src/services/__tests__/integrity.service.test.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "integrity.ea-bridge",
+    "title": "EA/MetaTrader bridge (two-way)",
+    "description": "EA→Server: heartbeat, trade-event, calendar. Server→EA: pending actions queue. Rate limiting on calendar sync. Action results tracking.",
+    "phase": "W1",
+    "priority": "CRITICAL",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "integrity",
+    "epicTitle": "Trade Integrity",
+    "workstream": "TRUST_INTEGRITY",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "EA heartbeat works. Trade events sync. Pending actions delivered. Calendar events upserted.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/app/api/ea/heartbeat/route.ts",
+        "src/app/api/ea/trade-event/route.ts",
+        "src/services/ea-signal.service.ts",
+        "src/services/ea-action.service.ts"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/17-ea-heartbeat.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "integrity.evaluator",
+    "title": "Trade integrity evaluator (background)",
+    "description": "Background job every 60s evaluating all pending trades. Feature-flag gated (trade_integrity_evaluator). Returns evaluated count, status changes, errors.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "integrity",
+    "epicTitle": "Trade Integrity",
+    "workstream": "TRUST_INTEGRITY",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Background evaluator runs every 60s when flag enabled. Trades auto-evaluated.",
+    "risks": null,
+    "dependencies": [
+      "integrity.contract"
+    ],
+    "evidence": {
+      "files": [
+        "server.ts (lines 48-65)",
+        "src/lib/trade-evaluator.ts"
+      ],
+      "envVars": [],
+      "tests": [
+        "src/services/__tests__/trade-evaluator.test.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "integrity.feature-flags",
+    "title": "Feature flags system",
+    "description": "FeatureFlag model with Redis caching (60s TTL). Admin CRUD. 2 runtime-gated features: auto_post, trade_integrity_evaluator.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "integrity",
+    "epicTitle": "Trade Integrity",
+    "workstream": "TRUST_INTEGRITY",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Feature flags toggle features at runtime. Redis cache prevents DB hit on every check.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/lib/feature-flags.ts",
+        "src/app/api/admin/feature-flags/route.ts"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/21-admin-features.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "ops.deploy-scripts",
+    "title": "Deploy pipeline (US build → Iran deploy)",
+    "description": "3 bash scripts: deploy-pack.sh (tarball on US), deploy-staging.sh (to staging), promote-to-prod.sh (with backup + auto-rollback + health check).",
+    "phase": "W1",
+    "priority": "CRITICAL",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "ops",
+    "epicTitle": "Deployment & Operations",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Deploy from US to Iran staging works. Promote to prod with auto-rollback works.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "scripts/deploy-pack.sh",
+        "scripts/deploy-staging.sh",
+        "scripts/promote-to-prod.sh"
+      ],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "ops.pm2",
+    "title": "PM2 process management",
+    "description": "ecosystem.config.cjs with auto-restart, 1GB memory limit, log rotation. Custom HTTP server wraps Next.js + Socket.io.",
+    "phase": "W1",
+    "priority": "CRITICAL",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "ops",
+    "epicTitle": "Deployment & Operations",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "PM2 manages the process. Auto-restart on crash. Memory limit enforced.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "server.ts",
+        "scripts/promote-to-prod.sh (PM2 config)"
+      ],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "ops.staging",
+    "title": "Staging environment",
+    "description": "Staging on port 3001, Redis DB 1. Separate .env. Health checks before promotion.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "ops",
+    "epicTitle": "Deployment & Operations",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Staging environment isolated from prod. Can test before promoting.",
+    "risks": null,
+    "dependencies": [
+      "ops.deploy-scripts"
+    ],
+    "evidence": {
+      "files": [
+        "scripts/deploy-staging.sh"
+      ],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "ops.monitoring",
+    "title": "Error monitoring (GlitchTip/Sentry)",
+    "description": "Self-hosted Sentry alternative. No international API dependency. Not yet implemented.",
+    "phase": "W1",
+    "priority": "CRITICAL",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "ops",
+    "epicTitle": "Deployment & Operations",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "MVP_BETA",
+    "pmStatus": "DEPRECATED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Production errors captured, alerting enabled, dashboard accessible.",
+    "risks": "No error monitoring means production bugs go undetected.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [
+        "SENTRY_DSN"
+      ],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "ops.cicd",
+    "title": "CI/CD pipeline (GitHub Actions)",
+    "description": "Lint + type-check + build on push. No GitHub Actions workflows exist.",
+    "phase": "W5",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "ops",
+    "epicTitle": "Deployment & Operations",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Every push triggers lint + type-check + build. PRs block on failure.",
+    "risks": "Without CI, broken code can be deployed.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [
+        "GITHUB_TOKEN"
+      ],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "ops.logging",
+    "title": "Structured logging (Pino)",
+    "description": "Replace 150+ console.log calls with JSON structured logging via Pino. Not implemented.",
+    "phase": "W5",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "ops",
+    "epicTitle": "Deployment & Operations",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "All server-side logging uses Pino. JSON log output. Log levels enforced.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "ops.backups",
+    "title": "Automated database backups",
+    "description": "No automated pg_dump script or cron job. Only manual snapshots during deployment.",
+    "phase": "W1",
+    "priority": "CRITICAL",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "ops",
+    "epicTitle": "Deployment & Operations",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "MVP_BETA",
+    "pmStatus": "DEPRECATED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Daily automated pg_dump cron job. Backups stored safely. Restore drill documented and tested.",
+    "risks": "Data loss on server failure without automated backups.",
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "scripts/promote-to-prod.sh (manual backup only)"
+      ],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "ops.uptime",
+    "title": "Uptime monitoring + Telegram alerts",
+    "description": "Cron health check script with Telegram bot notifications. Not implemented.",
+    "phase": "W5",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "ops",
+    "epicTitle": "Deployment & Operations",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "External monitor checks /health every minute. Telegram alert on downtime.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "ops.health-endpoint",
+    "title": "Health check API endpoint",
+    "description": "No /api/health endpoint exists. Deployment scripts use homepage HTTP check only.",
+    "phase": "W1",
+    "priority": "CRITICAL",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "ops",
+    "epicTitle": "Deployment & Operations",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "MVP_BETA",
+    "pmStatus": "DEPRECATED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "/api/health returns DB + Redis + Socket.io connectivity status. Used by monitoring.",
+    "risks": "Cannot properly monitor without a health endpoint.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "ops.rate-limiting",
+    "title": "Rate limiting coverage",
+    "description": "Currently: OTP (3/10min), chat (5/60s), EA heartbeat. Missing: API routes, auth endpoints, image uploads, admin actions.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "TESTING",
+    "category": "FEATURE",
+    "epicKey": "ops",
+    "epicTitle": "Deployment & Operations",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "MVP_BETA",
+    "pmStatus": "INTEGRATED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "All public endpoints have rate limiting. Auth endpoints have aggressive limits.",
+    "risks": "Missing rate limits on some endpoints could lead to abuse.",
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/app/api/auth/send-otp/route.ts",
+        "src/lib/socket-handlers.ts"
+      ],
+      "envVars": [],
+      "tests": [
+        "e2e/simulator/14-rate-limiting.spec.ts"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "ops.security-audit",
+    "title": "Security audit (OWASP top 10)",
+    "description": "No formal security audit conducted. Input validation via Zod exists. Auth checks on admin routes exist.",
+    "phase": "W3",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "ops",
+    "epicTitle": "Deployment & Operations",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "MVP_BETA",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "OWASP top-10 review completed. All findings addressed. Report documented.",
+    "risks": "Undetected vulnerabilities in a financial platform.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 4,
+    "estimateLikely": 6,
+    "estimateWorst": 10
+  },
+  {
+    "key": "ops.e2e-tests",
+    "title": "E2E test suite (Playwright)",
+    "description": "29 test specs: auth, clans, members, join requests, invites, chat, topics, trades, DMs, posts, discovery, leaderboard, permissions, rate-limiting, badges, EA, watchlist, journal, admin, settings, referrals.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "ops",
+    "epicTitle": "Deployment & Operations",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "All 29 E2E specs pass. Admin test runner works.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "e2e/simulator/*.spec.ts (24 files)",
+        "e2e/*.spec.ts (5 files)"
+      ],
+      "envVars": [
+        "TEST_WORKER_TOKEN"
+      ],
+      "tests": [
+        "e2e/"
+      ]
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "ops.pwa",
+    "title": "PWA + service worker + offline",
+    "description": "Full service worker with cache strategies. Offline page. LRU eviction. Install prompts.",
+    "phase": "W1",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "ops",
+    "epicTitle": "Deployment & Operations",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "App installable on mobile. Offline page shows when disconnected. Caches work.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "public/sw.js",
+        "src/components/pwa/ServiceWorkerRegistration.tsx",
+        "src/app/offline/page.tsx"
+      ],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "ops.mobile-responsive",
+    "title": "Mobile responsive polish",
+    "description": "Telegram-like layout on mobile. Bottom nav, hamburger menu, overflow fixes. Partially complete.",
+    "phase": "W3",
+    "priority": "CRITICAL",
+    "column": "TESTING",
+    "category": "FEATURE",
+    "epicKey": "ops",
+    "epicTitle": "Deployment & Operations",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "MVP_BETA",
+    "pmStatus": "INTEGRATED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "All critical flows work on mobile. No horizontal overflow. Touch targets meet 44px minimum.",
+    "risks": "Iranian users are primarily mobile — broken mobile UX loses majority of users.",
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/components/layout/AppShell.tsx",
+        "src/components/layout/LeftPanel.tsx"
+      ],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 8,
+    "estimateLikely": 12,
+    "estimateWorst": 16
+  },
+  {
+    "key": "ops.seo",
+    "title": "SEO (OG tags, sitemap, canonical)",
+    "description": "Basic metadata exists. Missing: OG images, sitemap.ts, robots.ts, structured data.",
+    "phase": "W6",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "ops",
+    "epicTitle": "Deployment & Operations",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Proper OG images, sitemap.xml, robots.txt, canonical URLs.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "ops.onboarding",
+    "title": "Onboarding flow (intent + missions)",
+    "description": "Intent modal (4 options: LEARN/COMPETE/SHARE/RECRUIT) done. Missions dashboard exists. No guided tour.",
+    "phase": "W4",
+    "priority": "HIGH",
+    "column": "TESTING",
+    "category": "FEATURE",
+    "epicKey": "ops",
+    "epicTitle": "Deployment & Operations",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "MVP_BETA",
+    "pmStatus": "INTEGRATED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "New users see intent modal → missions checklist. Completing missions unlocks badges.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/components/onboarding/OnboardingIntentModal.tsx",
+        "src/components/home/MissionDashboard.tsx",
+        "src/app/api/users/me/missions/route.ts"
+      ],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "monetization.zarinpal",
+    "title": "ZarinPal payment gateway",
+    "description": "Primary Iranian payment gateway. Node.js SDK. Not implemented at all — no code, no SDK.",
+    "phase": "W7",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "monetization",
+    "epicTitle": "Payments & Monetization",
+    "workstream": "MONETIZATION_GROWTH",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Users can pay via ZarinPal. Payment verified server-side. Receipt stored.",
+    "risks": "ZarinPal sandbox testing required. Toman pricing.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [
+        "ZARINPAL_MERCHANT_ID"
+      ],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "monetization.subscriptions",
+    "title": "Subscription checkout flow",
+    "description": "SubscriptionPlan model + admin CRUD exists. No checkout flow, no payment verification, no subscription enforcement.",
+    "phase": "W7",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "monetization",
+    "epicTitle": "Payments & Monetization",
+    "workstream": "MONETIZATION_GROWTH",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "User selects plan → pays via ZarinPal → subscription activated → isPro flag set.",
+    "risks": "Depends on ZarinPal integration.",
+    "dependencies": [
+      "monetization.zarinpal"
+    ],
+    "evidence": {
+      "files": [
+        "src/app/api/admin/plans/route.ts",
+        "src/app/(main)/admin/plans/page.tsx"
+      ],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "monetization.paywall",
+    "title": "Paywall enforcement",
+    "description": "PaywallRule model + admin CRUD exists. applyPaywall() function exists but is NEVER called in production API routes.",
+    "phase": "W7",
+    "priority": "HIGH",
+    "column": "TESTING",
+    "category": "FEATURE",
+    "epicKey": "monetization",
+    "epicTitle": "Payments & Monetization",
+    "workstream": "MONETIZATION_GROWTH",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "INTEGRATED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Paywall rules are enforced at API boundaries. Non-pro users see redacted content.",
+    "risks": "Infrastructure exists but zero enforcement. All content is currently free.",
+    "dependencies": [
+      "monetization.subscriptions"
+    ],
+    "evidence": {
+      "files": [
+        "src/lib/paywall.ts",
+        "src/app/api/admin/paywall-rules/route.ts"
+      ],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "monetization.channel-marketplace",
+    "title": "Channel subscription marketplace",
+    "description": "Clans set price, 70-80% split. Browse, preview, subscribe. Not implemented.",
+    "phase": "W7",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "monetization",
+    "epicTitle": "Payments & Monetization",
+    "workstream": "MONETIZATION_GROWTH",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Clans can set subscription price. Users can subscribe. Revenue split applied.",
+    "risks": null,
+    "dependencies": [
+      "monetization.zarinpal",
+      "monetization.subscriptions"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "monetization.landing",
+    "title": "Landing page + marketing",
+    "description": "Landing page with hero, features, stats, CTA sections. Self-hosted.",
+    "phase": "W6",
+    "priority": "HIGH",
+    "column": "DONE",
+    "category": "FEATURE",
+    "epicKey": "monetization",
+    "epicTitle": "Payments & Monetization",
+    "workstream": "MONETIZATION_GROWTH",
+    "milestone": "MVP_BETA",
+    "pmStatus": "VERIFIED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Landing page renders correctly in both languages. CTA drives signups.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [
+        "src/components/landing/Hero.tsx",
+        "src/components/landing/Features.tsx",
+        "src/components/landing/CTASection.tsx"
+      ],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "ai.router",
+    "title": "AIRouter service (failover chain)",
+    "description": "OpenRouter → Ollama → Cache. 3s timeout, health checks, admin force-local toggle. Not implemented.",
+    "phase": "W7",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "ai",
+    "epicTitle": "AI Features",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "AIRouter transparently routes queries. Failover works. Admin can force local mode.",
+    "risks": "Requires AI server provisioning. Ollama models need GPU or large RAM.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [
+        "OPENROUTER_API_KEY"
+      ],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "ai.chatbot",
+    "title": "Spectator AI chatbot",
+    "description": "3 free questions/day for non-pro users. System prompt with DB query access. Not implemented.",
+    "phase": "W7",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "ai",
+    "epicTitle": "AI Features",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Non-pro users can ask 3 questions/day. AI responds with platform data context.",
+    "risks": null,
+    "dependencies": [
+      "ai.router"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "ai.clan-assistant",
+    "title": "Clan AI assistant (@ai mention)",
+    "description": "Pro-only AI assistant in clan chat. @ai trigger. Clan context injected. Not implemented.",
+    "phase": "W7",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "ai",
+    "epicTitle": "AI Features",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "@ai mention in chat triggers AI response with clan context.",
+    "risks": null,
+    "dependencies": [
+      "ai.router"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "ops.blackout-test",
+    "title": "Blackout resilience test",
+    "description": "Block international traffic on production. Verify all features work on NIN-only. Not tested.",
+    "phase": "W5",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "ops",
+    "epicTitle": "Deployment & Operations",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Every feature works without international internet. AI falls back to local. Payments work on NIN.",
+    "risks": "Unknown failure modes under blackout conditions.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": null,
+    "estimateWorst": null
+  },
+  {
+    "key": "stabilize.db-backups",
+    "title": "Automated PostgreSQL backups",
+    "description": "pg_dump cron job with 7-day retention + test restore drill.",
+    "phase": "W3",
+    "priority": "CRITICAL",
+    "column": "TODO",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "Automated daily pg_dump runs. Backups stored with 7-day retention. Restore drill completed successfully.",
+    "risks": "Large DB size may slow dump. Need offsite backup storage.",
+    "dependencies": [
+      "stabilize.iran-vps"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 6,
+    "estimateLikely": 10,
+    "estimateWorst": 14
+  },
+  {
+    "key": "stabilize.error-tracking",
+    "title": "Self-hosted error tracking (GlitchTip)",
+    "description": "Deploy GlitchTip on dev/prod for production error capture, alerting, and dashboard. No external SaaS dependency.",
+    "phase": "W3",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "GlitchTip running. Next.js errors auto-reported. Alert rules configured. Dashboard accessible to admin.",
+    "risks": "GlitchTip Docker compose needs stable server resources. Must not impact app performance.",
+    "dependencies": [
+      "stabilize.iran-vps"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 3,
+    "estimateLikely": 6,
+    "estimateWorst": 10
+  },
+  {
+    "key": "stabilize.env-validation",
+    "title": "Zod env validation at startup",
+    "description": "Fail-fast on missing or invalid environment variables using Zod schema validation at server startup.",
+    "phase": "W3",
+    "priority": "HIGH",
+    "column": "TODO",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "Server refuses to start if required env vars are missing. Clear error messages indicate which vars are missing.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 4
+  },
+  {
+    "key": "stabilize.rate-limits",
+    "title": "Rate limiting on all public routes",
+    "description": "Rate limiting on login, signup, reset, and all public API routes. Extends existing OTP + chat rate limits.",
+    "phase": "W3",
+    "priority": "CRITICAL",
+    "column": "TODO",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "All public-facing routes have rate limits. Auth endpoints have aggressive limits. Rate limit headers returned in responses.",
+    "risks": "Too aggressive limits could block legitimate users. Need careful tuning.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 3,
+    "estimateLikely": 5,
+    "estimateWorst": 8
+  },
+  {
+    "key": "stabilize.health-endpoint",
+    "title": "/api/health endpoint",
+    "description": "/api/health returning DB + Redis + Socket.io connectivity status as JSON.",
+    "phase": "W3",
+    "priority": "HIGH",
+    "column": "TODO",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "/api/health returns JSON with DB, Redis, and Socket.io status. Returns 503 if any service is down.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "stabilize.iran-vps",
+    "title": "Iran VPS setup",
+    "description": "Iran VPS setup: PostgreSQL, Redis, Node.js, nginx, SSL certificate. Production-ready server configuration.",
+    "phase": "W3",
+    "priority": "CRITICAL",
+    "column": "TODO",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "Iran VPS running with PostgreSQL, Redis, Node.js, nginx, and valid SSL. All services start on boot.",
+    "risks": "Iranian hosting providers may have limited resources. SSL renewal must work without international access.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 4,
+    "estimateLikely": 6,
+    "estimateWorst": 10
+  },
+  {
+    "key": "stabilize.kavenegar-prod",
+    "title": "Kavenegar OTP on Iran prod",
+    "description": "Kavenegar OTP configured and tested on Iran staging + production servers.",
+    "phase": "W7",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "OTP SMS delivered to real Iranian phone numbers from production server. Rate limiting and console fallback work.",
+    "risks": "Kavenegar may have latency from Iran VPS. API key scope must match production domain.",
+    "dependencies": [
+      "stabilize.iran-vps"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "stabilize.smtp-prod",
+    "title": "SMTP for production email",
+    "description": "SMTP configured for production email verification and password reset flows.",
+    "phase": "W3",
+    "priority": "CRITICAL",
+    "column": "TODO",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "Verification and reset emails delivered from production. SPF/DKIM configured. No emails landing in spam.",
+    "risks": "Iranian SMTP providers may have deliverability issues. Need SPF/DKIM/DMARC setup.",
+    "dependencies": [
+      "stabilize.iran-vps"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 3,
+    "estimateLikely": 6,
+    "estimateWorst": 8
+  },
+  {
+    "key": "stabilize.deploy-iran",
+    "title": "Deploy pipeline to Iran end-to-end",
+    "description": "Run deploy pipeline to Iran (staging then prod) end-to-end and verify all services work.",
+    "phase": "W3",
+    "priority": "CRITICAL",
+    "column": "TODO",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PLATFORM_OPS",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "Full deploy from US build to Iran staging, then promote to prod. Health checks pass. Rollback tested.",
+    "risks": "Network between US and Iran may be slow/unreliable for tarball transfer.",
+    "dependencies": [
+      "stabilize.iran-vps"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 4,
+    "estimateLikely": 6,
+    "estimateWorst": 8
+  },
+  {
+    "key": "stabilize.mobile-audit",
+    "title": "Mobile audit",
+    "description": "Mobile audit: fix horizontal scroll, touch targets, keyboard overlap across all critical flows.",
+    "phase": "W3",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "No horizontal scroll on any page. All touch targets >= 44px. Keyboard does not overlap inputs. Tested on iPhone SE and Android.",
+    "risks": "May surface many small issues requiring iterative fixes.",
+    "dependencies": [
+      "ops.mobile-responsive"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 4,
+    "estimateLikely": 6,
+    "estimateWorst": 8
+  },
+  {
+    "key": "stabilize.signal-cards-mobile",
+    "title": "Signal cards readable on mobile",
+    "description": "Signal cards (R:R, instruments, actions) readable and usable on mobile viewports.",
+    "phase": "W3",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "Signal cards render without overflow on 375px viewport. All data (R:R, entry, SL, TP) visible. Action buttons tappable.",
+    "risks": null,
+    "dependencies": [
+      "stabilize.mobile-audit"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 3,
+    "estimateLikely": 5,
+    "estimateWorst": 8
+  },
+  {
+    "key": "stabilize.modals-mobile",
+    "title": "Modals and sheets on mobile",
+    "description": "Modals/bottom sheets closable on mobile + empty states guide the user to the next step.",
+    "phase": "W3",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "All modals dismissible via swipe/tap-outside on mobile. Empty states show clear CTA for next action.",
+    "risks": null,
+    "dependencies": [
+      "ops.mobile-responsive"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 3,
+    "estimateLikely": 5,
+    "estimateWorst": 8
+  },
+  {
+    "key": "stabilize.rtl-tests",
+    "title": "RTL visual regression tests",
+    "description": "RTL visual regression tests using Playwright on mobile and desktop viewports.",
+    "phase": "W3",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "TRUST_INTEGRITY",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Playwright screenshot tests for key pages in RTL mode. CI fails on visual diff beyond threshold.",
+    "risks": "Screenshot tests can be flaky across environments. Need consistent font rendering.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "stabilize.integrity-e2e",
+    "title": "Manual E2E integrity test",
+    "description": "Manual E2E test verifying all 6 integrity conditions are enforced end-to-end.",
+    "phase": "W3",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "TRUST_INTEGRITY",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "All 6 integrity conditions tested manually with real EA. Each condition blocks ineligible trades. Results documented.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 3,
+    "estimateLikely": 5,
+    "estimateWorst": 8
+  },
+  {
+    "key": "stabilize.statement-accuracy",
+    "title": "Statement recalculation accuracy check",
+    "description": "Statement recalculation accuracy check versus manual calculation for sample traders.",
+    "phase": "W3",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "TRUST_INTEGRITY",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Statement metrics match manual spreadsheet calculation for 3+ sample traders. Any discrepancies identified and fixed.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "stabilize.statement-perf",
+    "title": "Statement performance test",
+    "description": "Performance test: statement calculation with 500+ trades to ensure it completes in acceptable time.",
+    "phase": "W3",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "TRUST_INTEGRITY",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Statement recalculation for 500+ trades completes in < 10 seconds. No timeouts or memory issues.",
+    "risks": "May need query optimization or pagination for very large trade sets.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "stabilize.exploit-regression",
+    "title": "Exploit regression tests",
+    "description": "Regression tests for known exploits: analysis upgrade loophole, retroactive match exploit, and other documented integrity bypasses.",
+    "phase": "W3",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "TRUST_INTEGRITY",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "Unit tests cover all 12+ known loopholes. Each test verifies the exploit is blocked. Tests run in CI.",
+    "risks": null,
+    "dependencies": [
+      "stabilize.integrity-e2e"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 2,
+    "estimateLikely": 4,
+    "estimateWorst": 6
+  },
+  {
+    "key": "stabilize.alpha-invite",
+    "title": "Alpha invite batch",
+    "description": "Invite 10-20 traders, create 2-3 curated clans for alpha testing.",
+    "phase": "W3",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "10-20 alpha testers onboarded. 2-3 clans created with active members. Feedback collection mechanism in place.",
+    "risks": "Finding engaged alpha testers may take time. Need clear onboarding instructions.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 2,
+    "estimateLikely": 4,
+    "estimateWorst": 6
+  },
+  {
+    "key": "stabilize.alpha-bugfix",
+    "title": "Alpha bug-fix buffer",
+    "description": "Bug-fix buffer for issues discovered during alpha feedback period (3-5 days).",
+    "phase": "W3",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PRODUCT_CORE",
+    "milestone": "ALPHA_TEST",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "All P0 bugs from alpha feedback triaged and fixed. No critical regressions remain.",
+    "risks": "Scope of alpha bugs is unpredictable. May need more than 5 days.",
+    "dependencies": [
+      "stabilize.alpha-invite"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 12,
+    "estimateLikely": 30,
+    "estimateWorst": 60
+  },
+  {
+    "key": "market-data.mt-quote-storage",
+    "title": "MT quote storage",
+    "description": "MarketPricePoint model + store prices from EA heartbeat into database for historical reference.",
+    "phase": "W8",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "market-data",
+    "epicTitle": "Market Data Foundation",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "MarketPricePoint model in schema. EA heartbeat prices persisted to DB. Query by symbol + time range works.",
+    "risks": "High write volume from frequent heartbeats. May need table partitioning or TTL cleanup.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "market-data.ohlc-aggregation",
+    "title": "OHLC candle aggregation",
+    "description": "OHLC candle aggregation from MT ticks at multiple timeframes (1m, 5m, 15m, 1h, 4h, 1d).",
+    "phase": "W8",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "market-data",
+    "epicTitle": "Market Data Foundation",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Candles aggregated from tick data for all 6 timeframes. Candle table queryable by symbol + timeframe + range.",
+    "risks": "Aggregation logic must handle gaps in tick data gracefully.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "market-data.symbol-normalization",
+    "title": "Symbol normalization resolver",
+    "description": "Symbol normalization resolver: map broker-specific names (XAUUSD vs GOLD, suffixes like .m, .a) to canonical symbols.",
+    "phase": "W8",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "market-data",
+    "epicTitle": "Market Data Foundation",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Resolver maps any broker symbol to canonical form. Configurable alias table. Used in all quote storage and display.",
+    "risks": "Broker symbol variations are vast. Need community-editable alias table.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "market-data.freshness-rules",
+    "title": "Price freshness rules",
+    "description": "Price freshness: mark symbol as stale if no update received in X seconds. Show warning in UI.",
+    "phase": "W8",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "market-data",
+    "epicTitle": "Market Data Foundation",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Stale prices detected and flagged. UI shows warning badge on stale symbols. Configurable staleness threshold per symbol type.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "market-data.health-dashboard",
+    "title": "Market data health dashboard",
+    "description": "Admin dashboard showing live/stale symbols, last update times, and data pipeline health.",
+    "phase": "W8",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "market-data",
+    "epicTitle": "Market Data Foundation",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Admin page shows all tracked symbols with live/stale status, last tick time, and connected EA count.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "market-data.openrouter-wrapper",
+    "title": "OpenRouter client wrapper",
+    "description": "OpenRouter client wrapper with retries, rate limits, prompt versioning, and LLMRunRecord table for cost/latency tracking.",
+    "phase": "W8",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "market-data",
+    "epicTitle": "Market Data Foundation",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Wrapper handles retries and rate limits. Every LLM call logged to LLMRunRecord. Prompt versions tracked. Admin can view cost dashboard.",
+    "risks": "OpenRouter may be unreachable from Iran. Need fallback strategy or proxy.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "market-data.typed-contracts",
+    "title": "Typed contracts (Zod schemas)",
+    "description": "Typed contracts: MarketSnapshot, EventCard, BriefingRecord Zod schemas for consistent data shapes across the pipeline.",
+    "phase": "W8",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "market-data",
+    "epicTitle": "Market Data Foundation",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Zod schemas defined and exported. All pipeline services use these schemas for validation. Type inference works in TypeScript.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "news.item-model",
+    "title": "NewsItem model",
+    "description": "NewsItem model + enums added to Prisma schema for news data storage.",
+    "phase": "W8",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "NewsItem model with category, impact, sentiment, instruments, region fields. Migration applied. CRUD queries work.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "news.rss-fetcher",
+    "title": "RSS fetcher service",
+    "description": "RSS fetcher service pulling from Investing.com, ForexLive, Al Jazeera, Reuters feeds.",
+    "phase": "W8",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "RSS feeds parsed and normalized. New items stored in DB. Handles feed errors gracefully. Configurable feed list.",
+    "risks": "RSS feeds may be blocked from Iran. Need to test accessibility from both US and Iran servers.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "news.api-fetcher",
+    "title": "Finnhub + NewsData.io API fetcher",
+    "description": "Finnhub + NewsData.io API fetcher with rate limiting and fallback between providers.",
+    "phase": "W8",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Both APIs fetched with proper rate limiting. Fallback to secondary if primary fails. API keys configurable.",
+    "risks": "API rate limits may be restrictive on free tiers. International APIs may be slow from Iran.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "news.dedup-engine",
+    "title": "News dedup engine",
+    "description": "Dedup engine using externalId hash vs DB to prevent duplicate news items from multiple sources.",
+    "phase": "W8",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Duplicate articles from different sources detected and merged. Hash-based dedup works for exact matches. Fuzzy title matching for near-duplicates.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "news.ai-classifier",
+    "title": "AI news classifier",
+    "description": "OpenRouter AI classifier assigning category, instruments, impact level, sentiment, and summary to each news item.",
+    "phase": "W8",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Each news item classified with category, instruments, impact (HIGH/MEDIUM/LOW), sentiment, and 1-2 sentence summary. Prompt versioned.",
+    "risks": "Classification quality depends on prompt engineering. Need validation against manual classification.",
+    "dependencies": [
+      "market-data.openrouter-wrapper"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 2
+  },
+  {
+    "key": "news.cron-worker",
+    "title": "News cron worker",
+    "description": "Cron worker running every 2 minutes: fetch → dedup → classify → store → Socket.io push to connected clients.",
+    "phase": "W8",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Worker runs on schedule. Full pipeline executes without errors. New items pushed via Socket.io in real time.",
+    "risks": "Worker must not block the main event loop. Need proper error isolation.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "news.api-endpoint",
+    "title": "News API endpoint",
+    "description": "GET /api/news with pagination and filters by category, impact, instrument, and region.",
+    "phase": "W8",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "API returns paginated news with all filter combinations. createdAt-based pagination. Zod-validated query params.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "news.image-proxy",
+    "title": "News image proxy",
+    "description": "Image proxy /api/news/image/[id] to serve news images without external CDN dependency at runtime.",
+    "phase": "W8",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Images fetched and cached locally on first request. Subsequent requests served from cache. No external image URLs in client HTML.",
+    "risks": "Image caching may consume significant disk space. Need LRU eviction.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "news.page-ui",
+    "title": "News page UI",
+    "description": "/news page with news feed, filters, live indicator, and news cards.",
+    "phase": "W8",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "News page renders feed with cards. Filters work (category, impact, instrument). Live indicator shows when new items arrive. RTL layout correct.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "news.admin-posting",
+    "title": "Admin manual EventCard posting",
+    "description": "Manual admin tool for posting EventCards (breaking news, market alerts) directly.",
+    "phase": "W8",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Admin can create EventCards with title, body, impact, instruments. Card pushed to news feed and Socket.io immediately.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "copilot.context-builder",
+    "title": "ContextBuilder service",
+    "description": "ContextBuilder service that builds MarketSnapshot from MT data + news for AI consumption.",
+    "phase": "W8",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "copilot",
+    "epicTitle": "Market Copilot",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "MarketSnapshot built from latest prices + recent news. Snapshot includes top movers, high-impact news, and session context. Typed with Zod schema.",
+    "risks": "Snapshot quality depends on data freshness. Stale data produces misleading snapshots.",
+    "dependencies": [
+      "market-data.mt-quote-storage",
+      "news.item-model"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "copilot.daily-briefing",
+    "title": "Daily briefing generator",
+    "description": "Daily briefing generator: per-asset + overall market summary via OpenRouter.",
+    "phase": "W8",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "copilot",
+    "epicTitle": "Market Copilot",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Daily briefing generated automatically. Covers major assets and overall market. Stored as BriefingRecord. Prompt versioned.",
+    "risks": "LLM cost per briefing needs monitoring. Quality depends on snapshot completeness.",
+    "dependencies": [
+      "copilot.context-builder",
+      "market-data.openrouter-wrapper"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "copilot.briefing-ui",
+    "title": "Briefing UI",
+    "description": "Briefing UI: show daily briefing in app, share to clan, 'why this matters' explainer.",
+    "phase": "W8",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "copilot",
+    "epicTitle": "Market Copilot",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "PUBLIC_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Briefing card renders in home feed. Users can share to clan chat. 'Why this matters' section explains relevance to user's portfolio.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 2
+  },
+  {
+    "key": "copilot.asset-briefing",
+    "title": "Per-asset mini-briefing",
+    "description": "Per-asset mini-briefing: click instrument to see AI summary of recent price action and news.",
+    "phase": "W8",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "copilot",
+    "epicTitle": "Market Copilot",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Clicking an instrument shows AI-generated summary. Summary includes price trend, key news, and trading session context.",
+    "risks": "Per-asset briefings multiply LLM costs. May need caching strategy.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 2
+  },
+  {
+    "key": "copilot.prompt-versioning",
+    "title": "Prompt versioning + A/B testing",
+    "description": "Prompt versioning and A/B testing infrastructure for all AI-generated content.",
+    "phase": "W8",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "copilot",
+    "epicTitle": "Market Copilot",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Prompts stored with version numbers. A/B split configurable per prompt. Results tracked in LLMRunRecord for comparison.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "vibe.input-ui",
+    "title": "Vibe input UI",
+    "description": "Vibe input UI: text field where user types their market thesis (e.g., 'I think gold will go up because...').",
+    "phase": "W8",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "vibe",
+    "epicTitle": "Vibe Validator",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "User can type free-text thesis. Submit triggers vibe parsing. Input validates minimum length. RTL text input works.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "vibe.parsed-vibe",
+    "title": "ParsedVibe extraction",
+    "description": "ParsedVibe extraction via OpenRouter: direction, instrument, conviction level, and reasoning from free-text input.",
+    "phase": "W8",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "vibe",
+    "epicTitle": "Vibe Validator",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Free-text parsed into structured ParsedVibe (direction, instrument, conviction, reasoning). Handles ambiguous input gracefully.",
+    "risks": "LLM may misparse ambiguous vibes. Need confidence scoring and user confirmation.",
+    "dependencies": [
+      "market-data.openrouter-wrapper"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "vibe.trade-plan",
+    "title": "TradePlanCandidate builder",
+    "description": "TradePlanCandidate builder using deterministic math. LLM NEVER does position sizing or R:R calculations.",
+    "phase": "W8",
+    "priority": "CRITICAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "vibe",
+    "epicTitle": "Vibe Validator",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Trade plan generated with entry, SL, TP, position size using deterministic formulas. R:R calculated. Plan matches user risk settings.",
+    "risks": "Plan quality depends on accurate market data. Must never use LLM for numeric calculations.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "vibe.paper-position",
+    "title": "Paper position creation",
+    "description": "Confirm flow creates PaperPositionRecord (paper trading). Market snapshot locked at creation time.",
+    "phase": "W8",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "vibe",
+    "epicTitle": "Vibe Validator",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "User confirms plan, paper position created. Market snapshot frozen at creation. Position appears in paper portfolio.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 2
+  },
+  {
+    "key": "vibe.paper-lifecycle",
+    "title": "Paper position lifecycle",
+    "description": "Paper position lifecycle: open → tracking → closed, using MT-derived prices for P&L calculation.",
+    "phase": "W8",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "vibe",
+    "epicTitle": "Vibe Validator",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Paper positions track live P&L using MT prices. Auto-close on SL/TP hit. Manual close supported. Full lifecycle logged.",
+    "risks": "Requires reliable MT price feed. Stale prices could miss SL/TP triggers.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "vibe.outcome-scoring",
+    "title": "Outcome scoring",
+    "description": "OutcomeRecord scoring: realized R, timing accuracy, direction correctness for each closed paper position.",
+    "phase": "W8",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "vibe",
+    "epicTitle": "Vibe Validator",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Closed positions scored on realized R, timing, and direction. Score stored in OutcomeRecord. Aggregatable for user statistics.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 2
+  },
+  {
+    "key": "paper.portfolio-dashboard",
+    "title": "Paper portfolio dashboard",
+    "description": "Paper portfolio dashboard: open positions, P&L, and trade history.",
+    "phase": "W8",
+    "priority": "HIGH",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "paper",
+    "epicTitle": "Paper Trading & Replay",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Dashboard shows open paper positions with live P&L. Closed positions with results. Summary stats (win rate, avg R, total P&L).",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "paper.replay-ui",
+    "title": "Replay UI",
+    "description": "Replay UI: show vibe → snapshot → plan → outcome side-by-side for learning review.",
+    "phase": "W8",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "paper",
+    "epicTitle": "Paper Trading & Replay",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Replay view shows full trade journey: original vibe, market snapshot at entry, generated plan, and final outcome side-by-side.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "paper.vibe-score",
+    "title": "VibeScoreProfile",
+    "description": "VibeScoreProfile: rolling accuracy tracking and pattern detection across user's vibe history.",
+    "phase": "W8",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "paper",
+    "epicTitle": "Paper Trading & Replay",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "User profile shows rolling vibe accuracy (30d, 90d, all-time). Patterns detected (e.g., 'better at gold than forex'). Score visible on profile.",
+    "risks": "Need sufficient data points before patterns are meaningful. Minimum threshold required.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "coach.behavioral-insights",
+    "title": "Behavioral insights",
+    "description": "Behavioral insights from trade history: overtrading detection, revenge trading patterns, time-of-day analysis.",
+    "phase": "W8",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "coach",
+    "epicTitle": "Behavioral Coach & Watcher",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "System detects overtrading, revenge trading, and session-based patterns. Insights shown on user dashboard with actionable suggestions.",
+    "risks": "Pattern detection requires sufficient trade history. New users will see empty insights.",
+    "dependencies": [
+      "market-data.openrouter-wrapper"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 2,
+    "estimateLikely": 3,
+    "estimateWorst": 5
+  },
+  {
+    "key": "coach.weekly-digest",
+    "title": "Weekly coaching digest",
+    "description": "Automated weekly coaching digest: personalized trading review with AI-generated insights.",
+    "phase": "W8",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "coach",
+    "epicTitle": "Behavioral Coach & Watcher",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Weekly digest generated per user. Covers trade performance, behavioral patterns, and improvement suggestions. Delivered in-app and optionally via email.",
+    "risks": "LLM cost scales with user count. Need batching strategy.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "coach.watch-tasks",
+    "title": "Watch tasks",
+    "description": "Watch tasks: user sets conditions like 'alert me when XAUUSD > 2400' and receives notifications.",
+    "phase": "W8",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "coach",
+    "epicTitle": "Behavioral Coach & Watcher",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Users can create price alerts with conditions. Alerts fire when condition met. Supports >, <, cross above/below. Max 10 active alerts per user.",
+    "risks": "Alert evaluation frequency must balance accuracy vs performance.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "coach.alert-pipeline",
+    "title": "Alert pipeline",
+    "description": "Alert pipeline: Socket.io push + optional email/in-app notification for triggered alerts.",
+    "phase": "W8",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "coach",
+    "epicTitle": "Behavioral Coach & Watcher",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Triggered alerts delivered via Socket.io in real time. Optional email delivery. In-app notification center shows alert history.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 2
+  },
+  {
+    "key": "execution.send-to-mt",
+    "title": "Send plan to MT",
+    "description": "Send trade plan to MetaTrader as pending action. Requires explicit user confirmation before execution.",
+    "phase": "W8",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "execution",
+    "epicTitle": "Execution Bridge",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Trade plan sent to EA as pending action. User must confirm. EA executes on confirmation. Result reported back.",
+    "risks": "Execution errors could cause financial loss. Must have explicit confirmation and safety checks.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "execution.money-management",
+    "title": "Money management presets",
+    "description": "Money management presets: fixed lot, percentage risk, max daily loss. Applied to trade plans before execution.",
+    "phase": "W8",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "execution",
+    "epicTitle": "Execution Bridge",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "User configures money management preset. Preset applied to all generated trade plans. Position size calculated per preset rules.",
+    "risks": "Incorrect position sizing could cause outsized losses. Math must be verified with tests.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "execution.kill-switch",
+    "title": "Emergency close all positions",
+    "description": "Emergency button to close all open positions across all linked MT accounts immediately.",
+    "phase": "W8",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "execution",
+    "epicTitle": "Execution Bridge",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Kill switch closes all open positions. Confirmation dialog prevents accidental trigger. All close actions logged. Works even if individual close fails (retry logic).",
+    "risks": "Network issues could prevent close commands from reaching EA. Need timeout and retry handling.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "execution.journal",
+    "title": "Execution journal",
+    "description": "Auto-log all executed trades with full context: plan, snapshot, vibe, entry, exit, result.",
+    "phase": "W8",
+    "priority": "NORMAL",
+    "column": "BACKLOG",
+    "category": "FEATURE",
+    "epicKey": "execution",
+    "epicTitle": "Execution Bridge",
+    "workstream": "MARKET_INTELLIGENCE",
+    "milestone": "POST_LAUNCH",
+    "pmStatus": "PLANNED",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Every executed trade logged with full context chain (vibe → plan → execution → outcome). Journal searchable and filterable. Exportable as CSV.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  }
+]
