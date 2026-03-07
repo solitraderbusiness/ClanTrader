@@ -1,6 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Users, Heart, Shield } from "lucide-react";
+import { getInitials } from "@/lib/utils";
 
 interface ClanProfileHeaderProps {
   clan: {
@@ -26,10 +27,10 @@ export function ClanProfileHeader({
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-4">
-        <Avatar className="h-20 w-20">
+        <Avatar className="h-20 w-20 shrink-0">
           <AvatarImage src={clan.avatar || undefined} alt={clan.name} />
           <AvatarFallback className="text-xl">
-            {clan.name.slice(0, 2).toUpperCase()}
+            {getInitials(clan.name)}
           </AvatarFallback>
         </Avatar>
 
@@ -49,10 +50,10 @@ export function ClanProfileHeader({
           </div>
 
           {clan.description && (
-            <p className="mt-1 text-muted-foreground">{clan.description}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{clan.description}</p>
           )}
 
-          <div className="mt-3 flex items-center gap-6 text-sm text-muted-foreground">
+          <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
               <Users className="h-4 w-4" />
               {memberCount} members
@@ -63,9 +64,9 @@ export function ClanProfileHeader({
             </span>
           </div>
         </div>
-
-        {children && <div className="flex gap-2">{children}</div>}
       </div>
+
+      {children && <div className="flex flex-wrap gap-2">{children}</div>}
     </div>
   );
 }

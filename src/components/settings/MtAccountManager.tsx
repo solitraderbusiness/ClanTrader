@@ -79,55 +79,52 @@ export function MtAccountManager({ accounts: initial }: { accounts: MtAccountIte
         <div
           key={account.id}
           className={cn(
-            "rounded-lg border p-4 space-y-3",
+            "overflow-hidden rounded-lg border p-4 space-y-3",
             !account.isActive && "opacity-60"
           )}
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{account.broker}</span>
-              <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono">
-                {account.platform}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium">{account.broker}</span>
+            <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono">
+              {account.platform}
+            </span>
+            <span className="text-sm text-muted-foreground">
+              #{account.accountNumber}
+            </span>
+            {!account.isActive && (
+              <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                {t("settings.disconnected")}
               </span>
-              <span className="text-sm text-muted-foreground">
-                #{account.accountNumber}
-              </span>
-              {!account.isActive && (
-                <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                  {t("settings.disconnected")}
-                </span>
-              )}
-            </div>
-            <div className="flex gap-2">
-              {account.isActive && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleRegenerate(account.id)}
-                    disabled={loading === account.id}
-                  >
-                    {t("settings.regenerateKey")}
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDisconnect(account.id)}
-                    disabled={loading === account.id}
-                  >
-                    {t("settings.disconnect")}
-                  </Button>
-                </>
-              )}
-            </div>
+            )}
           </div>
 
-          <div className="flex gap-4 text-sm text-muted-foreground">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-muted-foreground">
             <span>Balance: {account.balance.toLocaleString()} {account.currency}</span>
             <span>Equity: {account.equity.toLocaleString()} {account.currency}</span>
             <span>{account.tradeCount} trades</span>
             {account.serverName && <span>Server: {account.serverName}</span>}
           </div>
+
+          {account.isActive && (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleRegenerate(account.id)}
+                disabled={loading === account.id}
+              >
+                {t("settings.regenerateKey")}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => handleDisconnect(account.id)}
+                disabled={loading === account.id}
+              >
+                {t("settings.disconnect")}
+              </Button>
+            </div>
+          )}
 
           {newKey?.accountId === account.id && (
             <div className="rounded-md bg-green-50 p-3 dark:bg-green-900/20">

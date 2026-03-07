@@ -205,7 +205,7 @@ export async function getChannelPosts(
                 riskStatus: true,
                 mtTradeMatches: {
                   where: { isOpen: true },
-                  select: { symbol: true },
+                  select: { symbol: true, profit: true, commission: true, swap: true },
                   take: 1,
                 },
               },
@@ -236,7 +236,7 @@ export async function getChannelPosts(
     return { ...post, locked: false };
   });
 
-  // Compute Live R:R for open trades from Redis-cached prices
+  // Compute Live R:R / P&L for open trades from Redis-cached prices
   const openTrades = processedPosts.flatMap((p) => {
     const trade = p.tradeCard?.trade;
     if (!trade || trade.status !== "OPEN") return [];
@@ -245,7 +245,7 @@ export async function getChannelPosts(
     return [{ tradeId: trade.id, symbol, trade, card: p.tradeCard! }];
   });
 
-  const livePnlMap = new Map<string, { currentRR: number; currentPrice: number; targetRR: number | null }>();
+  const livePnlMap = new Map<string, { currentRR: number | null; currentPrice: number; targetRR: number | null; pricePnl: number; mtProfit?: number }>();
 
   if (openTrades.length > 0) {
     try {
@@ -269,15 +269,22 @@ export async function getChannelPosts(
         const riskAbs =
           trade.initialRiskAbs && trade.initialRiskAbs > 0
             ? trade.initialRiskAbs
-            : Math.abs(entry - card.stopLoss);
-        if (riskAbs <= 0) continue;
+            : (card.stopLoss > 0 ? Math.abs(entry - card.stopLoss) : 0);
         const dir = card.direction === "LONG" ? 1 : -1;
-        const currentRR = Math.round((dir * (currentPrice - entry)) / riskAbs * 100) / 100;
+        const pricePnl = dir * (currentPrice - entry);
+        const currentRR = riskAbs > 0
+          ? Math.round((dir * (currentPrice - entry)) / riskAbs * 100) / 100
+          : null;
         const tp = (card.targets as number[])[0];
-        const targetRR = tp && tp > 0
+        const targetRR = tp && tp > 0 && riskAbs > 0
           ? Math.round((Math.abs(tp - entry) / riskAbs) * 100) / 100
           : null;
-        livePnlMap.set(tradeId, { currentRR, currentPrice, targetRR });
+        // Get actual MT dollar profit if linked
+        const mtMatch = trade.mtTradeMatches[0];
+        const mtProfit = mtMatch
+          ? Math.round(((mtMatch.profit ?? 0) + (mtMatch.commission ?? 0) + (mtMatch.swap ?? 0)) * 100) / 100
+          : undefined;
+        livePnlMap.set(tradeId, { currentRR, currentPrice, targetRR, pricePnl, ...(mtProfit != null ? { mtProfit } : {}) });
       }
     } catch {
       // Non-critical — Live R:R just won't show

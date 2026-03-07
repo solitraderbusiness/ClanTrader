@@ -6,8 +6,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { UserMinus } from "lucide-react";
+import { UserMinus, Crown } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
+import { getInitials } from "@/lib/utils";
 
 interface Member {
   id: string;
@@ -72,6 +73,32 @@ export function MemberList({
     }
   }
 
+  async function handleTransferLeadership(userId: string, name: string) {
+    const msg = t("clan.confirmTransferLeadership").replace("{name}", name);
+    if (!confirm(msg)) return;
+
+    setLoadingId(userId);
+    try {
+      const res = await fetch(`/api/clans/${clanId}/transfer-leadership`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newLeaderUserId: userId }),
+      });
+
+      if (res.ok) {
+        toast.success(t("clan.leadershipTransferred"));
+        router.refresh();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || t("clan.failedTransferLeadership"));
+      }
+    } catch {
+      toast.error(t("common.somethingWentWrong"));
+    } finally {
+      setLoadingId(null);
+    }
+  }
+
   async function handleRemove(userId: string) {
     if (!confirm(t("clan.confirmRemoveMember"))) return;
 
@@ -123,7 +150,7 @@ export function MemberList({
               alt={member.user.name || ""}
             />
             <AvatarFallback>
-              {(member.user.name || "?").slice(0, 2).toUpperCase()}
+              {getInitials(member.user.name || "?")}
             </AvatarFallback>
           </Avatar>
 
@@ -161,6 +188,24 @@ export function MemberList({
                 <option value="CO_LEADER">{t("clan.coLeader")}</option>
                 <option value="MEMBER">{t("clan.member")}</option>
               </select>
+            )}
+
+            {canChangeRole(member) && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() =>
+                  handleTransferLeadership(
+                    member.userId,
+                    member.user.name || "Unknown"
+                  )
+                }
+                disabled={loadingId === member.userId}
+                className="h-8 w-8"
+                title={t("clan.transferLeadership")}
+              >
+                <Crown className="h-4 w-4" />
+              </Button>
             )}
 
             {canRemove(member) && (

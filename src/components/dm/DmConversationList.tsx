@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MessageSquarePlus } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, getInitials } from "@/lib/utils";
 import type { DmConversation } from "@/stores/dm-store";
 import { StartDmDialog } from "./StartDmDialog";
 import { useTranslation } from "@/lib/i18n";
@@ -82,7 +82,7 @@ export function DmConversationList({
                       alt={conv.otherUser.name || ""}
                     />
                     <AvatarFallback className="text-xs">
-                      {(conv.otherUser.name || "?").slice(0, 2).toUpperCase()}
+                      {getInitials(conv.otherUser.name || "?")}
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">

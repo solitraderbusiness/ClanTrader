@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Camera } from "lucide-react";
+import { getInitials } from "@/lib/utils";
 
 interface AvatarUploadProps {
   currentAvatar: string | null;
@@ -20,14 +21,7 @@ export function AvatarUpload({
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(currentAvatar);
 
-  const initials = name
-    ? name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    : "U";
+  const initials = name ? getInitials(name) : "U";
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -71,7 +65,7 @@ export function AvatarUpload({
           type="button"
           size="icon"
           variant="secondary"
-          className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full"
+          className="absolute -bottom-1 -end-1 h-7 w-7 rounded-full"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
         >

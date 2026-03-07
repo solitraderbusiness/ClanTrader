@@ -20,13 +20,13 @@ export default function SettingsLayout({
 
   return (
     <div className="space-y-6 px-4 py-6">
-      <nav className="flex gap-2 border-b pb-2">
+      <nav className="flex gap-2 overflow-x-auto border-b pb-2">
         {SETTINGS_NAV.map((item) => (
           <Link
             key={item.href}
             href={item.href}
             className={cn(
-              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              "shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
               pathname === item.href
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"

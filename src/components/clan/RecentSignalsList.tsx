@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DirectionBadge } from "@/components/shared/DirectionBadge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useTranslation } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn, getInitials } from "@/lib/utils";
 import type { RecentSignal } from "@/types/clan-performance";
 
 interface Props {
@@ -32,7 +32,7 @@ export function RecentSignalsList({ signals }: Props) {
               <Avatar className="h-7 w-7 shrink-0">
                 <AvatarImage src={s.providerAvatar || undefined} alt={s.providerName} />
                 <AvatarFallback className="text-[10px]">
-                  {s.providerName.slice(0, 2).toUpperCase()}
+                  {getInitials(s.providerName)}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">

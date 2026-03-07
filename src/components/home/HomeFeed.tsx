@@ -17,8 +17,8 @@ import { AddEmailBanner } from "@/components/shared/AddEmailBanner";
 import { MissionDashboard } from "@/components/home/MissionDashboard";
 import { DirectionBadge } from "@/components/shared/DirectionBadge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { BarChart3 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
+import { getInitials } from "@/lib/utils";
 
 interface FeedTradeCard {
   instrument: string;
@@ -63,7 +63,6 @@ interface HomeFeedProps {
   clanCount: number;
   followCount: number;
   hasEmail: boolean;
-  role: string;
 }
 
 function timeAgo(dateStr: string): string {
@@ -83,7 +82,6 @@ export function HomeFeed({
   clanCount,
   followCount,
   hasEmail,
-  role,
 }: HomeFeedProps) {
   const { t } = useTranslation();
   const [posts, setPosts] = useState<FeedPost[]>([]);
@@ -129,21 +127,6 @@ export function HomeFeed({
       {/* Add email banner for EA-only users */}
       <AddEmailBanner hasEmail={hasEmail} />
 
-      {/* Upgrade to Verified Trader */}
-      {role === "SPECTATOR" && (
-        <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
-          <BarChart3 className="h-5 w-5 shrink-0 text-primary" />
-          <div className="flex-1">
-            <p className="text-sm font-medium">{t("home.becomeVerified")}</p>
-            <p className="text-xs text-muted-foreground">
-              {t("home.becomeVerifiedDesc")}
-            </p>
-          </div>
-          <Button asChild size="sm" variant="default">
-            <Link href="/settings/mt-accounts">Connect</Link>
-          </Button>
-        </div>
-      )}
 
       {/* Mission dashboard for new users */}
       <MissionDashboard />
@@ -151,7 +134,7 @@ export function HomeFeed({
       {/* Season widget */}
       {activeSeason && (
         <Card className="glass-card border-primary/30">
-          <CardContent className="flex items-center justify-between py-3">
+          <CardContent className="flex flex-wrap items-center justify-between gap-2 py-3">
             <div className="flex items-center gap-2">
               <Trophy className="h-4 w-4 text-primary" />
               <div>
@@ -294,7 +277,7 @@ function FeedPostCard({ post }: { post: FeedPost }) {
                   alt={post.clan.name}
                 />
                 <AvatarFallback className="text-[10px]">
-                  {post.clan.name.slice(0, 2).toUpperCase()}
+                  {getInitials(post.clan.name)}
                 </AvatarFallback>
               </Avatar>
               <span className="text-xs font-medium">{post.clan.name}</span>
@@ -321,7 +304,7 @@ function FeedPostCard({ post }: { post: FeedPost }) {
             {/* Price grid */}
             <div
               className={`grid gap-2 text-xs ${
-                hasFourthCol ? "grid-cols-4" : "grid-cols-3"
+                hasFourthCol ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"
               }`}
             >
               <div className="rounded-lg bg-muted/30 px-2 py-1 text-center">
@@ -400,7 +383,7 @@ function FeedPostCard({ post }: { post: FeedPost }) {
             )}
 
             {/* Footer */}
-            <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Eye className="h-3 w-3" /> {post.viewCount}
               </span>
@@ -434,7 +417,7 @@ function FeedPostCard({ post }: { post: FeedPost }) {
                 alt={post.clan.name}
               />
               <AvatarFallback className="text-[10px]">
-                {post.clan.name.slice(0, 2).toUpperCase()}
+                {getInitials(post.clan.name)}
               </AvatarFallback>
             </Avatar>
             <span className="text-xs font-medium">{post.clan.name}</span>
@@ -466,7 +449,7 @@ function FeedPostCard({ post }: { post: FeedPost }) {
           )}
 
           {/* Footer */}
-          <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1">
               <Eye className="h-3 w-3" /> {post.viewCount}
             </span>

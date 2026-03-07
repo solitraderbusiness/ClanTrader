@@ -16,6 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CandlestickChart } from "lucide-react";
 import { t } from "@/lib/i18n-core";
 import type { Locale } from "@/lib/locale";
+import { getInitials } from "@/lib/utils";
 
 interface JoinPageProps {
   searchParams: Promise<{ ref?: string }>;
@@ -43,14 +44,7 @@ export default async function JoinPage({ searchParams }: JoinPageProps) {
     }
   }
 
-  const initials = referrer?.name
-    ? referrer.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    : null;
+  const initials = referrer?.name ? getInitials(referrer.name) : null;
 
   return (
     <Card className="w-full max-w-md">

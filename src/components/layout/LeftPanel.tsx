@@ -16,8 +16,9 @@ import {
   Shield,
   UserPlus,
   BookOpen,
+  Globe,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, getInitials } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -39,14 +40,6 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(d / 7)}w`;
 }
 
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
 
 export function LeftPanel() {
   const { t } = useTranslation();
@@ -145,8 +138,8 @@ export function LeftPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Top bar: logo + icon nav */}
-      <div className="flex items-center justify-between border-b px-3 h-14">
+      {/* Top bar: logo + invite */}
+      <div className="flex items-center justify-between border-b px-3 h-12">
         <Link
           href="/home"
           className="flex items-center gap-2"
@@ -155,46 +148,54 @@ export function LeftPanel() {
           <Shield className="h-5 w-5 text-primary" />
           <span className="text-base font-bold">ClanTrader</span>
         </Link>
-        <div className="flex items-center gap-0.5">
+        <NavIcon
+          icon={UserPlus}
+          label={t("nav.invite")}
+          active={false}
+          onClick={() => setInviteOpen(true)}
+        />
+      </div>
+
+      {/* Icon nav row */}
+      <div className="flex flex-wrap items-center justify-around border-b px-2 py-1 gap-1">
+        <NavIcon
+          icon={Home}
+          label={t("nav.home")}
+          active={pathname === "/home"}
+          onClick={() => navigateTo("/home")}
+        />
+        <NavIcon
+          icon={BookOpen}
+          label={t("nav.journal")}
+          active={pathname.startsWith("/journal")}
+          onClick={() => navigateTo("/journal")}
+        />
+        <NavIcon
+          icon={Compass}
+          label={t("nav.explore")}
+          active={pathname.startsWith("/explore")}
+          onClick={() => navigateTo("/explore")}
+        />
+        <NavIcon
+          icon={Globe}
+          label={t("nav.geoNews")}
+          active={pathname.startsWith("/geo-news")}
+          onClick={() => navigateTo("/geo-news")}
+        />
+        <NavIcon
+          icon={Settings}
+          label={t("nav.settings")}
+          active={pathname.startsWith("/settings")}
+          onClick={() => navigateTo("/settings")}
+        />
+        {isAdmin && (
           <NavIcon
-            icon={Home}
-            label={t("nav.home")}
-            active={pathname === "/home"}
-            onClick={() => navigateTo("/home")}
+            icon={ShieldCheck}
+            label={t("nav.admin")}
+            active={pathname.startsWith("/admin")}
+            onClick={() => navigateTo("/admin")}
           />
-          <NavIcon
-            icon={BookOpen}
-            label={t("nav.journal")}
-            active={pathname.startsWith("/journal")}
-            onClick={() => navigateTo("/journal")}
-          />
-          <NavIcon
-            icon={Compass}
-            label={t("nav.explore")}
-            active={pathname.startsWith("/explore")}
-            onClick={() => navigateTo("/explore")}
-          />
-          <NavIcon
-            icon={Settings}
-            label={t("nav.settings")}
-            active={pathname.startsWith("/settings")}
-            onClick={() => navigateTo("/settings")}
-          />
-          {isAdmin && (
-            <NavIcon
-              icon={ShieldCheck}
-              label={t("nav.admin")}
-              active={pathname.startsWith("/admin")}
-              onClick={() => navigateTo("/admin")}
-            />
-          )}
-          <NavIcon
-            icon={UserPlus}
-            label={t("nav.invite")}
-            active={false}
-            onClick={() => setInviteOpen(true)}
-          />
-        </div>
+        )}
       </div>
 
       {/* Search */}
@@ -558,7 +559,7 @@ function DmListItem({
           alt={dm.otherUser.name || ""}
         />
         <AvatarFallback className="text-xs">
-          {(dm.otherUser.name || "?").slice(0, 2).toUpperCase()}
+          {getInitials(dm.otherUser.name || "?")}
         </AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">

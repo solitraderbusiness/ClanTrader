@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CheckCircle2 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
+import { getInitials } from "@/lib/utils";
 
 interface FreeAgentCardProps {
   agent: {
@@ -34,7 +35,7 @@ export function FreeAgentCard({ agent }: FreeAgentCardProps) {
         <Avatar className="h-12 w-12">
           <AvatarImage src={agent.avatar || undefined} alt={agent.name || ""} />
           <AvatarFallback>
-            {(agent.name || "?").slice(0, 2).toUpperCase()}
+            {getInitials(agent.name || "?")}
           </AvatarFallback>
         </Avatar>
 

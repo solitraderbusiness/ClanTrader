@@ -13,8 +13,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { Camera } from "lucide-react";
+import { Camera, Trash2 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
+import { getInitials } from "@/lib/utils";
 
 interface ClanSettingsFormProps {
   clan: {
@@ -26,11 +27,15 @@ interface ClanSettingsFormProps {
     isPublic: boolean;
     settings: Record<string, unknown> | null;
   };
+  isLeader?: boolean;
 }
 
-export function ClanSettingsForm({ clan }: ClanSettingsFormProps) {
+export function ClanSettingsForm({ clan, isLeader }: ClanSettingsFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
   const [isPublic, setIsPublic] = useState(clan.isPublic);
   const [joinRequestsEnabled, setJoinRequestsEnabled] = useState(
     !!(clan.settings as Record<string, unknown> | null)?.joinRequestsEnabled
@@ -110,7 +115,7 @@ export function ClanSettingsForm({ clan }: ClanSettingsFormProps) {
           <Avatar className="h-16 w-16">
             <AvatarImage src={avatarUrl || undefined} alt={clan.name} />
             <AvatarFallback>
-              {clan.name.slice(0, 2).toUpperCase()}
+              {getInitials(clan.name)}
             </AvatarFallback>
           </Avatar>
           <label
@@ -193,6 +198,81 @@ export function ClanSettingsForm({ clan }: ClanSettingsFormProps) {
       <Button type="submit" disabled={loading}>
         {loading ? t("common.saving") : t("clan.saveSettings")}
       </Button>
+
+      {isLeader && (
+        <div className="mt-8 rounded-lg border border-destructive/50 p-4">
+          <h3 className="text-sm font-semibold text-destructive">
+            {t("clan.dangerZone")}
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t("clan.deleteClanWarning")}
+          </p>
+
+          {!deleteConfirmOpen ? (
+            <Button
+              type="button"
+              variant="destructive"
+              className="mt-3"
+              onClick={() => setDeleteConfirmOpen(true)}
+            >
+              <Trash2 className="me-2 h-4 w-4" />
+              {t("clan.deleteClan")}
+            </Button>
+          ) : (
+            <div className="mt-3 space-y-3">
+              <p className="text-sm">
+                {t("clan.typeToConfirmDelete").replace("{name}", clan.name)}
+              </p>
+              <Input
+                value={deleteConfirmInput}
+                onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                placeholder={clan.name}
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setDeleteConfirmOpen(false);
+                    setDeleteConfirmInput("");
+                  }}
+                >
+                  {t("common.cancel")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={deleteConfirmInput !== clan.name || deleting}
+                  onClick={async () => {
+                    setDeleting(true);
+                    try {
+                      const res = await fetch(`/api/clans/${clan.id}`, {
+                        method: "DELETE",
+                      });
+                      if (res.ok) {
+                        toast.success(t("clan.clanDeleted"));
+                        router.push("/explore");
+                        router.refresh();
+                      } else {
+                        const data = await res.json();
+                        toast.error(data.error || t("common.somethingWentWrong"));
+                      }
+                    } catch {
+                      toast.error(t("common.somethingWentWrong"));
+                    } finally {
+                      setDeleting(false);
+                    }
+                  }}
+                >
+                  <Trash2 className="me-2 h-4 w-4" />
+                  {deleting ? t("common.loading") : t("clan.confirmDelete")}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </form>
   );
 }

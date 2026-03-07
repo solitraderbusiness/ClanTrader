@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useTranslation } from "@/lib/i18n";
+import { getInitials } from "@/lib/utils";
 
 export function UserMenu() {
   const { t } = useTranslation();
@@ -26,14 +27,7 @@ export function UserMenu() {
     );
   }
 
-  const initials = session.user.name
-    ? session.user.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    : "U";
+  const initials = session.user.name ? getInitials(session.user.name) : "U";
 
   return (
     <DropdownMenu>

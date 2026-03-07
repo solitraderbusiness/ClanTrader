@@ -113,7 +113,7 @@ export function TopBar() {
         <MtStatusIndicator />
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
         <Button
           variant="ghost"
           size="icon"
@@ -123,8 +123,10 @@ export function TopBar() {
         >
           <UserPlus className="h-4 w-4" />
         </Button>
-        <LanguageSwitch />
-        <ThemeToggle />
+        <div className="hidden sm:flex sm:items-center sm:gap-1">
+          <LanguageSwitch />
+          <ThemeToggle />
+        </div>
         <UserMenu />
       </div>
 

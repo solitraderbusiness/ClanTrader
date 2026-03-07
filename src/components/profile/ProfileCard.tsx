@@ -8,6 +8,7 @@ import type { StatementMetrics } from "@/types/statement";
 import Link from "next/link";
 import { BarChart3 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
+import { getInitials } from "@/lib/utils";
 
 interface ProfileCardProps {
   user: {
@@ -36,14 +37,7 @@ interface ProfileCardProps {
 
 export function ProfileCard({ user, isOwnProfile }: ProfileCardProps) {
   const { t } = useTranslation();
-  const initials = user.name
-    ? user.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    : "U";
+  const initials = user.name ? getInitials(user.name) : "U";
 
   const isVerified = (user.statements?.length ?? 0) > 0;
   const clan = user.clanMemberships?.[0];
@@ -58,8 +52,8 @@ export function ProfileCard({ user, isOwnProfile }: ProfileCardProps) {
           <AvatarImage src={user.avatar || undefined} alt={user.name || "User"} />
           <AvatarFallback className="text-xl">{initials}</AvatarFallback>
         </Avatar>
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-bold">{user.name || "Anonymous"}</h1>
             {isVerified && (
               <Badge variant="default" className="text-xs">

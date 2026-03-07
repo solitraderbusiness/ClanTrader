@@ -28,13 +28,13 @@ export function ChatToolbar({ openPanel, onTogglePanel }: ChatToolbarProps) {
   return (
     <TooltipProvider>
       <div className="flex items-center gap-0.5">
-        {tools.map(({ panel, icon: Icon, label }) => (
+        {tools.map(({ panel, icon: Icon, label }, i) => (
           <Tooltip key={panel}>
             <TooltipTrigger asChild>
               <Button
                 variant={openPanel === panel ? "secondary" : "ghost"}
                 size="sm"
-                className="h-7 w-7 p-0"
+                className={`h-7 w-7 p-0 ${i >= 3 ? "hidden sm:inline-flex" : ""}`}
                 onClick={() => onTogglePanel(panel)}
               >
                 <Icon className="h-3.5 w-3.5" />

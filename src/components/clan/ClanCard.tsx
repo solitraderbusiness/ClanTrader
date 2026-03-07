@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Users, Heart, CheckCircle2 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
+import { getInitials } from "@/lib/utils";
 
 interface ClanCardProps {
   clan: {
@@ -35,11 +36,11 @@ export function ClanCard({ clan, role }: ClanCardProps) {
           <Avatar className="h-12 w-12 shrink-0 ring-2 ring-primary/10">
             <AvatarImage src={clan.avatar || undefined} alt={clan.name} />
             <AvatarFallback>
-              {clan.name.slice(0, 2).toUpperCase()}
+              {getInitials(clan.name)}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               <h3 className="min-w-0 truncate font-semibold">{clan.name}</h3>
               {clan.isVerifiedOwner && (
                 <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-500" />
@@ -57,11 +58,11 @@ export function ClanCard({ clan, role }: ClanCardProps) {
               </Badge>
             </div>
             {clan.description && (
-              <p className="truncate text-sm text-muted-foreground">
+              <p className="line-clamp-2 text-sm text-muted-foreground">
                 {clan.description}
               </p>
             )}
-            <div className="mt-1 flex items-center gap-4 text-xs text-muted-foreground">
+            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Users className="h-3 w-3" />
                 {memberCount} {t("clan.members")}

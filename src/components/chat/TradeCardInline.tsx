@@ -29,6 +29,12 @@ interface TradeCardInlineProps {
   memberRole?: string;
 }
 
+/** Smart decimal formatting for price P&L: ≥1 → 2 decimals, <1 → 4 decimals */
+function formatPricePnl(pnl: number): string {
+  const abs = Math.abs(pnl);
+  return abs >= 1 ? pnl.toFixed(2) : pnl.toFixed(4);
+}
+
 export function TradeCardInline({
   tradeCard,
   messageId,
@@ -119,7 +125,7 @@ export function TradeCardInline({
 
       <div className="p-3 ps-4">
       {/* Header: Direction + Instrument + Status + Actions */}
-      <div className="mb-2 flex items-center gap-2">
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
         <DirectionBadge direction={tradeCard.direction as "LONG" | "SHORT"} />
         <span className="font-semibold">{tradeCard.instrument}</span>
         <Badge variant="outline" className="text-[10px]">
@@ -192,7 +198,7 @@ export function TradeCardInline({
       </div>
 
       {/* Price Grid */}
-      <div className={`mb-2 grid gap-2 text-xs ${isOpen || (isClosed && finalRR != null) ? "grid-cols-4" : "grid-cols-3"}`}>
+      <div className={`mb-2 grid gap-2 text-xs ${isOpen || (isClosed && finalRR != null) ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
         <div className="rounded-lg bg-muted/30 backdrop-blur-sm px-2 py-1.5 text-center">
           <span className="text-muted-foreground">{t("trade.entry")}</span>
           <p className="font-mono font-medium">{tradeCard.entry}</p>
@@ -215,29 +221,69 @@ export function TradeCardInline({
         </div>
         {isOpen && (
           <div className="rounded-lg bg-muted/30 backdrop-blur-sm px-2 py-1.5 text-center">
-            <span className="text-muted-foreground">{t("trade.liveRR")}</span>
             {livePnl ? (
-              <>
-                <p className={`font-mono font-bold ${
-                  livePnl.currentRR > 0
-                    ? "text-green-500"
-                    : livePnl.currentRR < 0
-                      ? "text-red-500"
-                      : "text-muted-foreground"
-                }`}>
-                  {livePnl.currentRR > 0 ? "+" : ""}{livePnl.currentRR.toFixed(2)}R
-                </p>
-                <p className="font-mono text-[10px] text-muted-foreground/60">{livePnl.currentPrice}</p>
-                {livePnl.targetRR != null ? (
-                  <p className="font-mono text-[10px] text-muted-foreground/60">{t("trade.target")}: {livePnl.targetRR.toFixed(1)}R</p>
-                ) : (
-                  <p className="font-mono text-[10px] text-muted-foreground/40">{t("trade.openTarget")}</p>
-                )}
-              </>
+              livePnl.currentRR != null ? (
+                <>
+                  <span className="text-muted-foreground">{t("trade.liveRR")}</span>
+                  <p className={`font-mono font-bold ${
+                    livePnl.currentRR > 0
+                      ? "text-green-500"
+                      : livePnl.currentRR < 0
+                        ? "text-red-500"
+                        : "text-muted-foreground"
+                  }`}>
+                    {livePnl.currentRR > 0 ? "+" : ""}{livePnl.currentRR.toFixed(2)}R
+                  </p>
+                  <p className="font-mono text-[10px] text-muted-foreground/60">{livePnl.currentPrice}</p>
+                  {livePnl.targetRR != null ? (
+                    <p className="font-mono text-[10px] text-muted-foreground/60">{t("trade.target")}: {livePnl.targetRR.toFixed(1)}R</p>
+                  ) : (
+                    <p className="font-mono text-[10px] text-muted-foreground/40">{t("trade.openTarget")}</p>
+                  )}
+                </>
+              ) : livePnl.mtProfit != null ? (
+                <>
+                  <span className="text-muted-foreground">{t("trade.livePnl")}</span>
+                  <p className={`font-mono font-bold ${
+                    livePnl.mtProfit > 0
+                      ? "text-green-500"
+                      : livePnl.mtProfit < 0
+                        ? "text-red-500"
+                        : "text-muted-foreground"
+                  }`}>
+                    {livePnl.mtProfit > 0 ? "+" : ""}{livePnl.mtProfit.toFixed(2)}$
+                  </p>
+                  <p className="font-mono text-[10px] text-muted-foreground/60">{livePnl.currentPrice}</p>
+                </>
+              ) : livePnl.pricePnl != null ? (
+                <>
+                  <span className="text-muted-foreground">{t("trade.livePnl")}</span>
+                  <p className={`font-mono font-bold ${
+                    livePnl.pricePnl > 0
+                      ? "text-green-500"
+                      : livePnl.pricePnl < 0
+                        ? "text-red-500"
+                        : "text-muted-foreground"
+                  }`}>
+                    {livePnl.pricePnl > 0 ? "+" : ""}{formatPricePnl(livePnl.pricePnl)}
+                  </p>
+                  <p className="font-mono text-[10px] text-muted-foreground/60">{livePnl.currentPrice}</p>
+                </>
+              ) : (
+                <>
+                  <span className="text-muted-foreground">{t("trade.livePnl")}</span>
+                  <p className="font-mono font-medium text-muted-foreground/40">
+                    <Loader2 className="mx-auto h-3.5 w-3.5 animate-spin" />
+                  </p>
+                </>
+              )
             ) : (
-              <p className="font-mono font-medium text-muted-foreground/40">
-                <Loader2 className="mx-auto h-3.5 w-3.5 animate-spin" />
-              </p>
+              <>
+                <span className="text-muted-foreground">{t("trade.liveRR")}</span>
+                <p className="font-mono font-medium text-muted-foreground/40">
+                  <Loader2 className="mx-auto h-3.5 w-3.5 animate-spin" />
+                </p>
+              </>
             )}
           </div>
         )}

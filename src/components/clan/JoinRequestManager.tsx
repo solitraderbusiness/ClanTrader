@@ -7,6 +7,8 @@ import { TraderBadge } from "@/components/shared/TraderBadge";
 import { Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n";
+import { getInitials } from "@/lib/utils";
+import Link from "next/link";
 
 interface JoinRequest {
   id: string;
@@ -95,20 +97,25 @@ export function JoinRequestManager({ clanId }: JoinRequestManagerProps) {
           key={request.id}
           className="flex items-center gap-3 rounded-lg border p-3"
         >
-          <Avatar className="h-10 w-10 flex-shrink-0">
-            <AvatarImage
-              src={request.user.avatar || undefined}
-              alt={request.user.name || ""}
-            />
-            <AvatarFallback>
-              {(request.user.name || "?").slice(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+          <Link href={`/profile/${request.user.id}`} className="flex-shrink-0">
+            <Avatar className="h-10 w-10">
+              <AvatarImage
+                src={request.user.avatar || undefined}
+                alt={request.user.name || ""}
+              />
+              <AvatarFallback>
+                {getInitials(request.user.name || "?")}
+              </AvatarFallback>
+            </Avatar>
+          </Link>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="truncate font-medium">
+              <Link
+                href={`/profile/${request.user.id}`}
+                className="truncate font-medium hover:underline"
+              >
                 {request.user.name || "Unknown"}
-              </span>
+              </Link>
               <TraderBadge role={request.user.role} />
             </div>
             {request.user.tradingStyle && (

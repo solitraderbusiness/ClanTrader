@@ -66,7 +66,7 @@ export function ClanManagementPanel({
       </TabsList>
 
       <TabsContent value="settings">
-        <ClanSettingsForm clan={clan} />
+        <ClanSettingsForm clan={clan} isLeader={currentUserRole === "LEADER"} />
       </TabsContent>
 
       <TabsContent value="members">

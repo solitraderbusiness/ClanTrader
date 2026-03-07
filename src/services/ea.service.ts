@@ -82,18 +82,19 @@ export async function registerEaUser(data: EaRegisterInput) {
 }
 
 export async function loginEaUser(data: EaLoginInput) {
+  const isEmail = data.usernameOrEmail.includes("@");
   const user = await db.user.findUnique({
-    where: { username: data.username },
+    where: isEmail ? { email: data.usernameOrEmail } : { username: data.usernameOrEmail },
     include: { mtAccounts: { where: { isActive: true } } },
   });
 
   if (!user || !user.passwordHash) {
-    throw new Error("Invalid username or password");
+    throw new Error("Invalid credentials");
   }
 
   const valid = verifyPassword(data.password, user.passwordHash);
   if (!valid) {
-    throw new Error("Invalid username or password");
+    throw new Error("Invalid credentials");
   }
 
   // Check if this MT account already exists for user
@@ -151,6 +152,7 @@ export async function loginEaUser(data: EaLoginInput) {
   });
 
   audit("ea.login", "MtAccount", mtAccount.id, user.id, {
+    usernameOrEmail: data.usernameOrEmail,
     accountNumber: data.accountNumber,
     broker: data.broker,
   }, { category: "EA" });
@@ -200,7 +202,7 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
   });
 
   // Upsert open trades with signal change detection
-  const linkedTrades: { matchedTradeId: string; currentPrice: number }[] = [];
+  const linkedTrades: { matchedTradeId: string; currentPrice: number; mtProfit?: number }[] = [];
 
   if (data.openTrades.length > 0) {
     for (const trade of data.openTrades) {
@@ -228,12 +230,14 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
 
         // Collect for R:R broadcast
         if (trade.currentPrice && trade.currentPrice > 0) {
-          linkedTrades.push({ matchedTradeId: existing.matchedTradeId, currentPrice: trade.currentPrice });
+          const mtProfit = (trade.profit ?? 0) + (trade.commission ?? 0) + (trade.swap ?? 0);
+          linkedTrades.push({ matchedTradeId: existing.matchedTradeId, currentPrice: trade.currentPrice, mtProfit });
         }
       } else if (mtTrade.matchedTradeId && trade.currentPrice && trade.currentPrice > 0) {
         // Newly linked trade (from autoCreate earlier in this heartbeat won't have matchedTradeId yet,
         // but trades linked from previous heartbeats will)
-        linkedTrades.push({ matchedTradeId: mtTrade.matchedTradeId, currentPrice: trade.currentPrice });
+        const mtProfit = (trade.profit ?? 0) + (trade.commission ?? 0) + (trade.swap ?? 0);
+        linkedTrades.push({ matchedTradeId: mtTrade.matchedTradeId, currentPrice: trade.currentPrice, mtProfit });
       }
     }
 
@@ -244,16 +248,53 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
     });
     for (const dbTrade of dbOpenTrades) {
       if (!openTickets.has(dbTrade.ticket)) {
+        // If no close price, try to fill from Redis-cached price
+        let closePrice = dbTrade.closePrice;
+        if (!closePrice) {
+          try {
+            const sym = dbTrade.symbol?.toUpperCase();
+            if (sym) {
+              const cached = await redis.get(`price:${sym}`);
+              if (cached) {
+                const parsed = JSON.parse(cached) as { price: number };
+                closePrice = parsed.price;
+              }
+            }
+          } catch { /* best effort */ }
+        }
+
         await db.mtTrade.update({
           where: { id: dbTrade.id },
-          data: { isOpen: false },
+          data: {
+            isOpen: false,
+            ...(closePrice && !dbTrade.closePrice ? { closePrice } : {}),
+            ...(!dbTrade.closeTime ? { closeTime: new Date() } : {}),
+          },
         });
 
-        // Don't call syncSignalClose from heartbeat — heartbeat doesn't have
-        // close price data. The explicit trade-event "close" will handle it
-        // with the correct close price. If the EA never sends the close event,
-        // the trade remains open in the Trade table (acceptable — manual close
-        // or next statement recalc will catch it).
+        // Reconcile: close the linked Trade record if the explicit close event was missed
+        if (dbTrade.matchedTradeId) {
+          const updatedMtTrade = await db.mtTrade.findUnique({ where: { id: dbTrade.id } });
+          if (updatedMtTrade) {
+            syncSignalClose(updatedMtTrade, account.userId).catch((err) =>
+              log("ea.heartbeat_reconcile_close_error", "ERROR", "EA", {
+                error: String(err),
+                ticket: String(dbTrade.ticket),
+              }, account.userId)
+            );
+          }
+        } else {
+          // Unlinked — try to match to a signal card
+          const updatedMtTrade = await db.mtTrade.findUnique({ where: { id: dbTrade.id } });
+          if (updatedMtTrade) {
+            matchTradeToSignal(updatedMtTrade, account.userId).catch((err) =>
+              log("ea.heartbeat_reconcile_match_error", "ERROR", "EA", {
+                error: String(err),
+                ticket: String(dbTrade.ticket),
+              }, account.userId)
+            );
+          }
+        }
       }
     }
   }
@@ -322,10 +363,18 @@ export async function syncTradeHistory(apiKey: string, trades: MtTradeInput[]) {
       created++;
     }
 
-    // Try signal matching for closed trades
-    if (!trade.isOpen && mtTrade && !mtTrade.matchedTradeId) {
-      const matchResult = await matchTradeToSignal(mtTrade, account.userId);
-      if (matchResult) matched++;
+    // Reconcile closed trades
+    if (!trade.isOpen && mtTrade) {
+      if (mtTrade.matchedTradeId) {
+        // Linked trade — sync close in case it was missed
+        await syncSignalClose(mtTrade, account.userId).catch((err) =>
+          log("ea.sync_history_close_error", "ERROR", "EA", { error: String(err), ticket: String(trade.ticket) }, account.userId)
+        );
+      } else {
+        // Unlinked — try signal matching
+        const matchResult = await matchTradeToSignal(mtTrade, account.userId);
+        if (matchResult) matched++;
+      }
     }
   }
 
@@ -483,7 +532,7 @@ function normalizeSymbol(symbol: string): string {
 }
 
 async function broadcastTradePnl(
-  linkedTrades: { matchedTradeId: string; currentPrice: number }[]
+  linkedTrades: { matchedTradeId: string; currentPrice: number; mtProfit?: number }[]
 ) {
   if (linkedTrades.length === 0) return;
 
@@ -500,7 +549,8 @@ async function broadcastTradePnl(
   });
 
   const priceMap = new Map(linkedTrades.map((t) => [t.matchedTradeId, t.currentPrice]));
-  const updates: { tradeId: string; messageId: string; currentRR: number; currentPrice: number; targetRR: number | null; riskStatus: string; clanId: string; topicId: string }[] = [];
+  const mtProfitMap = new Map(linkedTrades.map((t) => [t.matchedTradeId, t.mtProfit]));
+  const updates: { tradeId: string; messageId: string; currentRR: number | null; currentPrice: number; targetRR: number | null; riskStatus: string; pricePnl: number; mtProfit?: number; clanId: string; topicId: string }[] = [];
 
   for (const trade of trades) {
     const currentPrice = priceMap.get(trade.id);
@@ -508,25 +558,31 @@ async function broadcastTradePnl(
 
     const card = trade.tradeCard;
     const entry = trade.initialEntry ?? card.entry;
-    // Prefer initialRiskAbs, fall back to card entry/SL
+    // Prefer initialRiskAbs, fall back to card entry/SL (only if SL is set)
     const riskDistance = (trade.initialRiskAbs && trade.initialRiskAbs > 0)
       ? trade.initialRiskAbs
-      : Math.abs(entry - card.stopLoss);
-    if (riskDistance <= 0) continue;
+      : (card.stopLoss > 0 ? Math.abs(entry - card.stopLoss) : 0);
 
     const dir = card.direction === "LONG" ? 1 : -1;
-    const currentRR = (dir * (currentPrice - entry)) / riskDistance;
+    const pricePnl = dir * (currentPrice - entry);
+    const currentRR = riskDistance > 0
+      ? Math.round(((dir * (currentPrice - entry)) / riskDistance) * 100) / 100
+      : null;
 
     const { clanId, topicId } = card.message;
     if (!topicId) continue;
 
+    const mtProfit = mtProfitMap.get(trade.id);
+
     updates.push({
       tradeId: trade.id,
       messageId: card.message.id,
-      currentRR: Math.round(currentRR * 100) / 100,
+      currentRR,
       currentPrice,
-      targetRR: calculateTargetRR(card.targets[0], entry, riskDistance),
+      targetRR: riskDistance > 0 ? calculateTargetRR(card.targets[0], entry, riskDistance) : null,
       riskStatus: trade.riskStatus,
+      pricePnl,
+      mtProfit: mtProfit != null ? Math.round(mtProfit * 100) / 100 : undefined,
       clanId,
       topicId,
     });
@@ -559,6 +615,8 @@ async function broadcastTradePnl(
     currentPrice: u.currentPrice,
     targetRR: u.targetRR,
     riskStatus: u.riskStatus,
+    pricePnl: u.pricePnl,
+    ...(u.mtProfit != null ? { mtProfit: u.mtProfit } : {}),
   });
 
   for (const [room, roomUpdates] of byRoom) {
@@ -620,7 +678,7 @@ async function broadcastUnlinkedTradePnl(
   });
   if (unlinkedTrades.length === 0) return;
 
-  const updates: { tradeId: string; messageId: string; currentRR: number; currentPrice: number; targetRR: number | null; riskStatus: string; clanId: string; topicId: string }[] = [];
+  const updates: { tradeId: string; messageId: string; currentRR: number | null; currentPrice: number; targetRR: number | null; riskStatus: string; pricePnl: number; clanId: string; topicId: string }[] = [];
 
   for (const trade of unlinkedTrades) {
     const card = trade.tradeCard;
@@ -634,11 +692,13 @@ async function broadcastUnlinkedTradePnl(
     const entry = trade.initialEntry ?? card.entry;
     const riskDistance = (trade.initialRiskAbs && trade.initialRiskAbs > 0)
       ? trade.initialRiskAbs
-      : Math.abs(entry - card.stopLoss);
-    if (riskDistance <= 0) continue;
+      : (card.stopLoss > 0 ? Math.abs(entry - card.stopLoss) : 0);
 
     const dir = card.direction === "LONG" ? 1 : -1;
-    const currentRR = (dir * (currentPrice - entry)) / riskDistance;
+    const pricePnl = dir * (currentPrice - entry);
+    const currentRR = riskDistance > 0
+      ? Math.round(((dir * (currentPrice - entry)) / riskDistance) * 100) / 100
+      : null;
 
     const { clanId, topicId } = card.message;
     if (!topicId) continue;
@@ -646,10 +706,11 @@ async function broadcastUnlinkedTradePnl(
     updates.push({
       tradeId: trade.id,
       messageId: card.message.id,
-      currentRR: Math.round(currentRR * 100) / 100,
+      currentRR,
       currentPrice,
-      targetRR: calculateTargetRR(card.targets[0], entry, riskDistance),
+      targetRR: riskDistance > 0 ? calculateTargetRR(card.targets[0], entry, riskDistance) : null,
       riskStatus: trade.riskStatus,
+      pricePnl,
       clanId,
       topicId,
     });
@@ -681,6 +742,7 @@ async function broadcastUnlinkedTradePnl(
     currentPrice: u.currentPrice,
     targetRR: u.targetRR,
     riskStatus: u.riskStatus,
+    pricePnl: u.pricePnl,
   });
 
   for (const [room, roomUpdates] of byRoom) {

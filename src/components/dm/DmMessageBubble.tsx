@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Pencil, Trash2, MoreHorizontal, Reply, Check, CheckCheck } from "lucide-react";
 import { ChatImageGrid } from "@/components/shared/ChatImageGrid";
+import { getInitials } from "@/lib/utils";
 import type { DmMessage } from "@/stores/dm-store";
 
 interface DmMessageBubbleProps {
@@ -75,7 +76,7 @@ export function DmMessageBubble({
               alt={message.sender.name || ""}
             />
             <AvatarFallback className="text-xs">
-              {(message.sender.name || "?").slice(0, 2).toUpperCase()}
+              {getInitials(message.sender.name || "?")}
             </AvatarFallback>
           </Avatar>
         )}

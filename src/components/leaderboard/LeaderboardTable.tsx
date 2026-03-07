@@ -3,6 +3,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useTranslation } from "@/lib/i18n";
+import { getInitials } from "@/lib/utils";
 import type { TraderStatementMetrics } from "@/types/trader-statement";
 
 interface LeaderboardEntry {
@@ -71,7 +72,7 @@ export function LeaderboardTable({ entries }: LeaderboardTableProps) {
                       alt={entry.user?.name || ""}
                     />
                     <AvatarFallback className="text-[10px]">
-                      {(entry.user?.name || "?").slice(0, 2).toUpperCase()}
+                      {getInitials(entry.user?.name || "?")}
                     </AvatarFallback>
                   </Avatar>
                   <span className="font-medium">

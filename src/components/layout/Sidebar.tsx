@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   UserCheck,
   BookOpen,
+  Globe,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ export function Sidebar() {
     { href: "/clans", label: t("nav.clans"), icon: Shield },
     { href: "/discover", label: t("nav.discover"), icon: Compass },
     { href: "/leaderboard", label: t("nav.leaderboard"), icon: Trophy },
+    { href: "/geo-news", label: t("nav.geoNews"), icon: Globe },
   ];
 
   return (

@@ -277,7 +277,7 @@ export function ChatPanel({
 
     socket.on(
       SOCKET_EVENTS.TRADE_PNL_UPDATE,
-      (data: { updates: Array<{ tradeId: string; currentRR: number; currentPrice: number; targetRR?: number | null; riskStatus?: string }> }) => {
+      (data: { updates: Array<{ tradeId: string; currentRR: number | null; currentPrice: number; targetRR?: number | null; riskStatus?: string; pricePnl?: number | null; mtProfit?: number | null }> }) => {
         updateTradePnl(data.updates);
       }
     );

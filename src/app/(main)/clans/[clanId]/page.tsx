@@ -19,6 +19,7 @@ import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ClanPerfBanner } from "@/components/clan/ClanPerfBanner";
 import { TraderBadge } from "@/components/shared/TraderBadge";
 import { Settings, Mail } from "lucide-react";
+import { getInitials } from "@/lib/utils";
 import type { ClanTier } from "@prisma/client";
 
 export async function generateMetadata({
@@ -94,13 +95,52 @@ export default async function ClanPage({
       ? getUserJoinRequestStatus(clanId, session.user.id)
       : Promise.resolve(null),
     !isMember
-      ? db.clanMember.findFirst({ where: { userId: session.user.id } })
+      ? db.clanMember.findFirst({
+          where: { userId: session.user.id },
+          include: {
+            clan: {
+              include: { _count: { select: { members: true } } },
+            },
+          },
+        })
       : Promise.resolve(null),
   ]);
 
   const clanSettings = (clan.settings as Record<string, unknown>) || {};
   const joinRequestsEnabled = !!clanSettings.joinRequestsEnabled;
   const isInAnotherClan = !!existingClanMembership;
+
+  // Build current clan info for switch modal
+  let currentClanInfo: {
+    id: string;
+    name: string;
+    memberCount: number;
+    userRole: string;
+    members?: { userId: string; name: string }[];
+  } | null = null;
+
+  if (isInAnotherClan && existingClanMembership) {
+    const otherClan = existingClanMembership.clan;
+    currentClanInfo = {
+      id: otherClan.id,
+      name: otherClan.name,
+      memberCount: otherClan._count.members,
+      userRole: existingClanMembership.role,
+    };
+
+    // If user is leader with >1 members, fetch non-leader members for transfer picker
+    if (existingClanMembership.role === "LEADER" && otherClan._count.members > 1) {
+      const otherMembers = await db.clanMember.findMany({
+        where: { clanId: otherClan.id, role: { not: "LEADER" } },
+        include: { user: { select: { id: true, name: true } } },
+        take: 50,
+      });
+      currentClanInfo.members = otherMembers.map((m) => ({
+        userId: m.userId,
+        name: m.user.name || "Unknown",
+      }));
+    }
+  }
 
   // Serialize for client components
   const serializedPosts = channelData.posts.map((p) => ({
@@ -168,7 +208,7 @@ export default async function ClanPage({
                 alt={member.user.name || ""}
               />
               <AvatarFallback>
-                {(member.user.name || "?").slice(0, 2).toUpperCase()}
+                {getInitials(member.user.name || "?")}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
@@ -250,6 +290,8 @@ export default async function ClanPage({
           joinRequestsEnabled={joinRequestsEnabled}
           existingRequestStatus={joinRequestStatus}
           isInAnotherClan={isInAnotherClan}
+          currentClanInfo={currentClanInfo}
+          targetClanName={clan.name}
         />
         {isLeaderOrCoLeader && (
           <Button variant="outline" size="icon" asChild>

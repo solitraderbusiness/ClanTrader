@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   deriveRiskStatus,
   calculateLiveRR,
+  calculatePricePnl,
   calculateTargetRR,
 } from "../risk-utils";
 
@@ -140,6 +141,47 @@ describe("calculateLiveRR", () => {
     it("handles large risk multiples", () => {
       // entry=2000, risk=10, price=2050 => 50/10 = 5R
       expect(calculateLiveRR("LONG", 2050, 2000, 10)).toBe(5);
+    });
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  calculatePricePnl                                                  */
+/* ------------------------------------------------------------------ */
+
+describe("calculatePricePnl", () => {
+  describe("LONG trades", () => {
+    it("returns positive P&L when price is above entry", () => {
+      expect(calculatePricePnl("LONG", 1.105, 1.1)).toBeCloseTo(0.005);
+    });
+
+    it("returns negative P&L when price is below entry", () => {
+      expect(calculatePricePnl("LONG", 1.095, 1.1)).toBeCloseTo(-0.005);
+    });
+
+    it("returns 0 when price equals entry", () => {
+      expect(calculatePricePnl("LONG", 100, 100)).toBe(0);
+    });
+  });
+
+  describe("SHORT trades", () => {
+    it("returns positive P&L when price is below entry", () => {
+      expect(calculatePricePnl("SHORT", 1.095, 1.1)).toBeCloseTo(0.005);
+    });
+
+    it("returns negative P&L when price is above entry", () => {
+      expect(calculatePricePnl("SHORT", 1.105, 1.1)).toBeCloseTo(-0.005);
+    });
+
+    it("returns 0 when price equals entry", () => {
+      expect(calculatePricePnl("SHORT", 100, 100)).toBeCloseTo(0);
+    });
+  });
+
+  describe("gold-like prices", () => {
+    it("handles large values correctly", () => {
+      // XAUUSD LONG: entry 2000, price 2015 => +15
+      expect(calculatePricePnl("LONG", 2015, 2000)).toBe(15);
     });
   });
 });

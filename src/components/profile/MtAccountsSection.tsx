@@ -55,8 +55,8 @@ export function MtAccountsSection({
               onClick={() => setSelectedAccountId(account.id)}
               className="rounded-lg border bg-card p-4 space-y-2 text-start transition-colors hover:bg-accent/50 cursor-pointer w-full"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{account.broker}</span>
                   <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono">
                     {account.platform}
@@ -79,7 +79,7 @@ export function MtAccountsSection({
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                 <span>
                   #{isOwnProfile
                     ? account.accountNumber

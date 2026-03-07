@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users } from "lucide-react";
+import { getInitials } from "@/lib/utils";
 import { InviteJoinButton } from "./InviteJoinButton";
 
 export const metadata = { title: "Clan Invite" };
@@ -74,7 +75,7 @@ export default async function InvitePage({
           <Avatar className="h-20 w-20">
             <AvatarImage src={clan.avatar || undefined} alt={clan.name} />
             <AvatarFallback className="text-xl">
-              {clan.name.slice(0, 2).toUpperCase()}
+              {getInitials(clan.name)}
             </AvatarFallback>
           </Avatar>
 

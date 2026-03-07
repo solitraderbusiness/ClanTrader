@@ -112,7 +112,7 @@ export async function sendInitialPnl(socket: Socket, clanId: string, topicId: st
         riskStatus: true,
         mtTradeMatches: {
           where: { isOpen: true },
-          select: { symbol: true },
+          select: { symbol: true, profit: true, commission: true, swap: true },
           take: 1,
         },
         tradeCard: {
@@ -158,7 +158,7 @@ export async function sendInitialPnl(socket: Socket, clanId: string, topicId: st
       }
     }
 
-    const updates: { tradeId: string; messageId: string; currentRR: number; currentPrice: number; targetRR: number | null; riskStatus: string }[] = [];
+    const updates: { tradeId: string; messageId: string; currentRR: number | null; currentPrice: number; targetRR: number | null; riskStatus: string; pricePnl: number; mtProfit?: number }[] = [];
 
     for (const trade of topicTrades) {
       if (!trade.tradeCard) continue;
@@ -166,8 +166,7 @@ export async function sendInitialPnl(socket: Socket, clanId: string, topicId: st
       const entry = trade.initialEntry ?? trade.tradeCard.entry;
       const riskAbs = (trade.initialRiskAbs && trade.initialRiskAbs > 0)
         ? trade.initialRiskAbs
-        : Math.abs(entry - trade.tradeCard.stopLoss);
-      if (riskAbs <= 0) continue;
+        : (trade.tradeCard.stopLoss > 0 ? Math.abs(entry - trade.tradeCard.stopLoss) : 0);
 
       const mtSymbol = trade.mtTradeMatches[0]?.symbol?.toUpperCase();
       const cardSymbol = trade.tradeCard.instrument?.toUpperCase();
@@ -176,20 +175,31 @@ export async function sendInitialPnl(socket: Socket, clanId: string, topicId: st
       if (!currentPrice) continue;
 
       const dir = trade.tradeCard.direction === "LONG" ? 1 : -1;
-      const currentRR = (dir * (currentPrice - entry)) / riskAbs;
+      const pricePnl = dir * (currentPrice - entry);
+      const currentRR = riskAbs > 0
+        ? Math.round(((dir * (currentPrice - entry)) / riskAbs) * 100) / 100
+        : null;
 
       const tp = trade.tradeCard.targets[0];
-      const targetRR = tp && tp > 0
+      const targetRR = tp && tp > 0 && riskAbs > 0
         ? Math.round((Math.abs(tp - entry) / riskAbs) * 100) / 100
         : null;
+
+      // Get actual MT dollar profit if linked
+      const mtMatch = trade.mtTradeMatches[0];
+      const mtProfit = mtMatch
+        ? Math.round(((mtMatch.profit ?? 0) + (mtMatch.commission ?? 0) + (mtMatch.swap ?? 0)) * 100) / 100
+        : undefined;
 
       updates.push({
         tradeId: trade.id,
         messageId: trade.tradeCard.message.id,
-        currentRR: Math.round(currentRR * 100) / 100,
+        currentRR,
         currentPrice,
         targetRR,
         riskStatus: trade.riskStatus,
+        pricePnl,
+        ...(mtProfit != null ? { mtProfit } : {}),
       });
     }
 

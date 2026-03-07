@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { CLAN_LIMITS } from "@/lib/clan-constants";
+import { invalidateExploreCache } from "@/services/explore.service";
 import type { CreateClanInput, UpdateClanInput } from "@/lib/validators";
 import type { ClanTier } from "@prisma/client";
 
@@ -64,6 +65,7 @@ export async function createClan(userId: string, data: CreateClanInput) {
     return newClan;
   });
 
+  await invalidateExploreCache();
   return clan;
 }
 
@@ -123,10 +125,12 @@ export async function updateClan(
     }
   }
 
-  return db.clan.update({
+  const updated = await db.clan.update({
     where: { id: clanId },
     data,
   });
+  await invalidateExploreCache();
+  return updated;
 }
 
 export async function deleteClan(clanId: string, userId: string) {
@@ -143,6 +147,7 @@ export async function deleteClan(clanId: string, userId: string) {
   }
 
   await db.clan.delete({ where: { id: clanId } });
+  await invalidateExploreCache();
 }
 
 export async function addMember(
@@ -255,6 +260,7 @@ export async function removeMember(
   await db.clanMember.delete({
     where: { userId_clanId: { userId: targetUserId, clanId } },
   });
+  await invalidateExploreCache();
 }
 
 export async function updateMemberRole(
@@ -307,6 +313,19 @@ export async function leaveClan(clanId: string, userId: string) {
   }
 
   if (membership.role === "LEADER") {
+    // Solo leader — auto-dissolve the clan
+    const memberCount = await db.clanMember.count({ where: { clanId } });
+    if (memberCount === 1) {
+      await db.$transaction(async (tx) => {
+        await tx.clanMember.delete({
+          where: { userId_clanId: { userId, clanId } },
+        });
+        await tx.clan.delete({ where: { id: clanId } });
+      });
+      await invalidateExploreCache();
+      return;
+    }
+    // Leader with other members — must transfer first
     throw new ClanServiceError(
       "Leader must transfer leadership before leaving",
       "LEADER_CANNOT_LEAVE",
@@ -317,6 +336,141 @@ export async function leaveClan(clanId: string, userId: string) {
   await db.clanMember.delete({
     where: { userId_clanId: { userId, clanId } },
   });
+  await invalidateExploreCache();
+}
+
+export async function transferLeadership(
+  clanId: string,
+  newLeaderUserId: string,
+  currentLeaderId: string
+) {
+  if (newLeaderUserId === currentLeaderId) {
+    throw new ClanServiceError(
+      "Cannot transfer leadership to yourself",
+      "INVALID",
+      400
+    );
+  }
+
+  const currentMembership = await db.clanMember.findUnique({
+    where: { userId_clanId: { userId: currentLeaderId, clanId } },
+  });
+
+  if (!currentMembership || currentMembership.role !== "LEADER") {
+    throw new ClanServiceError(
+      "Only the clan leader can transfer leadership",
+      "FORBIDDEN",
+      403
+    );
+  }
+
+  const targetMembership = await db.clanMember.findUnique({
+    where: { userId_clanId: { userId: newLeaderUserId, clanId } },
+  });
+
+  if (!targetMembership) {
+    throw new ClanServiceError(
+      "Target user is not a member of this clan",
+      "NOT_FOUND",
+      404
+    );
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.clanMember.update({
+      where: { userId_clanId: { userId: currentLeaderId, clanId } },
+      data: { role: "MEMBER" },
+    });
+    await tx.clanMember.update({
+      where: { userId_clanId: { userId: newLeaderUserId, clanId } },
+      data: { role: "LEADER" },
+    });
+  });
+}
+
+export async function switchClan(
+  currentClanId: string,
+  targetClanId: string,
+  userId: string
+): Promise<{ joined: boolean; requestCreated: boolean }> {
+  const membership = await db.clanMember.findUnique({
+    where: { userId_clanId: { userId, clanId: currentClanId } },
+  });
+
+  if (!membership) {
+    throw new ClanServiceError("You are not a member of this clan", "NOT_FOUND", 404);
+  }
+
+  // Check if target clan requires join requests
+  const targetClan = await db.clan.findUnique({ where: { id: targetClanId } });
+  if (!targetClan) {
+    throw new ClanServiceError("Target clan not found", "NOT_FOUND", 404);
+  }
+  const targetSettings = (targetClan.settings as Record<string, unknown>) || {};
+  const requiresRequest = !!targetSettings.joinRequestsEnabled;
+
+  if (membership.role === "LEADER") {
+    const memberCount = await db.clanMember.count({ where: { clanId: currentClanId } });
+    if (memberCount > 1) {
+      throw new ClanServiceError(
+        "Leader must transfer leadership before switching clans",
+        "LEADER_MUST_TRANSFER",
+        400
+      );
+    }
+    // Solo leader — dissolve current clan
+    if (requiresRequest) {
+      // Dissolve + create join request (don't add as member)
+      await db.$transaction(async (tx) => {
+        await tx.clanMember.delete({
+          where: { userId_clanId: { userId, clanId: currentClanId } },
+        });
+        await tx.clan.delete({ where: { id: currentClanId } });
+        await tx.clanJoinRequest.upsert({
+          where: { clanId_userId: { clanId: targetClanId, userId } },
+          create: { clanId: targetClanId, userId },
+          update: { status: "PENDING", reviewedById: null, reviewedAt: null, rejectReason: null },
+        });
+      });
+      await invalidateExploreCache();
+      return { joined: false, requestCreated: true };
+    }
+    // Dissolve + join directly
+    await db.$transaction(async (tx) => {
+      await tx.clanMember.delete({
+        where: { userId_clanId: { userId, clanId: currentClanId } },
+      });
+      await tx.clan.delete({ where: { id: currentClanId } });
+      await addMember(targetClanId, userId, tx);
+    });
+  } else {
+    // MEMBER or CO_LEADER
+    if (requiresRequest) {
+      // Leave + create join request
+      await db.$transaction(async (tx) => {
+        await tx.clanMember.delete({
+          where: { userId_clanId: { userId, clanId: currentClanId } },
+        });
+        await tx.clanJoinRequest.upsert({
+          where: { clanId_userId: { clanId: targetClanId, userId } },
+          create: { clanId: targetClanId, userId },
+          update: { status: "PENDING", reviewedById: null, reviewedAt: null, rejectReason: null },
+        });
+      });
+      await invalidateExploreCache();
+      return { joined: false, requestCreated: true };
+    }
+    // Leave + join directly
+    await db.$transaction(async (tx) => {
+      await tx.clanMember.delete({
+        where: { userId_clanId: { userId, clanId: currentClanId } },
+      });
+      await addMember(targetClanId, userId, tx);
+    });
+  }
+
+  await invalidateExploreCache();
+  return { joined: true, requestCreated: false };
 }
 
 export async function getUserClans(userId: string) {

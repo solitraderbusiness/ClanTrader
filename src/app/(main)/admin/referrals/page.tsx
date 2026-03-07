@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link2, MousePointerClick, UserPlus, Percent } from "lucide-react";
 import Link from "next/link";
+import { getInitials } from "@/lib/utils";
 
 export default async function AdminReferralsPage() {
   const session = await auth();
@@ -103,14 +104,7 @@ export default async function AdminReferralsPage() {
                 </thead>
                 <tbody>
                   {topReferrers.map((referrer) => {
-                    const initials = referrer.name
-                      ? referrer.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")
-                          .toUpperCase()
-                          .slice(0, 2)
-                      : "?";
+                    const initials = referrer.name ? getInitials(referrer.name) : "?";
 
                     return (
                       <tr key={referrer.referrerId} className="border-b last:border-0">

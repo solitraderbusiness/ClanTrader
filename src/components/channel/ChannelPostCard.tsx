@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { toThumbUrl, isThumbUrl } from "@/lib/image-urls";
 import { TRADE_POLICY } from "@/lib/trade-policy";
 import { useTranslation } from "@/lib/i18n";
+import { getInitials } from "@/lib/utils";
 
 interface TradeCardInfo {
   instrument: string;
@@ -130,7 +131,7 @@ export function ChannelPostCard({
                   alt={post.author.name || ""}
                 />
                 <AvatarFallback className="text-xs">
-                  {(post.author.name || "?").slice(0, 2).toUpperCase()}
+                  {getInitials(post.author.name || "?")}
                 </AvatarFallback>
               </Avatar>
               <div>
@@ -179,7 +180,7 @@ export function ChannelPostCard({
           {/* Price grid */}
           <div
             className={`grid gap-2 text-xs ${
-              hasFourthCol ? "grid-cols-4" : "grid-cols-3"
+              hasFourthCol ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"
             }`}
           >
             <div className="rounded-lg bg-muted/30 px-2 py-1 text-center">
@@ -320,7 +321,7 @@ export function ChannelPostCard({
                 alt={post.author.name || ""}
               />
               <AvatarFallback className="text-xs">
-                {(post.author.name || "?").slice(0, 2).toUpperCase()}
+                {getInitials(post.author.name || "?")}
               </AvatarFallback>
             </Avatar>
             <div>

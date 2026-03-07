@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { invalidateExploreCache } from "@/services/explore.service";
 
 export async function followClan(userId: string, clanId: string) {
   // Verify clan exists
@@ -7,7 +8,7 @@ export async function followClan(userId: string, clanId: string) {
     throw new Error("Clan not found");
   }
 
-  return db.follow.upsert({
+  const result = await db.follow.upsert({
     where: {
       followerId_followingType_followingId: {
         followerId: userId,
@@ -22,6 +23,8 @@ export async function followClan(userId: string, clanId: string) {
       followingId: clanId,
     },
   });
+  await invalidateExploreCache();
+  return result;
 }
 
 export async function unfollowClan(userId: string, clanId: string) {
@@ -32,6 +35,7 @@ export async function unfollowClan(userId: string, clanId: string) {
       followingId: clanId,
     },
   });
+  await invalidateExploreCache();
 }
 
 export async function isFollowing(

@@ -10,6 +10,7 @@ import { DirectionBadge } from "@/components/shared/DirectionBadge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import Link from "next/link";
 import { ArrowLeft, Eye, Crown, Lock } from "lucide-react";
+import { getInitials } from "@/lib/utils";
 
 const CLOSED_STATUSES = ["TP_HIT", "SL_HIT", "BE", "CLOSED"];
 
@@ -95,7 +96,7 @@ export default async function PostDetailPage({
               alt={post.author.name || ""}
             />
             <AvatarFallback>
-              {(post.author.name || "?").slice(0, 2).toUpperCase()}
+              {getInitials(post.author.name || "?")}
             </AvatarFallback>
           </Avatar>
           <div>
@@ -255,7 +256,7 @@ function TradeCardDisplay({
         {/* Price grid */}
         <div
           className={`grid gap-3 text-sm ${
-            hasFourthCol ? "grid-cols-4" : "grid-cols-3"
+            hasFourthCol ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"
           }`}
         >
           <div className="rounded-lg bg-muted/30 px-3 py-2 text-center">

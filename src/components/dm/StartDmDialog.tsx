@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Search } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
+import { getInitials } from "@/lib/utils";
 
 interface SearchUser {
   id: string;
@@ -105,7 +106,7 @@ export function StartDmDialog({ open, onOpenChange }: StartDmDialogProps) {
               <Avatar className="h-9 w-9">
                 <AvatarImage src={user.avatar || undefined} alt={user.name || ""} />
                 <AvatarFallback className="text-xs">
-                  {(user.name || "?").slice(0, 2).toUpperCase()}
+                  {getInitials(user.name || "?")}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">

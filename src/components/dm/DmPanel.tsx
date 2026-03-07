@@ -19,6 +19,7 @@ import { TraderBadge } from "@/components/shared/TraderBadge";
 import { ArrowLeft, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { useTranslation } from "@/lib/i18n";
+import { getInitials } from "@/lib/utils";
 
 interface DmPanelProps {
   recipientId: string;
@@ -228,7 +229,7 @@ export function DmPanel({
         <Avatar className="h-9 w-9">
           <AvatarImage src={recipientAvatar || undefined} alt={recipientName || ""} />
           <AvatarFallback className="text-xs">
-            {(recipientName || "?").slice(0, 2).toUpperCase()}
+            {getInitials(recipientName || "?")}
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">

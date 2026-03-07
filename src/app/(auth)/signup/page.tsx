@@ -115,21 +115,10 @@ function SignupForm() {
         return;
       }
 
-      // Auto sign-in via username + password
-      const signInResult = await signIn("credentials", {
-        username: data.username,
-        password: data.password,
-        redirect: false,
-      });
-
-      if (signInResult?.error) {
-        // Account was created but auto-login failed — send to login
-        router.push("/login");
-        return;
-      }
-
-      router.push("/home");
-      router.refresh();
+      // Redirect to verify-email pending page (don't auto-sign-in)
+      router.push(
+        `/verify-email?pending=true&email=${encodeURIComponent(data.email)}`
+      );
     } catch {
       setError(t("auth.somethingWrong"));
       setLoading(false);

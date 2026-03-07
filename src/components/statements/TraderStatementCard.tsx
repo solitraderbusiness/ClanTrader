@@ -42,7 +42,7 @@ export function TraderStatementCard({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-4 gap-3 text-center text-xs">
+        <div className="grid grid-cols-2 gap-3 text-center text-xs sm:grid-cols-4">
           <div>
             <p className="text-muted-foreground">{t("statements.signals")}</p>
             <p className="text-lg font-bold">{tradeCount}</p>

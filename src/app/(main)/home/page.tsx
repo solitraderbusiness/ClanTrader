@@ -40,7 +40,6 @@ export default async function HomePage() {
       clanCount={clanCount}
       followCount={followCount}
       hasEmail={!!user?.email}
-      role={session.user.role}
     />
   );
 }

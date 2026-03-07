@@ -7,6 +7,15 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useUsernamePromptStore } from "@/stores/username-prompt-store";
 import { useTranslation } from "@/lib/i18n";
+import { SwitchClanModal } from "@/components/clan/SwitchClanModal";
+
+interface CurrentClanInfo {
+  id: string;
+  name: string;
+  memberCount: number;
+  userRole: string;
+  members?: { userId: string; name: string }[];
+}
 
 interface JoinClanButtonProps {
   clanId: string;
@@ -18,6 +27,8 @@ interface JoinClanButtonProps {
   joinRequestsEnabled: boolean;
   existingRequestStatus: string | null;
   isInAnotherClan: boolean;
+  currentClanInfo?: CurrentClanInfo | null;
+  targetClanName?: string;
 }
 
 export function JoinClanButton({
@@ -25,15 +36,17 @@ export function JoinClanButton({
   isMember,
   isLeader,
   isFull,
-  isPublic: _isPublic,
   currentUserId,
   joinRequestsEnabled,
   existingRequestStatus,
   isInAnotherClan,
+  currentClanInfo,
+  targetClanName,
 }: JoinClanButtonProps) {
   const router = useRouter();
   const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
+  const [switchModalOpen, setSwitchModalOpen] = useState(false);
   const openUsernamePrompt = useUsernamePromptStore((s) => s.open);
   const { t } = useTranslation();
 
@@ -67,7 +80,11 @@ export function JoinClanButton({
   }
 
   async function handleLeave() {
-    if (!confirm(t("clan.confirmLeave"))) return;
+    const isSoloLeader = isLeader && currentClanInfo?.memberCount === 1;
+    const confirmMsg = isSoloLeader
+      ? t("clan.confirmLeaveSoloLeader")
+      : t("clan.confirmLeave");
+    if (!confirm(confirmMsg)) return;
 
     setLoading(true);
     try {
@@ -89,6 +106,16 @@ export function JoinClanButton({
     }
   }
 
+  // Solo leader of this clan — can leave (dissolves)
+  if (isLeader && isMember && currentClanInfo?.memberCount === 1) {
+    return (
+      <Button variant="outline" onClick={handleLeave} disabled={loading}>
+        {loading ? t("clan.leaving") : t("clan.leaveClan")}
+      </Button>
+    );
+  }
+
+  // Leader with other members — can't leave directly
   if (isMember && isLeader) {
     return (
       <Button variant="outline" disabled>
@@ -97,6 +124,7 @@ export function JoinClanButton({
     );
   }
 
+  // Regular member — can leave
   if (isMember) {
     return (
       <Button variant="outline" onClick={handleLeave} disabled={loading}>
@@ -105,11 +133,22 @@ export function JoinClanButton({
     );
   }
 
-  if (isInAnotherClan) {
+  // User is in another clan — show Switch Clan button
+  if (isInAnotherClan && currentClanInfo) {
     return (
-      <Button variant="outline" disabled>
-        {t("clan.leaveFirst")}
-      </Button>
+      <>
+        <Button variant="outline" onClick={() => setSwitchModalOpen(true)}>
+          {t("clan.switchClan")}
+        </Button>
+        <SwitchClanModal
+          open={switchModalOpen}
+          onOpenChange={setSwitchModalOpen}
+          currentClan={currentClanInfo}
+          currentUserId={currentUserId}
+          targetClan={{ id: clanId, name: targetClanName || "" }}
+          mode="join"
+        />
+      </>
     );
   }
 

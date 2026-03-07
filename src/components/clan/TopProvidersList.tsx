@@ -3,7 +3,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { useTranslation } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn, getInitials } from "@/lib/utils";
 import Link from "next/link";
 import type { ProviderStats } from "@/types/clan-performance";
 
@@ -30,7 +30,7 @@ export function TopProvidersList({ providers }: Props) {
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={p.avatar || undefined} alt={p.name} />
                   <AvatarFallback>
-                    {p.name.slice(0, 2).toUpperCase()}
+                    {getInitials(p.name)}
                   </AvatarFallback>
                 </Avatar>
               </Link>

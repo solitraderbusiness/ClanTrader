@@ -41,6 +41,19 @@ export function calculateLiveRR(
 }
 
 /**
+ * Calculate raw price P&L (direction-aware price difference).
+ * Used for trades without a stop loss where R:R is undefined.
+ */
+export function calculatePricePnl(
+  direction: TradeDirection,
+  currentPrice: number,
+  entry: number
+): number {
+  const dir = direction === "LONG" ? 1 : -1;
+  return dir * (currentPrice - entry);
+}
+
+/**
  * Calculate target R:R using immutable initial risk distance.
  * Returns null if TP is missing.
  */

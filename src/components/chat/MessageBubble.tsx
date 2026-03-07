@@ -18,6 +18,7 @@ import { TraderBadge } from "@/components/shared/TraderBadge";
 import { ChatImageGrid } from "@/components/shared/ChatImageGrid";
 import { TradeCardInline } from "./TradeCardInline";
 import { TradeEventLine } from "./TradeEventLine";
+import { getInitials } from "@/lib/utils";
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -117,7 +118,7 @@ export function MessageBubble({
         >
           <AvatarImage src={message.user.avatar || undefined} alt={message.user.name || ""} />
           <AvatarFallback className="text-xs">
-            {(message.user.name || "?").slice(0, 2).toUpperCase()}
+            {getInitials(message.user.name || "?")}
           </AvatarFallback>
         </Avatar>
       ) : (

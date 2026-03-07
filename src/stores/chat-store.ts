@@ -160,8 +160,8 @@ interface ChatState {
   updateTradeCardValues: (tradeId: string, updates: { stopLoss?: number; targets?: number[] }) => void;
 
   // Live R:R PnL
-  tradePnl: Record<string, { currentRR: number; currentPrice: number; targetRR?: number | null; riskStatus?: string }>;
-  updateTradePnl: (updates: Array<{ tradeId: string; currentRR: number; currentPrice: number; targetRR?: number | null; riskStatus?: string }>) => void;
+  tradePnl: Record<string, { currentRR: number | null; currentPrice: number; targetRR?: number | null; riskStatus?: string; pricePnl?: number | null; mtProfit?: number | null }>;
+  updateTradePnl: (updates: Array<{ tradeId: string; currentRR: number | null; currentPrice: number; targetRR?: number | null; riskStatus?: string; pricePnl?: number | null; mtProfit?: number | null }>) => void;
 
   reset: () => void;
 }
@@ -182,7 +182,7 @@ const initialState = {
   replyingTo: null as ChatMessage | null,
   editingMessage: null as ChatMessage | null,
   clanMembers: [] as ClanMember[],
-  tradePnl: {} as Record<string, { currentRR: number; currentPrice: number; targetRR?: number | null; riskStatus?: string }>,
+  tradePnl: {} as Record<string, { currentRR: number | null; currentPrice: number; targetRR?: number | null; riskStatus?: string; pricePnl?: number | null }>,
 };
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -326,7 +326,7 @@ export const useChatStore = create<ChatState>((set) => ({
     set((state) => {
       const newPnl = { ...state.tradePnl };
       for (const u of updates) {
-        newPnl[u.tradeId] = { currentRR: u.currentRR, currentPrice: u.currentPrice, targetRR: u.targetRR, riskStatus: u.riskStatus };
+        newPnl[u.tradeId] = { currentRR: u.currentRR, currentPrice: u.currentPrice, targetRR: u.targetRR, riskStatus: u.riskStatus, pricePnl: u.pricePnl, mtProfit: u.mtProfit };
       }
       return { tradePnl: newPnl };
     }),

@@ -37,7 +37,7 @@ export function SignalPostCard({
   const showDetails = isPro || !isPaywalled;
 
   return (
-    <div className="rounded-lg border bg-card p-4 text-sm shadow-sm">
+    <div className="overflow-hidden rounded-lg border bg-card p-4 text-sm shadow-sm">
       <div className="mb-2">
         <AutoPostBadge />
       </div>
@@ -68,7 +68,7 @@ export function SignalPostCard({
           </div>
 
           {data.targets.length > 1 && (
-            <div className="mb-3 flex gap-3 text-xs">
+            <div className="mb-3 flex flex-wrap gap-3 text-xs">
               {data.targets.slice(1).map((tp, i) => (
                 <div key={i}>
                   <span className="text-muted-foreground">TP{i + 2}</span>

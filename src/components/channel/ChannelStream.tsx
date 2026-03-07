@@ -30,6 +30,7 @@ import { getSocket } from "@/lib/socket-client";
 import { SOCKET_EVENTS } from "@/lib/chat-constants";
 import { Megaphone, Eye, Lock, Crown, ChevronDown, Loader2, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
+import { getInitials } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface TradeCardInfo {
@@ -65,9 +66,11 @@ export interface ChannelPostData {
 }
 
 export interface LivePnlData {
-  currentRR: number;
+  currentRR: number | null;
   currentPrice: number;
   targetRR: number | null;
+  pricePnl?: number | null;
+  mtProfit?: number | null;
 }
 
 interface ChannelStreamProps {
@@ -146,32 +149,70 @@ function RRDisplay({
     );
   }
 
-  // Open trades: show Live R:R from socket/server data
+  // Open trades: show Live R:R (has SL) or Live P&L (no SL)
   if (isOpen && livePnl) {
-    return (
-      <div className="rounded-lg bg-muted/30 backdrop-blur-sm px-2 py-1 text-center">
-        <span className="text-muted-foreground">{t("trade.liveRR")}</span>
-        <p
-          className={`font-mono font-bold ${
-            livePnl.currentRR > 0
-              ? "text-green-500"
-              : livePnl.currentRR < 0
-                ? "text-red-500"
-                : "text-muted-foreground"
-          }`}
-        >
-          {livePnl.currentRR > 0 ? "+" : ""}{livePnl.currentRR.toFixed(2)}R
-        </p>
-        <p className="font-mono text-[10px] text-muted-foreground/60">
-          {livePnl.currentPrice}
-        </p>
-        {livePnl.targetRR != null && (
-          <p className="font-mono text-[10px] text-muted-foreground/60">
-            {t("trade.target")}: {livePnl.targetRR.toFixed(1)}R
+    if (livePnl.currentRR != null) {
+      return (
+        <div className="rounded-lg bg-muted/30 backdrop-blur-sm px-2 py-1 text-center">
+          <span className="text-muted-foreground">{t("trade.liveRR")}</span>
+          <p
+            className={`font-mono font-bold ${
+              livePnl.currentRR > 0
+                ? "text-green-500"
+                : livePnl.currentRR < 0
+                  ? "text-red-500"
+                  : "text-muted-foreground"
+            }`}
+          >
+            {livePnl.currentRR > 0 ? "+" : ""}{livePnl.currentRR.toFixed(2)}R
           </p>
-        )}
-      </div>
-    );
+          <p className="font-mono text-[10px] text-muted-foreground/60">
+            {livePnl.currentPrice}
+          </p>
+          {livePnl.targetRR != null && (
+            <p className="font-mono text-[10px] text-muted-foreground/60">
+              {t("trade.target")}: {livePnl.targetRR.toFixed(1)}R
+            </p>
+          )}
+        </div>
+      );
+    }
+    if (livePnl.mtProfit != null) {
+      const pnl = livePnl.mtProfit;
+      return (
+        <div className="rounded-lg bg-muted/30 backdrop-blur-sm px-2 py-1 text-center">
+          <span className="text-muted-foreground">{t("trade.livePnl")}</span>
+          <p
+            className={`font-mono font-bold ${
+              pnl > 0 ? "text-green-500" : pnl < 0 ? "text-red-500" : "text-muted-foreground"
+            }`}
+          >
+            {pnl > 0 ? "+" : ""}{pnl.toFixed(2)}$
+          </p>
+          <p className="font-mono text-[10px] text-muted-foreground/60">
+            {livePnl.currentPrice}
+          </p>
+        </div>
+      );
+    }
+    if (livePnl.pricePnl != null) {
+      const pnl = livePnl.pricePnl;
+      return (
+        <div className="rounded-lg bg-muted/30 backdrop-blur-sm px-2 py-1 text-center">
+          <span className="text-muted-foreground">{t("trade.livePnl")}</span>
+          <p
+            className={`font-mono font-bold ${
+              pnl > 0 ? "text-green-500" : pnl < 0 ? "text-red-500" : "text-muted-foreground"
+            }`}
+          >
+            {pnl > 0 ? "+" : ""}{Math.abs(pnl) >= 1 ? pnl.toFixed(2) : pnl.toFixed(4)}
+          </p>
+          <p className="font-mono text-[10px] text-muted-foreground/60">
+            {livePnl.currentPrice}
+          </p>
+        </div>
+      );
+    }
   }
 
   // Open without live data: show spinner
@@ -480,7 +521,7 @@ function SignalCard({
         {/* Price Grid — 3 or 4 columns */}
         <div
           className={`mb-2 grid gap-2 text-xs ${
-            hasFourthCol ? "grid-cols-4" : "grid-cols-3"
+            hasFourthCol ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"
           }`}
         >
           <div className="rounded-lg bg-muted/30 backdrop-blur-sm px-2 py-1 text-center">
@@ -544,7 +585,7 @@ function SignalCard({
               alt={post.author.name || ""}
             />
             <AvatarFallback className="text-[9px]">
-              {(post.author.name || "?").slice(0, 2).toUpperCase()}
+              {getInitials(post.author.name || "?")}
             </AvatarFallback>
           </Avatar>
           <span className="text-xs font-medium">
@@ -671,7 +712,7 @@ function AnnouncementCard({
             alt={post.author.name || ""}
           />
           <AvatarFallback className="text-[9px]">
-            {(post.author.name || "?").slice(0, 2).toUpperCase()}
+            {getInitials(post.author.name || "?")}
           </AvatarFallback>
         </Avatar>
         <span className="text-xs font-medium">
@@ -740,10 +781,12 @@ export function ChannelStream({
     const handlePnlUpdate = (data: {
       updates: Array<{
         tradeId: string;
-        currentRR: number;
+        currentRR: number | null;
         currentPrice: number;
         targetRR?: number | null;
         riskStatus?: string;
+        pricePnl?: number | null;
+        mtProfit?: number | null;
       }>;
     }) => {
       setLivePnl((prev) => {
@@ -753,6 +796,8 @@ export function ChannelStream({
             currentRR: u.currentRR,
             currentPrice: u.currentPrice,
             targetRR: u.targetRR ?? null,
+            pricePnl: u.pricePnl,
+            mtProfit: u.mtProfit,
           };
         }
         return next;
