@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { eaRegisterSchema } from "@/lib/validators";
 import { registerEaUser } from "@/services/ea.service";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
+    const limited = await rateLimit(`auth:ea-register:${getClientIp(request)}`, "AUTH_STRICT");
+    if (limited) return limited;
+
     const body = await request.json();
     const parsed = eaRegisterSchema.safeParse(body);
 

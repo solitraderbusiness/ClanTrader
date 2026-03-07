@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authenticateByApiKey } from "@/services/ea.service";
 import { fetchPendingActionsForAccount } from "@/services/ea-action.service";
+import { rateLimit } from "@/lib/rate-limit";
 
 function extractApiKey(request: Request): string | null {
   const auth = request.headers.get("authorization");
@@ -19,6 +20,9 @@ export async function GET(request: Request) {
     if (!account) {
       return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
     }
+
+    const limited = await rateLimit(`ea:poll:${account.id}`, "EA");
+    if (limited) return limited;
 
     const pendingActions = await fetchPendingActionsForAccount(account.id);
 

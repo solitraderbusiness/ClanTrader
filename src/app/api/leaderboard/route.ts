@@ -3,9 +3,13 @@ import { auth } from "@/lib/auth";
 import { getRankings } from "@/services/ranking.service";
 import { db } from "@/lib/db";
 import type { LeaderboardLens } from "@/types/ranking";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function GET(request: Request) {
   try {
+    const limited = await rateLimit(`pub:leaderboard:${getClientIp(request)}`, "PUBLIC_READ");
+    if (limited) return limited;
+
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

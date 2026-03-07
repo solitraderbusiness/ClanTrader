@@ -5,11 +5,15 @@ import { generateToken } from "@/lib/auth-utils";
 import { phoneSignupSchema } from "@/lib/validators";
 import { RESERVED_USERNAMES } from "@/lib/reserved-usernames";
 import { trackEvent } from "@/services/referral.service";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const TOKEN_TTL = 600; // 10 minutes
 
 export async function POST(request: Request) {
   try {
+    const limited = await rateLimit(`auth:phone-signup:${getClientIp(request)}`, "AUTH_STRICT");
+    if (limited) return limited;
+
     const body = await request.json();
     const parsed = phoneSignupSchema.safeParse(body);
 

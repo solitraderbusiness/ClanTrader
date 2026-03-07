@@ -6,12 +6,16 @@ import {
   InviteServiceError,
 } from "@/services/invite.service";
 import { ClanServiceError } from "@/services/clan.service";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ code: string }> }
 ) {
   try {
+    const limited = await rateLimit(`pub:invite:${getClientIp(request)}`, "PUBLIC_READ");
+    if (limited) return limited;
+
     const { code } = await params;
     const invite = await getInviteByCode(code);
 

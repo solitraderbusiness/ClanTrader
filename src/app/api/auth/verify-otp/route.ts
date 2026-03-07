@@ -4,12 +4,16 @@ import { db } from "@/lib/db";
 import { log } from "@/lib/audit";
 import { generateToken } from "@/lib/auth-utils";
 import { verifyOtpSchema } from "@/lib/validators";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const MAX_ATTEMPTS = 5;
 const TOKEN_TTL = 600; // 10 minutes
 
 export async function POST(request: Request) {
   try {
+    const limited = await rateLimit(`auth:verify-otp:${getClientIp(request)}`, "AUTH_STRICT");
+    if (limited) return limited;
+
     const body = await request.json();
     const parsed = verifyOtpSchema.safeParse(body);
 

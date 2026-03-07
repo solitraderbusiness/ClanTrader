@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { rateLimit } from "@/lib/rate-limit";
 import { db } from "@/lib/db";
 import sharp from "sharp";
 import { writeFile, mkdir } from "fs/promises";
@@ -17,6 +18,9 @@ export async function POST(
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const limited = await rateLimit(`upload:clan-avatar:${session.user.id}`, "UPLOAD");
+    if (limited) return limited;
 
     const { clanId } = await params;
 

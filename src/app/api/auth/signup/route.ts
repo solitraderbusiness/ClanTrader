@@ -5,9 +5,13 @@ import { sendVerificationEmail } from "@/lib/email";
 import { signupSchema } from "@/lib/validators";
 import { RESERVED_USERNAMES } from "@/lib/reserved-usernames";
 import { trackEvent } from "@/services/referral.service";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
+    const limited = await rateLimit(`auth:signup:${getClientIp(request)}`, "AUTH_STRICT");
+    if (limited) return limited;
+
     const body = await request.json();
     const parsed = signupSchema.safeParse(body);
 
@@ -69,6 +73,7 @@ export async function POST(request: Request) {
         passwordHash,
         name,
         verifyToken,
+        verifyTokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000),
         ...(referredBy && { referredBy }),
         // Auto-verify when no SMTP is configured (dev mode)
         ...(!hasSmtp && { emailVerified: new Date() }),

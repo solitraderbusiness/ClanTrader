@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { usernameSchema } from "@/lib/validators";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function GET(request: Request) {
   try {
+    const limited = await rateLimit(`pub:check-username:${getClientIp(request)}`, "PUBLIC_READ");
+    if (limited) return limited;
+
     const { searchParams } = new URL(request.url);
     const username = searchParams.get("username")?.trim().toLowerCase();
 

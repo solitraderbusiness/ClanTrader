@@ -2,9 +2,13 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth-utils";
 import { resetPasswordSchema } from "@/lib/validators";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
+    const limited = await rateLimit(`auth:reset:${getClientIp(request)}`, "AUTH_STRICT");
+    if (limited) return limited;
+
     const body = await request.json();
     const parsed = resetPasswordSchema.safeParse(body);
 

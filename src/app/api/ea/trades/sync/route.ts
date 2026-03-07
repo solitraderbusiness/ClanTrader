@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { eaTradeSyncSchema } from "@/lib/validators";
-import { syncTradeHistory } from "@/services/ea.service";
+import { syncTradeHistory, authenticateByApiKey } from "@/services/ea.service";
+import { rateLimit } from "@/lib/rate-limit";
 
 function extractApiKey(request: Request): string | null {
   const auth = request.headers.get("authorization");
@@ -14,6 +15,14 @@ export async function POST(request: Request) {
     if (!apiKey) {
       return NextResponse.json({ error: "Missing API key" }, { status: 401 });
     }
+
+    const account = await authenticateByApiKey(apiKey);
+    if (!account) {
+      return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
+    }
+
+    const limited = await rateLimit(`ea:trade-sync:${account.id}`, "EA");
+    if (limited) return limited;
 
     const body = await request.json();
     const parsed = eaTradeSyncSchema.safeParse(body);

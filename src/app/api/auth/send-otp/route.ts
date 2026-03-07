@@ -4,6 +4,7 @@ import { redis } from "@/lib/redis";
 import { log } from "@/lib/audit";
 import { sendOtp } from "@/services/sms.service";
 import { sendOtpSchema } from "@/lib/validators";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const OTP_TTL = 300; // 5 minutes
 const RATE_LIMIT_TTL = 600; // 10 minutes
@@ -11,6 +12,9 @@ const RATE_LIMIT_MAX = 3;
 
 export async function POST(request: Request) {
   try {
+    const limited = await rateLimit(`auth:send-otp:${getClientIp(request)}`, "AUTH_OTP");
+    if (limited) return limited;
+
     const body = await request.json();
     const parsed = sendOtpSchema.safeParse(body);
 

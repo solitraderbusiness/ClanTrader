@@ -15,9 +15,19 @@
     "risks": "Kavenegar API key not configured for production. Without it, no phone signups work.",
     "dependencies": [],
     "evidence": {
-      "files": ["src/services/sms.service.ts", "src/app/api/auth/send-otp/route.ts", "src/app/api/auth/verify-otp/route.ts", "src/components/auth/PhoneOtpForm.tsx"],
-      "envVars": ["KAVENEGAR_API_KEY", "KAVENEGAR_OTP_TEMPLATE"],
-      "tests": ["e2e/simulator/01-auth.spec.ts"]
+      "files": [
+        "src/services/sms.service.ts",
+        "src/app/api/auth/send-otp/route.ts",
+        "src/app/api/auth/verify-otp/route.ts",
+        "src/components/auth/PhoneOtpForm.tsx"
+      ],
+      "envVars": [
+        "KAVENEGAR_API_KEY",
+        "KAVENEGAR_OTP_TEMPLATE"
+      ],
+      "tests": [
+        "e2e/simulator/01-auth.spec.ts"
+      ]
     }
   },
   {
@@ -36,9 +46,18 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["src/lib/auth.ts", "src/app/api/auth/signup/route.ts", "src/app/(auth)/login/page.tsx", "src/app/(auth)/signup/page.tsx"],
-      "envVars": ["AUTH_SECRET"],
-      "tests": ["e2e/simulator/01-auth.spec.ts"]
+      "files": [
+        "src/lib/auth.ts",
+        "src/app/api/auth/signup/route.ts",
+        "src/app/(auth)/login/page.tsx",
+        "src/app/(auth)/signup/page.tsx"
+      ],
+      "envVars": [
+        "AUTH_SECRET"
+      ],
+      "tests": [
+        "e2e/simulator/01-auth.spec.ts"
+      ]
     }
   },
   {
@@ -57,9 +76,21 @@
     "risks": "SMTP credentials not configured. Console fallback only in dev. Production email doesn't send.",
     "dependencies": [],
     "evidence": {
-      "files": ["src/lib/email.ts", "src/app/api/auth/verify-email/route.ts", "src/app/(auth)/verify-email/page.tsx"],
-      "envVars": ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "EMAIL_FROM"],
-      "tests": ["e2e/simulator/01-auth.spec.ts"]
+      "files": [
+        "src/lib/email.ts",
+        "src/app/api/auth/verify-email/route.ts",
+        "src/app/(auth)/verify-email/page.tsx"
+      ],
+      "envVars": [
+        "SMTP_HOST",
+        "SMTP_PORT",
+        "SMTP_USER",
+        "SMTP_PASS",
+        "EMAIL_FROM"
+      ],
+      "tests": [
+        "e2e/simulator/01-auth.spec.ts"
+      ]
     }
   },
   {
@@ -76,11 +107,22 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "User can request password reset, receive email, and set new password.",
     "risks": "Depends on SMTP configuration.",
-    "dependencies": ["auth.email-verification"],
+    "dependencies": [
+      "auth.email-verification"
+    ],
     "evidence": {
-      "files": ["src/app/api/auth/forgot-password/route.ts", "src/app/api/auth/reset-password/route.ts", "src/app/(auth)/forgot-password/page.tsx", "src/app/(auth)/reset-password/page.tsx"],
-      "envVars": ["SMTP_HOST"],
-      "tests": ["e2e/simulator/01-auth.spec.ts"]
+      "files": [
+        "src/app/api/auth/forgot-password/route.ts",
+        "src/app/api/auth/reset-password/route.ts",
+        "src/app/(auth)/forgot-password/page.tsx",
+        "src/app/(auth)/reset-password/page.tsx"
+      ],
+      "envVars": [
+        "SMTP_HOST"
+      ],
+      "tests": [
+        "e2e/simulator/01-auth.spec.ts"
+      ]
     }
   },
   {
@@ -99,9 +141,19 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["src/components/profile/ProfileEditForm.tsx", "src/app/api/users/avatar/route.ts", "src/app/(main)/profile/[userId]/page.tsx"],
-      "envVars": ["UPLOAD_DIR", "MAX_AVATAR_SIZE_MB"],
-      "tests": ["e2e/simulator/01-auth.spec.ts", "e2e/simulator/22-user-settings.spec.ts"]
+      "files": [
+        "src/components/profile/ProfileEditForm.tsx",
+        "src/app/api/users/avatar/route.ts",
+        "src/app/(main)/profile/[userId]/page.tsx"
+      ],
+      "envVars": [
+        "UPLOAD_DIR",
+        "MAX_AVATAR_SIZE_MB"
+      ],
+      "tests": [
+        "e2e/simulator/01-auth.spec.ts",
+        "e2e/simulator/22-user-settings.spec.ts"
+      ]
     }
   },
   {
@@ -120,9 +172,15 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["src/app/api/users/check-username/route.ts", "src/components/shared/SetUsernameDialog.tsx", "src/lib/reserved-usernames.ts"],
+      "files": [
+        "src/app/api/users/check-username/route.ts",
+        "src/components/shared/SetUsernameDialog.tsx",
+        "src/lib/reserved-usernames.ts"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/01-auth.spec.ts"]
+      "tests": [
+        "e2e/simulator/01-auth.spec.ts"
+      ]
     }
   },
   {
@@ -141,9 +199,18 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["src/lib/auth.ts", "src/types/next-auth.d.ts"],
-      "envVars": ["AUTH_SECRET", "AUTH_URL", "AUTH_TRUST_HOST"],
-      "tests": ["e2e/simulator/01-auth.spec.ts"]
+      "files": [
+        "src/lib/auth.ts",
+        "src/types/next-auth.d.ts"
+      ],
+      "envVars": [
+        "AUTH_SECRET",
+        "AUTH_URL",
+        "AUTH_TRUST_HOST"
+      ],
+      "tests": [
+        "e2e/simulator/01-auth.spec.ts"
+      ]
     }
   },
   {
@@ -162,7 +229,12 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["src/locales/en.json", "src/locales/fa.json", "src/lib/i18n.ts", "src/lib/i18n-core.ts"],
+      "files": [
+        "src/locales/en.json",
+        "src/locales/fa.json",
+        "src/lib/i18n.ts",
+        "src/lib/i18n-core.ts"
+      ],
       "envVars": [],
       "tests": []
     }
@@ -183,9 +255,15 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["src/app/api/ea/register/route.ts", "src/app/api/ea/login/route.ts", "src/services/ea.service.ts"],
+      "files": [
+        "src/app/api/ea/register/route.ts",
+        "src/app/api/ea/login/route.ts",
+        "src/services/ea.service.ts"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/16-ea-auth.spec.ts"]
+      "tests": [
+        "e2e/simulator/16-ea-auth.spec.ts"
+      ]
     }
   },
   {
@@ -204,9 +282,15 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["src/services/referral.service.ts", "src/app/api/admin/referrals/route.ts", "src/app/(main)/admin/referrals/page.tsx"],
+      "files": [
+        "src/services/referral.service.ts",
+        "src/app/api/admin/referrals/route.ts",
+        "src/app/(main)/admin/referrals/page.tsx"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/23-referrals-analytics.spec.ts"]
+      "tests": [
+        "e2e/simulator/23-referrals-analytics.spec.ts"
+      ]
     }
   },
   {
@@ -225,7 +309,11 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["src/services/statement-parser.ts", "src/services/mt-statement.service.ts", "src/app/api/statements/me/route.ts"],
+      "files": [
+        "src/services/statement-parser.ts",
+        "src/services/mt-statement.service.ts",
+        "src/app/api/statements/me/route.ts"
+      ],
       "envVars": [],
       "tests": []
     }
@@ -244,9 +332,14 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "Admin can review, approve, or reject statements with notes.",
     "risks": null,
-    "dependencies": ["statements.upload"],
+    "dependencies": [
+      "statements.upload"
+    ],
     "evidence": {
-      "files": ["src/app/(main)/admin/statements/page.tsx", "src/components/admin/AdminStatementsDashboard.tsx"],
+      "files": [
+        "src/app/(main)/admin/statements/page.tsx",
+        "src/components/admin/AdminStatementsDashboard.tsx"
+      ],
       "envVars": [],
       "tests": []
     }
@@ -267,9 +360,15 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["src/components/settings/MtAccountManager.tsx", "src/app/api/users/[userId]/mt-accounts/route.ts", "src/services/ea.service.ts"],
+      "files": [
+        "src/components/settings/MtAccountManager.tsx",
+        "src/app/api/users/[userId]/mt-accounts/route.ts",
+        "src/services/ea.service.ts"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/22-user-settings.spec.ts"]
+      "tests": [
+        "e2e/simulator/22-user-settings.spec.ts"
+      ]
     }
   },
   {
@@ -286,9 +385,14 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "Trader statements auto-update when trades close. Admin can trigger manual recalc.",
     "risks": null,
-    "dependencies": ["statements.upload"],
+    "dependencies": [
+      "statements.upload"
+    ],
     "evidence": {
-      "files": ["src/services/statement-calc.service.ts", "src/app/api/admin/statements/calculate/route.ts"],
+      "files": [
+        "src/services/statement-calc.service.ts",
+        "src/app/api/admin/statements/calculate/route.ts"
+      ],
       "envVars": [],
       "tests": []
     }
@@ -309,9 +413,15 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["src/services/clan.service.ts", "src/app/api/clans/route.ts", "src/app/(main)/clans/[clanId]/page.tsx"],
+      "files": [
+        "src/services/clan.service.ts",
+        "src/app/api/clans/route.ts",
+        "src/app/(main)/clans/[clanId]/page.tsx"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/02-clans-crud.spec.ts"]
+      "tests": [
+        "e2e/simulator/02-clans-crud.spec.ts"
+      ]
     }
   },
   {
@@ -328,11 +438,21 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "Users can send/receive messages in real-time. Replies, edits, deletes work. Rate limiting prevents spam.",
     "risks": null,
-    "dependencies": ["clans.crud"],
+    "dependencies": [
+      "clans.crud"
+    ],
     "evidence": {
-      "files": ["src/lib/socket-handlers.ts", "src/lib/socket-auth.ts", "src/lib/chat-constants.ts", "src/components/chat/ChatPanel.tsx", "src/services/message.service.ts"],
+      "files": [
+        "src/lib/socket-handlers.ts",
+        "src/lib/socket-auth.ts",
+        "src/lib/chat-constants.ts",
+        "src/components/chat/ChatPanel.tsx",
+        "src/services/message.service.ts"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/06-chat-messages.spec.ts"]
+      "tests": [
+        "e2e/simulator/06-chat-messages.spec.ts"
+      ]
     }
   },
   {
@@ -349,11 +469,18 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "Clan leaders can create topics. Messages are scoped to topics. Archive works.",
     "risks": null,
-    "dependencies": ["clans.chat"],
+    "dependencies": [
+      "clans.chat"
+    ],
     "evidence": {
-      "files": ["src/services/topic.service.ts", "src/app/api/clans/[clanId]/topics/route.ts"],
+      "files": [
+        "src/services/topic.service.ts",
+        "src/app/api/clans/[clanId]/topics/route.ts"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/07-chat-topics.spec.ts"]
+      "tests": [
+        "e2e/simulator/07-chat-topics.spec.ts"
+      ]
     }
   },
   {
@@ -370,11 +497,18 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "Users can create SIGNAL/ANALYSIS cards. Cards render with entry/SL/TP. Edits tracked.",
     "risks": null,
-    "dependencies": ["clans.chat"],
+    "dependencies": [
+      "clans.chat"
+    ],
     "evidence": {
-      "files": ["src/services/trade-card.service.ts", "src/components/chat/AnalysisCardComposerDialog.tsx"],
+      "files": [
+        "src/services/trade-card.service.ts",
+        "src/components/chat/AnalysisCardComposerDialog.tsx"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/08-trade-cards.spec.ts"]
+      "tests": [
+        "e2e/simulator/08-trade-cards.spec.ts"
+      ]
     }
   },
   {
@@ -391,11 +525,19 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "Trade status progresses correctly. All state changes logged. Actions (BE/SL/TP/close) work.",
     "risks": null,
-    "dependencies": ["clans.trade-cards"],
+    "dependencies": [
+      "clans.trade-cards"
+    ],
     "evidence": {
-      "files": ["src/services/trade.service.ts", "src/services/trade-action.service.ts", "src/app/api/clans/[clanId]/trades/[tradeId]/route.ts"],
+      "files": [
+        "src/services/trade.service.ts",
+        "src/services/trade-action.service.ts",
+        "src/app/api/clans/[clanId]/trades/[tradeId]/route.ts"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/08-trade-cards.spec.ts"]
+      "tests": [
+        "e2e/simulator/08-trade-cards.spec.ts"
+      ]
     }
   },
   {
@@ -414,9 +556,15 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["src/services/dm.service.ts", "src/app/(main)/dm/page.tsx", "src/components/dm/DmPanel.tsx"],
+      "files": [
+        "src/services/dm.service.ts",
+        "src/app/(main)/dm/page.tsx",
+        "src/components/dm/DmPanel.tsx"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/09-direct-messages.spec.ts"]
+      "tests": [
+        "e2e/simulator/09-direct-messages.spec.ts"
+      ]
     }
   },
   {
@@ -433,11 +581,20 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "Private clan join flow works. Invite codes with limits work.",
     "risks": null,
-    "dependencies": ["clans.crud"],
+    "dependencies": [
+      "clans.crud"
+    ],
     "evidence": {
-      "files": ["src/services/join-request.service.ts", "src/services/invite.service.ts", "src/components/clan/InviteManager.tsx"],
+      "files": [
+        "src/services/join-request.service.ts",
+        "src/services/invite.service.ts",
+        "src/components/clan/InviteManager.tsx"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/04-join-requests.spec.ts", "e2e/simulator/05-invites.spec.ts"]
+      "tests": [
+        "e2e/simulator/04-join-requests.spec.ts",
+        "e2e/simulator/05-invites.spec.ts"
+      ]
     }
   },
   {
@@ -454,11 +611,18 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "All social features work: reactions, pinning, images, typing indicators, online presence.",
     "risks": null,
-    "dependencies": ["clans.chat"],
+    "dependencies": [
+      "clans.chat"
+    ],
     "evidence": {
-      "files": ["src/components/chat/ReactionBar.tsx", "src/lib/socket-handlers.ts"],
+      "files": [
+        "src/components/chat/ReactionBar.tsx",
+        "src/lib/socket-handlers.ts"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/06-chat-messages.spec.ts"]
+      "tests": [
+        "e2e/simulator/06-chat-messages.spec.ts"
+      ]
     }
   },
   {
@@ -477,9 +641,14 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["src/services/ranking.service.ts", "src/app/(main)/admin/ranking/page.tsx"],
+      "files": [
+        "src/services/ranking.service.ts",
+        "src/app/(main)/admin/ranking/page.tsx"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/12-leaderboard.spec.ts"]
+      "tests": [
+        "e2e/simulator/12-leaderboard.spec.ts"
+      ]
     }
   },
   {
@@ -496,11 +665,19 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "Leaderboard shows rankings across 6 lenses. Admin can recalculate. Weights configurable.",
     "risks": null,
-    "dependencies": ["leaderboard.seasons"],
+    "dependencies": [
+      "leaderboard.seasons"
+    ],
     "evidence": {
-      "files": ["src/services/ranking.service.ts", "src/app/(main)/leaderboard/page.tsx", "src/components/leaderboard/LeaderboardTable.tsx"],
+      "files": [
+        "src/services/ranking.service.ts",
+        "src/app/(main)/leaderboard/page.tsx",
+        "src/components/leaderboard/LeaderboardTable.tsx"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/12-leaderboard.spec.ts"]
+      "tests": [
+        "e2e/simulator/12-leaderboard.spec.ts"
+      ]
     }
   },
   {
@@ -517,11 +694,19 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "Badges auto-awarded on milestones. Admin can dry-run and recompute. Badge CRUD works.",
     "risks": null,
-    "dependencies": ["leaderboard.rankings"],
+    "dependencies": [
+      "leaderboard.rankings"
+    ],
     "evidence": {
-      "files": ["src/services/badge-engine.service.ts", "src/app/(main)/admin/badges/page.tsx", "src/app/api/admin/badges/route.ts"],
+      "files": [
+        "src/services/badge-engine.service.ts",
+        "src/app/(main)/admin/badges/page.tsx",
+        "src/app/api/admin/badges/route.ts"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/15-badges.spec.ts"]
+      "tests": [
+        "e2e/simulator/15-badges.spec.ts"
+      ]
     }
   },
   {
@@ -538,8 +723,14 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "After season ends, results page shows final standings, top performers, awards.",
     "risks": null,
-    "dependencies": ["leaderboard.seasons"],
-    "evidence": { "files": [], "envVars": [], "tests": [] }
+    "dependencies": [
+      "leaderboard.seasons"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    }
   },
   {
     "key": "content.channel-feed",
@@ -555,11 +746,19 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "Clan channel shows posts. Users can create posts with images. View counts track.",
     "risks": null,
-    "dependencies": ["clans.crud"],
+    "dependencies": [
+      "clans.crud"
+    ],
     "evidence": {
-      "files": ["src/services/channel.service.ts", "src/components/channel/ChannelFeed.tsx", "src/app/api/clans/[clanId]/posts/route.ts"],
+      "files": [
+        "src/services/channel.service.ts",
+        "src/components/channel/ChannelFeed.tsx",
+        "src/app/api/clans/[clanId]/posts/route.ts"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/10-channel-posts.spec.ts"]
+      "tests": [
+        "e2e/simulator/10-channel-posts.spec.ts"
+      ]
     }
   },
   {
@@ -576,9 +775,14 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "Trade cards with matching tags auto-post to channel when feature flag enabled.",
     "risks": null,
-    "dependencies": ["content.channel-feed", "clans.trade-cards"],
+    "dependencies": [
+      "content.channel-feed",
+      "clans.trade-cards"
+    ],
     "evidence": {
-      "files": ["src/services/auto-post.service.ts"],
+      "files": [
+        "src/services/auto-post.service.ts"
+      ],
       "envVars": [],
       "tests": []
     }
@@ -597,11 +801,19 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "Users can discover public clans and free agents. Filters work.",
     "risks": null,
-    "dependencies": ["clans.crud"],
+    "dependencies": [
+      "clans.crud"
+    ],
     "evidence": {
-      "files": ["src/app/(main)/discover/page.tsx", "src/components/discover/FilterBar.tsx", "src/app/api/discover/clans/route.ts"],
+      "files": [
+        "src/app/(main)/discover/page.tsx",
+        "src/components/discover/FilterBar.tsx",
+        "src/app/api/discover/clans/route.ts"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/11-discovery.spec.ts"]
+      "tests": [
+        "e2e/simulator/11-discovery.spec.ts"
+      ]
     }
   },
   {
@@ -620,7 +832,10 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["src/services/follow.service.ts", "src/components/clan/FollowButton.tsx"],
+      "files": [
+        "src/services/follow.service.ts",
+        "src/components/clan/FollowButton.tsx"
+      ],
       "envVars": [],
       "tests": []
     }
@@ -641,7 +856,11 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["src/app/api/ea/calendar-events/route.ts", "src/services/event-reminder.service.ts", "src/components/chat/EventReminderListener.tsx"],
+      "files": [
+        "src/app/api/ea/calendar-events/route.ts",
+        "src/services/event-reminder.service.ts",
+        "src/components/chat/EventReminderListener.tsx"
+      ],
       "envVars": [],
       "tests": []
     }
@@ -661,7 +880,13 @@
     "acceptanceCriteria": "Users can create stories (image + text). Stories expire after 24h. Viewable in feed.",
     "risks": null,
     "dependencies": [],
-    "evidence": { "files": ["prisma/schema.prisma (Story model)"], "envVars": [], "tests": [] }
+    "evidence": {
+      "files": [
+        "prisma/schema.prisma (Story model)"
+      ],
+      "envVars": [],
+      "tests": []
+    }
   },
   {
     "key": "integrity.contract",
@@ -679,9 +904,16 @@
     "risks": "Complex logic — any regression could allow fraudulent trades to count.",
     "dependencies": [],
     "evidence": {
-      "files": ["src/services/integrity.service.ts", "src/lib/trade-evaluator.ts", "src/lib/trade-policy.ts", "src/types/trade-integrity.ts"],
+      "files": [
+        "src/services/integrity.service.ts",
+        "src/lib/trade-evaluator.ts",
+        "src/lib/trade-policy.ts",
+        "src/types/trade-integrity.ts"
+      ],
       "envVars": [],
-      "tests": ["src/services/__tests__/integrity.service.test.ts"]
+      "tests": [
+        "src/services/__tests__/integrity.service.test.ts"
+      ]
     }
   },
   {
@@ -698,11 +930,18 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "Admin can override. All overrides auditable. Non-admin cannot override.",
     "risks": null,
-    "dependencies": ["integrity.contract"],
+    "dependencies": [
+      "integrity.contract"
+    ],
     "evidence": {
-      "files": ["src/app/api/admin/trades/[tradeId]/route.ts", "src/services/integrity.service.ts"],
+      "files": [
+        "src/app/api/admin/trades/[tradeId]/route.ts",
+        "src/services/integrity.service.ts"
+      ],
       "envVars": [],
-      "tests": ["src/services/__tests__/integrity.service.test.ts"]
+      "tests": [
+        "src/services/__tests__/integrity.service.test.ts"
+      ]
     }
   },
   {
@@ -721,9 +960,16 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["src/app/api/ea/heartbeat/route.ts", "src/app/api/ea/trade-event/route.ts", "src/services/ea-signal.service.ts", "src/services/ea-action.service.ts"],
+      "files": [
+        "src/app/api/ea/heartbeat/route.ts",
+        "src/app/api/ea/trade-event/route.ts",
+        "src/services/ea-signal.service.ts",
+        "src/services/ea-action.service.ts"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/17-ea-heartbeat.spec.ts"]
+      "tests": [
+        "e2e/simulator/17-ea-heartbeat.spec.ts"
+      ]
     }
   },
   {
@@ -740,11 +986,18 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "Background evaluator runs every 60s when flag enabled. Trades auto-evaluated.",
     "risks": null,
-    "dependencies": ["integrity.contract"],
+    "dependencies": [
+      "integrity.contract"
+    ],
     "evidence": {
-      "files": ["server.ts (lines 48-65)", "src/lib/trade-evaluator.ts"],
+      "files": [
+        "server.ts (lines 48-65)",
+        "src/lib/trade-evaluator.ts"
+      ],
       "envVars": [],
-      "tests": ["src/services/__tests__/trade-evaluator.test.ts"]
+      "tests": [
+        "src/services/__tests__/trade-evaluator.test.ts"
+      ]
     }
   },
   {
@@ -763,9 +1016,14 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["src/lib/feature-flags.ts", "src/app/api/admin/feature-flags/route.ts"],
+      "files": [
+        "src/lib/feature-flags.ts",
+        "src/app/api/admin/feature-flags/route.ts"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/21-admin-features.spec.ts"]
+      "tests": [
+        "e2e/simulator/21-admin-features.spec.ts"
+      ]
     }
   },
   {
@@ -784,7 +1042,11 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["scripts/deploy-pack.sh", "scripts/deploy-staging.sh", "scripts/promote-to-prod.sh"],
+      "files": [
+        "scripts/deploy-pack.sh",
+        "scripts/deploy-staging.sh",
+        "scripts/promote-to-prod.sh"
+      ],
       "envVars": [],
       "tests": []
     }
@@ -805,7 +1067,10 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["server.ts", "scripts/promote-to-prod.sh (PM2 config)"],
+      "files": [
+        "server.ts",
+        "scripts/promote-to-prod.sh (PM2 config)"
+      ],
       "envVars": [],
       "tests": []
     }
@@ -824,9 +1089,13 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "Staging environment isolated from prod. Can test before promoting.",
     "risks": null,
-    "dependencies": ["ops.deploy-scripts"],
+    "dependencies": [
+      "ops.deploy-scripts"
+    ],
     "evidence": {
-      "files": ["scripts/deploy-staging.sh"],
+      "files": [
+        "scripts/deploy-staging.sh"
+      ],
       "envVars": [],
       "tests": []
     }
@@ -846,7 +1115,13 @@
     "acceptanceCriteria": "Production errors captured, alerting enabled, dashboard accessible.",
     "risks": "No error monitoring means production bugs go undetected.",
     "dependencies": [],
-    "evidence": { "files": [], "envVars": ["SENTRY_DSN"], "tests": [] }
+    "evidence": {
+      "files": [],
+      "envVars": [
+        "SENTRY_DSN"
+      ],
+      "tests": []
+    }
   },
   {
     "key": "ops.cicd",
@@ -863,7 +1138,13 @@
     "acceptanceCriteria": "Every push triggers lint + type-check + build. PRs block on failure.",
     "risks": "Without CI, broken code can be deployed.",
     "dependencies": [],
-    "evidence": { "files": [], "envVars": ["GITHUB_TOKEN"], "tests": [] }
+    "evidence": {
+      "files": [],
+      "envVars": [
+        "GITHUB_TOKEN"
+      ],
+      "tests": []
+    }
   },
   {
     "key": "ops.logging",
@@ -880,7 +1161,11 @@
     "acceptanceCriteria": "All server-side logging uses Pino. JSON log output. Log levels enforced.",
     "risks": null,
     "dependencies": [],
-    "evidence": { "files": [], "envVars": [], "tests": [] }
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    }
   },
   {
     "key": "ops.backups",
@@ -897,7 +1182,13 @@
     "acceptanceCriteria": "Daily automated pg_dump cron job. Backups stored safely. Restore drill documented and tested.",
     "risks": "Data loss on server failure without automated backups.",
     "dependencies": [],
-    "evidence": { "files": ["scripts/promote-to-prod.sh (manual backup only)"], "envVars": [], "tests": [] }
+    "evidence": {
+      "files": [
+        "scripts/promote-to-prod.sh (manual backup only)"
+      ],
+      "envVars": [],
+      "tests": []
+    }
   },
   {
     "key": "ops.uptime",
@@ -914,7 +1205,11 @@
     "acceptanceCriteria": "External monitor checks /health every minute. Telegram alert on downtime.",
     "risks": null,
     "dependencies": [],
-    "evidence": { "files": [], "envVars": [], "tests": [] }
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    }
   },
   {
     "key": "ops.health-endpoint",
@@ -931,7 +1226,11 @@
     "acceptanceCriteria": "/api/health returns DB + Redis + Socket.io connectivity status. Used by monitoring.",
     "risks": "Cannot properly monitor without a health endpoint.",
     "dependencies": [],
-    "evidence": { "files": [], "envVars": [], "tests": [] }
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    }
   },
   {
     "key": "ops.rate-limiting",
@@ -942,16 +1241,21 @@
     "workstream": "PLATFORM_OPS",
     "phase": "P8",
     "priority": "P1",
-    "status": "IMPLEMENTED",
+    "status": "INTEGRATED",
     "milestone": "MVP_BETA",
     "isLaunchBlocker": false,
     "acceptanceCriteria": "All public endpoints have rate limiting. Auth endpoints have aggressive limits.",
     "risks": "Missing rate limits on some endpoints could lead to abuse.",
     "dependencies": [],
     "evidence": {
-      "files": ["src/app/api/auth/send-otp/route.ts", "src/lib/socket-handlers.ts"],
+      "files": [
+        "src/app/api/auth/send-otp/route.ts",
+        "src/lib/socket-handlers.ts"
+      ],
       "envVars": [],
-      "tests": ["e2e/simulator/14-rate-limiting.spec.ts"]
+      "tests": [
+        "e2e/simulator/14-rate-limiting.spec.ts"
+      ]
     }
   },
   {
@@ -969,7 +1273,11 @@
     "acceptanceCriteria": "OWASP top-10 review completed. All findings addressed. Report documented.",
     "risks": "Undetected vulnerabilities in a financial platform.",
     "dependencies": [],
-    "evidence": { "files": [], "envVars": [], "tests": [] }
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    }
   },
   {
     "key": "ops.e2e-tests",
@@ -987,9 +1295,16 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["e2e/simulator/*.spec.ts (24 files)", "e2e/*.spec.ts (5 files)"],
-      "envVars": ["TEST_WORKER_TOKEN"],
-      "tests": ["e2e/"]
+      "files": [
+        "e2e/simulator/*.spec.ts (24 files)",
+        "e2e/*.spec.ts (5 files)"
+      ],
+      "envVars": [
+        "TEST_WORKER_TOKEN"
+      ],
+      "tests": [
+        "e2e/"
+      ]
     }
   },
   {
@@ -1008,7 +1323,11 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["public/sw.js", "src/components/pwa/ServiceWorkerRegistration.tsx", "src/app/offline/page.tsx"],
+      "files": [
+        "public/sw.js",
+        "src/components/pwa/ServiceWorkerRegistration.tsx",
+        "src/app/offline/page.tsx"
+      ],
       "envVars": [],
       "tests": []
     }
@@ -1022,14 +1341,17 @@
     "workstream": "PLATFORM_OPS",
     "phase": "P8",
     "priority": "P0",
-    "status": "IMPLEMENTED",
+    "status": "INTEGRATED",
     "milestone": "MVP_BETA",
     "isLaunchBlocker": true,
     "acceptanceCriteria": "All critical flows work on mobile. No horizontal overflow. Touch targets meet 44px minimum.",
     "risks": "Iranian users are primarily mobile — broken mobile UX loses majority of users.",
     "dependencies": [],
     "evidence": {
-      "files": ["src/components/layout/AppShell.tsx", "src/components/layout/LeftPanel.tsx"],
+      "files": [
+        "src/components/layout/AppShell.tsx",
+        "src/components/layout/LeftPanel.tsx"
+      ],
       "envVars": [],
       "tests": []
     }
@@ -1049,7 +1371,11 @@
     "acceptanceCriteria": "Proper OG images, sitemap.xml, robots.txt, canonical URLs.",
     "risks": null,
     "dependencies": [],
-    "evidence": { "files": [], "envVars": [], "tests": [] }
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    }
   },
   {
     "key": "ops.onboarding",
@@ -1060,14 +1386,18 @@
     "workstream": "PRODUCT_CORE",
     "phase": "P8",
     "priority": "P1",
-    "status": "IMPLEMENTED",
+    "status": "INTEGRATED",
     "milestone": "MVP_BETA",
     "isLaunchBlocker": false,
     "acceptanceCriteria": "New users see intent modal → missions checklist. Completing missions unlocks badges.",
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["src/components/onboarding/OnboardingIntentModal.tsx", "src/components/home/MissionDashboard.tsx", "src/app/api/users/me/missions/route.ts"],
+      "files": [
+        "src/components/onboarding/OnboardingIntentModal.tsx",
+        "src/components/home/MissionDashboard.tsx",
+        "src/app/api/users/me/missions/route.ts"
+      ],
       "envVars": [],
       "tests": []
     }
@@ -1087,7 +1417,13 @@
     "acceptanceCriteria": "Users can pay via ZarinPal. Payment verified server-side. Receipt stored.",
     "risks": "ZarinPal sandbox testing required. Toman pricing.",
     "dependencies": [],
-    "evidence": { "files": [], "envVars": ["ZARINPAL_MERCHANT_ID"], "tests": [] }
+    "evidence": {
+      "files": [],
+      "envVars": [
+        "ZARINPAL_MERCHANT_ID"
+      ],
+      "tests": []
+    }
   },
   {
     "key": "monetization.subscriptions",
@@ -1098,14 +1434,19 @@
     "workstream": "MONETIZATION_GROWTH",
     "phase": "P7",
     "priority": "P1",
-    "status": "IMPLEMENTED",
+    "status": "PLANNED",
     "milestone": "PUBLIC_LAUNCH",
     "isLaunchBlocker": false,
     "acceptanceCriteria": "User selects plan → pays via ZarinPal → subscription activated → isPro flag set.",
     "risks": "Depends on ZarinPal integration.",
-    "dependencies": ["monetization.zarinpal"],
+    "dependencies": [
+      "monetization.zarinpal"
+    ],
     "evidence": {
-      "files": ["src/app/api/admin/plans/route.ts", "src/app/(main)/admin/plans/page.tsx"],
+      "files": [
+        "src/app/api/admin/plans/route.ts",
+        "src/app/(main)/admin/plans/page.tsx"
+      ],
       "envVars": [],
       "tests": []
     }
@@ -1119,14 +1460,19 @@
     "workstream": "MONETIZATION_GROWTH",
     "phase": "P7",
     "priority": "P1",
-    "status": "IMPLEMENTED",
+    "status": "INTEGRATED",
     "milestone": "PUBLIC_LAUNCH",
     "isLaunchBlocker": false,
     "acceptanceCriteria": "Paywall rules are enforced at API boundaries. Non-pro users see redacted content.",
     "risks": "Infrastructure exists but zero enforcement. All content is currently free.",
-    "dependencies": ["monetization.subscriptions"],
+    "dependencies": [
+      "monetization.subscriptions"
+    ],
     "evidence": {
-      "files": ["src/lib/paywall.ts", "src/app/api/admin/paywall-rules/route.ts"],
+      "files": [
+        "src/lib/paywall.ts",
+        "src/app/api/admin/paywall-rules/route.ts"
+      ],
       "envVars": [],
       "tests": []
     }
@@ -1145,8 +1491,15 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "Clans can set subscription price. Users can subscribe. Revenue split applied.",
     "risks": null,
-    "dependencies": ["monetization.zarinpal", "monetization.subscriptions"],
-    "evidence": { "files": [], "envVars": [], "tests": [] }
+    "dependencies": [
+      "monetization.zarinpal",
+      "monetization.subscriptions"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    }
   },
   {
     "key": "monetization.landing",
@@ -1164,7 +1517,11 @@
     "risks": null,
     "dependencies": [],
     "evidence": {
-      "files": ["src/components/landing/Hero.tsx", "src/components/landing/Features.tsx", "src/components/landing/CTASection.tsx"],
+      "files": [
+        "src/components/landing/Hero.tsx",
+        "src/components/landing/Features.tsx",
+        "src/components/landing/CTASection.tsx"
+      ],
       "envVars": [],
       "tests": []
     }
@@ -1184,7 +1541,13 @@
     "acceptanceCriteria": "AIRouter transparently routes queries. Failover works. Admin can force local mode.",
     "risks": "Requires AI server provisioning. Ollama models need GPU or large RAM.",
     "dependencies": [],
-    "evidence": { "files": [], "envVars": ["OPENROUTER_API_KEY"], "tests": [] }
+    "evidence": {
+      "files": [],
+      "envVars": [
+        "OPENROUTER_API_KEY"
+      ],
+      "tests": []
+    }
   },
   {
     "key": "ai.chatbot",
@@ -1200,8 +1563,14 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "Non-pro users can ask 3 questions/day. AI responds with platform data context.",
     "risks": null,
-    "dependencies": ["ai.router"],
-    "evidence": { "files": [], "envVars": [], "tests": [] }
+    "dependencies": [
+      "ai.router"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    }
   },
   {
     "key": "ai.clan-assistant",
@@ -1217,8 +1586,14 @@
     "isLaunchBlocker": false,
     "acceptanceCriteria": "@ai mention in chat triggers AI response with clan context.",
     "risks": null,
-    "dependencies": ["ai.router"],
-    "evidence": { "files": [], "envVars": [], "tests": [] }
+    "dependencies": [
+      "ai.router"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    }
   },
   {
     "key": "ops.blackout-test",
@@ -1235,6 +1610,1420 @@
     "acceptanceCriteria": "Every feature works without international internet. AI falls back to local. Payments work on NIN.",
     "risks": "Unknown failure modes under blackout conditions.",
     "dependencies": [],
-    "evidence": { "files": [], "envVars": [], "tests": [] }
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    }
+  },
+  {
+    "key": "stabilize.db-backups",
+    "title": "Automated PostgreSQL backups",
+    "description": "pg_dump cron job with 7-day retention + test restore drill.",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PLATFORM_OPS",
+    "phase": "P9",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "Automated daily pg_dump runs. Backups stored with 7-day retention. Restore drill completed successfully.",
+    "risks": "Large DB size may slow dump. Need offsite backup storage.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "stabilize.error-tracking",
+    "title": "Self-hosted error tracking (GlitchTip)",
+    "description": "Deploy GlitchTip on dev/prod for production error capture, alerting, and dashboard. No external SaaS dependency.",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PLATFORM_OPS",
+    "phase": "P9",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "GlitchTip running. Next.js errors auto-reported. Alert rules configured. Dashboard accessible to admin.",
+    "risks": "GlitchTip Docker compose needs stable server resources. Must not impact app performance.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "stabilize.env-validation",
+    "title": "Zod env validation at startup",
+    "description": "Fail-fast on missing or invalid environment variables using Zod schema validation at server startup.",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PLATFORM_OPS",
+    "phase": "P9",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Server refuses to start if required env vars are missing. Clear error messages indicate which vars are missing.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "stabilize.rate-limits",
+    "title": "Rate limiting on all public routes",
+    "description": "Rate limiting on login, signup, reset, and all public API routes. Extends existing OTP + chat rate limits.",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PLATFORM_OPS",
+    "phase": "P9",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "All public-facing routes have rate limits. Auth endpoints have aggressive limits. Rate limit headers returned in responses.",
+    "risks": "Too aggressive limits could block legitimate users. Need careful tuning.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "stabilize.health-endpoint",
+    "title": "/api/health endpoint",
+    "description": "/api/health returning DB + Redis + Socket.io connectivity status as JSON.",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PLATFORM_OPS",
+    "phase": "P9",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "/api/health returns JSON with DB, Redis, and Socket.io status. Returns 503 if any service is down.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "stabilize.iran-vps",
+    "title": "Iran VPS setup",
+    "description": "Iran VPS setup: PostgreSQL, Redis, Node.js, nginx, SSL certificate. Production-ready server configuration.",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PLATFORM_OPS",
+    "phase": "P9",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "Iran VPS running with PostgreSQL, Redis, Node.js, nginx, and valid SSL. All services start on boot.",
+    "risks": "Iranian hosting providers may have limited resources. SSL renewal must work without international access.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 4
+  },
+  {
+    "key": "stabilize.kavenegar-prod",
+    "title": "Kavenegar OTP on Iran prod",
+    "description": "Kavenegar OTP configured and tested on Iran staging + production servers.",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PLATFORM_OPS",
+    "phase": "P9",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "OTP SMS delivered to real Iranian phone numbers from production server. Rate limiting and console fallback work.",
+    "risks": "Kavenegar may have latency from Iran VPS. API key scope must match production domain.",
+    "dependencies": [
+      "stabilize.iran-vps"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "stabilize.smtp-prod",
+    "title": "SMTP for production email",
+    "description": "SMTP configured for production email verification and password reset flows.",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PLATFORM_OPS",
+    "phase": "P9",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "Verification and reset emails delivered from production. SPF/DKIM configured. No emails landing in spam.",
+    "risks": "Iranian SMTP providers may have deliverability issues. Need SPF/DKIM/DMARC setup.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "stabilize.deploy-iran",
+    "title": "Deploy pipeline to Iran end-to-end",
+    "description": "Run deploy pipeline to Iran (staging then prod) end-to-end and verify all services work.",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PLATFORM_OPS",
+    "phase": "P9",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "Full deploy from US build to Iran staging, then promote to prod. Health checks pass. Rollback tested.",
+    "risks": "Network between US and Iran may be slow/unreliable for tarball transfer.",
+    "dependencies": [
+      "stabilize.iran-vps"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "stabilize.mobile-audit",
+    "title": "Mobile audit",
+    "description": "Mobile audit: fix horizontal scroll, touch targets, keyboard overlap across all critical flows.",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PRODUCT_CORE",
+    "phase": "P9",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "No horizontal scroll on any page. All touch targets >= 44px. Keyboard does not overlap inputs. Tested on iPhone SE and Android.",
+    "risks": "May surface many small issues requiring iterative fixes.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "stabilize.signal-cards-mobile",
+    "title": "Signal cards readable on mobile",
+    "description": "Signal cards (R:R, instruments, actions) readable and usable on mobile viewports.",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PRODUCT_CORE",
+    "phase": "P9",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Signal cards render without overflow on 375px viewport. All data (R:R, entry, SL, TP) visible. Action buttons tappable.",
+    "risks": null,
+    "dependencies": [
+      "stabilize.mobile-audit"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "stabilize.modals-mobile",
+    "title": "Modals and sheets on mobile",
+    "description": "Modals/bottom sheets closable on mobile + empty states guide the user to the next step.",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PRODUCT_CORE",
+    "phase": "P9",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "All modals dismissible via swipe/tap-outside on mobile. Empty states show clear CTA for next action.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "stabilize.rtl-tests",
+    "title": "RTL visual regression tests",
+    "description": "RTL visual regression tests using Playwright on mobile and desktop viewports.",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "TRUST_INTEGRITY",
+    "phase": "P9",
+    "priority": "P2",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Playwright screenshot tests for key pages in RTL mode. CI fails on visual diff beyond threshold.",
+    "risks": "Screenshot tests can be flaky across environments. Need consistent font rendering.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "stabilize.integrity-e2e",
+    "title": "Manual E2E integrity test",
+    "description": "Manual E2E test verifying all 6 integrity conditions are enforced end-to-end.",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "TRUST_INTEGRITY",
+    "phase": "P9",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "All 6 integrity conditions tested manually with real EA. Each condition blocks ineligible trades. Results documented.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "stabilize.statement-accuracy",
+    "title": "Statement recalculation accuracy check",
+    "description": "Statement recalculation accuracy check versus manual calculation for sample traders.",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "TRUST_INTEGRITY",
+    "phase": "P9",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Statement metrics match manual spreadsheet calculation for 3+ sample traders. Any discrepancies identified and fixed.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "stabilize.statement-perf",
+    "title": "Statement performance test",
+    "description": "Performance test: statement calculation with 500+ trades to ensure it completes in acceptable time.",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "TRUST_INTEGRITY",
+    "phase": "P9",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Statement recalculation for 500+ trades completes in < 10 seconds. No timeouts or memory issues.",
+    "risks": "May need query optimization or pagination for very large trade sets.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "stabilize.exploit-regression",
+    "title": "Exploit regression tests",
+    "description": "Regression tests for known exploits: analysis upgrade loophole, retroactive match exploit, and other documented integrity bypasses.",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "TRUST_INTEGRITY",
+    "phase": "P9",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Unit tests cover all 12+ known loopholes. Each test verifies the exploit is blocked. Tests run in CI.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "stabilize.alpha-invite",
+    "title": "Alpha invite batch",
+    "description": "Invite 10-20 traders, create 2-3 curated clans for alpha testing.",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PRODUCT_CORE",
+    "phase": "P9",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "10-20 alpha testers onboarded. 2-3 clans created with active members. Feedback collection mechanism in place.",
+    "risks": "Finding engaged alpha testers may take time. Need clear onboarding instructions.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "stabilize.alpha-bugfix",
+    "title": "Alpha bug-fix buffer",
+    "description": "Bug-fix buffer for issues discovered during alpha feedback period (3-5 days).",
+    "epicKey": "stabilize",
+    "epicTitle": "Stabilization & Launch Readiness",
+    "workstream": "PRODUCT_CORE",
+    "phase": "P9",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "ALPHA_TEST",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "All P0 bugs from alpha feedback triaged and fixed. No critical regressions remain.",
+    "risks": "Scope of alpha bugs is unpredictable. May need more than 5 days.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 3,
+    "estimateLikely": 5,
+    "estimateWorst": 7
+  },
+  {
+    "key": "market-data.mt-quote-storage",
+    "title": "MT quote storage",
+    "description": "MarketPricePoint model + store prices from EA heartbeat into database for historical reference.",
+    "epicKey": "market-data",
+    "epicTitle": "Market Data Foundation",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P10",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "MarketPricePoint model in schema. EA heartbeat prices persisted to DB. Query by symbol + time range works.",
+    "risks": "High write volume from frequent heartbeats. May need table partitioning or TTL cleanup.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "market-data.ohlc-aggregation",
+    "title": "OHLC candle aggregation",
+    "description": "OHLC candle aggregation from MT ticks at multiple timeframes (1m, 5m, 15m, 1h, 4h, 1d).",
+    "epicKey": "market-data",
+    "epicTitle": "Market Data Foundation",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P10",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Candles aggregated from tick data for all 6 timeframes. Candle table queryable by symbol + timeframe + range.",
+    "risks": "Aggregation logic must handle gaps in tick data gracefully.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "market-data.symbol-normalization",
+    "title": "Symbol normalization resolver",
+    "description": "Symbol normalization resolver: map broker-specific names (XAUUSD vs GOLD, suffixes like .m, .a) to canonical symbols.",
+    "epicKey": "market-data",
+    "epicTitle": "Market Data Foundation",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P10",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Resolver maps any broker symbol to canonical form. Configurable alias table. Used in all quote storage and display.",
+    "risks": "Broker symbol variations are vast. Need community-editable alias table.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "market-data.freshness-rules",
+    "title": "Price freshness rules",
+    "description": "Price freshness: mark symbol as stale if no update received in X seconds. Show warning in UI.",
+    "epicKey": "market-data",
+    "epicTitle": "Market Data Foundation",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P10",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Stale prices detected and flagged. UI shows warning badge on stale symbols. Configurable staleness threshold per symbol type.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "market-data.health-dashboard",
+    "title": "Market data health dashboard",
+    "description": "Admin dashboard showing live/stale symbols, last update times, and data pipeline health.",
+    "epicKey": "market-data",
+    "epicTitle": "Market Data Foundation",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P10",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Admin page shows all tracked symbols with live/stale status, last tick time, and connected EA count.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "market-data.openrouter-wrapper",
+    "title": "OpenRouter client wrapper",
+    "description": "OpenRouter client wrapper with retries, rate limits, prompt versioning, and LLMRunRecord table for cost/latency tracking.",
+    "epicKey": "market-data",
+    "epicTitle": "Market Data Foundation",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P10",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": true,
+    "acceptanceCriteria": "Wrapper handles retries and rate limits. Every LLM call logged to LLMRunRecord. Prompt versions tracked. Admin can view cost dashboard.",
+    "risks": "OpenRouter may be unreachable from Iran. Need fallback strategy or proxy.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "market-data.typed-contracts",
+    "title": "Typed contracts (Zod schemas)",
+    "description": "Typed contracts: MarketSnapshot, EventCard, BriefingRecord Zod schemas for consistent data shapes across the pipeline.",
+    "epicKey": "market-data",
+    "epicTitle": "Market Data Foundation",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P10",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Zod schemas defined and exported. All pipeline services use these schemas for validation. Type inference works in TypeScript.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "news.item-model",
+    "title": "NewsItem model",
+    "description": "NewsItem model + enums added to Prisma schema for news data storage.",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P11",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "NewsItem model with category, impact, sentiment, instruments, region fields. Migration applied. CRUD queries work.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "news.rss-fetcher",
+    "title": "RSS fetcher service",
+    "description": "RSS fetcher service pulling from Investing.com, ForexLive, Al Jazeera, Reuters feeds.",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P11",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "RSS feeds parsed and normalized. New items stored in DB. Handles feed errors gracefully. Configurable feed list.",
+    "risks": "RSS feeds may be blocked from Iran. Need to test accessibility from both US and Iran servers.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "news.api-fetcher",
+    "title": "Finnhub + NewsData.io API fetcher",
+    "description": "Finnhub + NewsData.io API fetcher with rate limiting and fallback between providers.",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P11",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Both APIs fetched with proper rate limiting. Fallback to secondary if primary fails. API keys configurable.",
+    "risks": "API rate limits may be restrictive on free tiers. International APIs may be slow from Iran.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "news.dedup-engine",
+    "title": "News dedup engine",
+    "description": "Dedup engine using externalId hash vs DB to prevent duplicate news items from multiple sources.",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P11",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Duplicate articles from different sources detected and merged. Hash-based dedup works for exact matches. Fuzzy title matching for near-duplicates.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "news.ai-classifier",
+    "title": "AI news classifier",
+    "description": "OpenRouter AI classifier assigning category, instruments, impact level, sentiment, and summary to each news item.",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P11",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Each news item classified with category, instruments, impact (HIGH/MEDIUM/LOW), sentiment, and 1-2 sentence summary. Prompt versioned.",
+    "risks": "Classification quality depends on prompt engineering. Need validation against manual classification.",
+    "dependencies": [
+      "market-data.openrouter-wrapper"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 2
+  },
+  {
+    "key": "news.cron-worker",
+    "title": "News cron worker",
+    "description": "Cron worker running every 2 minutes: fetch → dedup → classify → store → Socket.io push to connected clients.",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P11",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Worker runs on schedule. Full pipeline executes without errors. New items pushed via Socket.io in real time.",
+    "risks": "Worker must not block the main event loop. Need proper error isolation.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "news.api-endpoint",
+    "title": "News API endpoint",
+    "description": "GET /api/news with pagination and filters by category, impact, instrument, and region.",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P11",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "API returns paginated news with all filter combinations. createdAt-based pagination. Zod-validated query params.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "news.image-proxy",
+    "title": "News image proxy",
+    "description": "Image proxy /api/news/image/[id] to serve news images without external CDN dependency at runtime.",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P11",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Images fetched and cached locally on first request. Subsequent requests served from cache. No external image URLs in client HTML.",
+    "risks": "Image caching may consume significant disk space. Need LRU eviction.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "news.page-ui",
+    "title": "News page UI",
+    "description": "/news page with news feed, filters, live indicator, and news cards.",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P11",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "News page renders feed with cards. Filters work (category, impact, instrument). Live indicator shows when new items arrive. RTL layout correct.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "news.admin-posting",
+    "title": "Admin manual EventCard posting",
+    "description": "Manual admin tool for posting EventCards (breaking news, market alerts) directly.",
+    "epicKey": "news",
+    "epicTitle": "News & Events (Market Intelligence)",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P11",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Admin can create EventCards with title, body, impact, instruments. Card pushed to news feed and Socket.io immediately.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 1
+  },
+  {
+    "key": "copilot.context-builder",
+    "title": "ContextBuilder service",
+    "description": "ContextBuilder service that builds MarketSnapshot from MT data + news for AI consumption.",
+    "epicKey": "copilot",
+    "epicTitle": "Market Copilot",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P12",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "MarketSnapshot built from latest prices + recent news. Snapshot includes top movers, high-impact news, and session context. Typed with Zod schema.",
+    "risks": "Snapshot quality depends on data freshness. Stale data produces misleading snapshots.",
+    "dependencies": [
+      "market-data.mt-quote-storage",
+      "news.item-model"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "copilot.daily-briefing",
+    "title": "Daily briefing generator",
+    "description": "Daily briefing generator: per-asset + overall market summary via OpenRouter.",
+    "epicKey": "copilot",
+    "epicTitle": "Market Copilot",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P12",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Daily briefing generated automatically. Covers major assets and overall market. Stored as BriefingRecord. Prompt versioned.",
+    "risks": "LLM cost per briefing needs monitoring. Quality depends on snapshot completeness.",
+    "dependencies": [
+      "copilot.context-builder",
+      "market-data.openrouter-wrapper"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "copilot.briefing-ui",
+    "title": "Briefing UI",
+    "description": "Briefing UI: show daily briefing in app, share to clan, 'why this matters' explainer.",
+    "epicKey": "copilot",
+    "epicTitle": "Market Copilot",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P12",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "PUBLIC_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Briefing card renders in home feed. Users can share to clan chat. 'Why this matters' section explains relevance to user's portfolio.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 2
+  },
+  {
+    "key": "copilot.asset-briefing",
+    "title": "Per-asset mini-briefing",
+    "description": "Per-asset mini-briefing: click instrument to see AI summary of recent price action and news.",
+    "epicKey": "copilot",
+    "epicTitle": "Market Copilot",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P12",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Clicking an instrument shows AI-generated summary. Summary includes price trend, key news, and trading session context.",
+    "risks": "Per-asset briefings multiply LLM costs. May need caching strategy.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 2
+  },
+  {
+    "key": "copilot.prompt-versioning",
+    "title": "Prompt versioning + A/B testing",
+    "description": "Prompt versioning and A/B testing infrastructure for all AI-generated content.",
+    "epicKey": "copilot",
+    "epicTitle": "Market Copilot",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P12",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Prompts stored with version numbers. A/B split configurable per prompt. Results tracked in LLMRunRecord for comparison.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "vibe.input-ui",
+    "title": "Vibe input UI",
+    "description": "Vibe input UI: text field where user types their market thesis (e.g., 'I think gold will go up because...').",
+    "epicKey": "vibe",
+    "epicTitle": "Vibe Validator",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P13",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "User can type free-text thesis. Submit triggers vibe parsing. Input validates minimum length. RTL text input works.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "vibe.parsed-vibe",
+    "title": "ParsedVibe extraction",
+    "description": "ParsedVibe extraction via OpenRouter: direction, instrument, conviction level, and reasoning from free-text input.",
+    "epicKey": "vibe",
+    "epicTitle": "Vibe Validator",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P13",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Free-text parsed into structured ParsedVibe (direction, instrument, conviction, reasoning). Handles ambiguous input gracefully.",
+    "risks": "LLM may misparse ambiguous vibes. Need confidence scoring and user confirmation.",
+    "dependencies": [
+      "market-data.openrouter-wrapper"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "vibe.trade-plan",
+    "title": "TradePlanCandidate builder",
+    "description": "TradePlanCandidate builder using deterministic math. LLM NEVER does position sizing or R:R calculations.",
+    "epicKey": "vibe",
+    "epicTitle": "Vibe Validator",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P13",
+    "priority": "P0",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Trade plan generated with entry, SL, TP, position size using deterministic formulas. R:R calculated. Plan matches user risk settings.",
+    "risks": "Plan quality depends on accurate market data. Must never use LLM for numeric calculations.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "vibe.paper-position",
+    "title": "Paper position creation",
+    "description": "Confirm flow creates PaperPositionRecord (paper trading). Market snapshot locked at creation time.",
+    "epicKey": "vibe",
+    "epicTitle": "Vibe Validator",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P13",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "User confirms plan, paper position created. Market snapshot frozen at creation. Position appears in paper portfolio.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 2
+  },
+  {
+    "key": "vibe.paper-lifecycle",
+    "title": "Paper position lifecycle",
+    "description": "Paper position lifecycle: open → tracking → closed, using MT-derived prices for P&L calculation.",
+    "epicKey": "vibe",
+    "epicTitle": "Vibe Validator",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P13",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Paper positions track live P&L using MT prices. Auto-close on SL/TP hit. Manual close supported. Full lifecycle logged.",
+    "risks": "Requires reliable MT price feed. Stale prices could miss SL/TP triggers.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "vibe.outcome-scoring",
+    "title": "Outcome scoring",
+    "description": "OutcomeRecord scoring: realized R, timing accuracy, direction correctness for each closed paper position.",
+    "epicKey": "vibe",
+    "epicTitle": "Vibe Validator",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P13",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Closed positions scored on realized R, timing, and direction. Score stored in OutcomeRecord. Aggregatable for user statistics.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 2
+  },
+  {
+    "key": "paper.portfolio-dashboard",
+    "title": "Paper portfolio dashboard",
+    "description": "Paper portfolio dashboard: open positions, P&L, and trade history.",
+    "epicKey": "paper",
+    "epicTitle": "Paper Trading & Replay",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P14",
+    "priority": "P1",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Dashboard shows open paper positions with live P&L. Closed positions with results. Summary stats (win rate, avg R, total P&L).",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "paper.replay-ui",
+    "title": "Replay UI",
+    "description": "Replay UI: show vibe → snapshot → plan → outcome side-by-side for learning review.",
+    "epicKey": "paper",
+    "epicTitle": "Paper Trading & Replay",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P14",
+    "priority": "P2",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Replay view shows full trade journey: original vibe, market snapshot at entry, generated plan, and final outcome side-by-side.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "paper.vibe-score",
+    "title": "VibeScoreProfile",
+    "description": "VibeScoreProfile: rolling accuracy tracking and pattern detection across user's vibe history.",
+    "epicKey": "paper",
+    "epicTitle": "Paper Trading & Replay",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P14",
+    "priority": "P2",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "User profile shows rolling vibe accuracy (30d, 90d, all-time). Patterns detected (e.g., 'better at gold than forex'). Score visible on profile.",
+    "risks": "Need sufficient data points before patterns are meaningful. Minimum threshold required.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "coach.behavioral-insights",
+    "title": "Behavioral insights",
+    "description": "Behavioral insights from trade history: overtrading detection, revenge trading patterns, time-of-day analysis.",
+    "epicKey": "coach",
+    "epicTitle": "Behavioral Coach & Watcher",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P15",
+    "priority": "P2",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "System detects overtrading, revenge trading, and session-based patterns. Insights shown on user dashboard with actionable suggestions.",
+    "risks": "Pattern detection requires sufficient trade history. New users will see empty insights.",
+    "dependencies": [
+      "market-data.openrouter-wrapper"
+    ],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 2,
+    "estimateLikely": 3,
+    "estimateWorst": 5
+  },
+  {
+    "key": "coach.weekly-digest",
+    "title": "Weekly coaching digest",
+    "description": "Automated weekly coaching digest: personalized trading review with AI-generated insights.",
+    "epicKey": "coach",
+    "epicTitle": "Behavioral Coach & Watcher",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P15",
+    "priority": "P2",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Weekly digest generated per user. Covers trade performance, behavioral patterns, and improvement suggestions. Delivered in-app and optionally via email.",
+    "risks": "LLM cost scales with user count. Need batching strategy.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "coach.watch-tasks",
+    "title": "Watch tasks",
+    "description": "Watch tasks: user sets conditions like 'alert me when XAUUSD > 2400' and receives notifications.",
+    "epicKey": "coach",
+    "epicTitle": "Behavioral Coach & Watcher",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P15",
+    "priority": "P2",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Users can create price alerts with conditions. Alerts fire when condition met. Supports >, <, cross above/below. Max 10 active alerts per user.",
+    "risks": "Alert evaluation frequency must balance accuracy vs performance.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "coach.alert-pipeline",
+    "title": "Alert pipeline",
+    "description": "Alert pipeline: Socket.io push + optional email/in-app notification for triggered alerts.",
+    "epicKey": "coach",
+    "epicTitle": "Behavioral Coach & Watcher",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P15",
+    "priority": "P2",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Triggered alerts delivered via Socket.io in real time. Optional email delivery. In-app notification center shows alert history.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 2
+  },
+  {
+    "key": "execution.send-to-mt",
+    "title": "Send plan to MT",
+    "description": "Send trade plan to MetaTrader as pending action. Requires explicit user confirmation before execution.",
+    "epicKey": "execution",
+    "epicTitle": "Execution Bridge",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P16",
+    "priority": "P2",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Trade plan sent to EA as pending action. User must confirm. EA executes on confirmation. Result reported back.",
+    "risks": "Execution errors could cause financial loss. Must have explicit confirmation and safety checks.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "execution.money-management",
+    "title": "Money management presets",
+    "description": "Money management presets: fixed lot, percentage risk, max daily loss. Applied to trade plans before execution.",
+    "epicKey": "execution",
+    "epicTitle": "Execution Bridge",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P16",
+    "priority": "P2",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "User configures money management preset. Preset applied to all generated trade plans. Position size calculated per preset rules.",
+    "risks": "Incorrect position sizing could cause outsized losses. Math must be verified with tests.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": 1,
+    "estimateLikely": 2,
+    "estimateWorst": 3
+  },
+  {
+    "key": "execution.kill-switch",
+    "title": "Emergency close all positions",
+    "description": "Emergency button to close all open positions across all linked MT accounts immediately.",
+    "epicKey": "execution",
+    "epicTitle": "Execution Bridge",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P16",
+    "priority": "P2",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Kill switch closes all open positions. Confirmation dialog prevents accidental trigger. All close actions logged. Works even if individual close fails (retry logic).",
+    "risks": "Network issues could prevent close commands from reaching EA. Need timeout and retry handling.",
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 2
+  },
+  {
+    "key": "execution.journal",
+    "title": "Execution journal",
+    "description": "Auto-log all executed trades with full context: plan, snapshot, vibe, entry, exit, result.",
+    "epicKey": "execution",
+    "epicTitle": "Execution Bridge",
+    "workstream": "MARKET_INTELLIGENCE",
+    "phase": "P16",
+    "priority": "P2",
+    "status": "PLANNED",
+    "milestone": "POST_LAUNCH",
+    "isLaunchBlocker": false,
+    "acceptanceCriteria": "Every executed trade logged with full context chain (vibe → plan → execution → outcome). Journal searchable and filterable. Exportable as CSV.",
+    "risks": null,
+    "dependencies": [],
+    "evidence": {
+      "files": [],
+      "envVars": [],
+      "tests": []
+    },
+    "estimateBest": null,
+    "estimateLikely": 1,
+    "estimateWorst": 2
   }
 ]

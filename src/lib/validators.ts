@@ -75,7 +75,7 @@ export const eaRegisterSchema = z.object({
 export type EaRegisterInput = z.infer<typeof eaRegisterSchema>;
 
 export const eaLoginSchema = z.object({
-  username: z.string().min(1, "Username is required"),
+  usernameOrEmail: z.string().min(1, "Username or email is required"),
   password: z.string().min(1, "Password is required"),
   accountNumber: z.number().int().positive("Account number must be positive"),
   broker: z.string().min(1, "Broker is required").max(100),
@@ -220,6 +220,18 @@ export const updateMemberRoleSchema = z.object({
 });
 
 export type UpdateMemberRoleInput = z.infer<typeof updateMemberRoleSchema>;
+
+export const transferLeadershipSchema = z.object({
+  newLeaderUserId: z.string().min(1),
+});
+
+export type TransferLeadershipInput = z.infer<typeof transferLeadershipSchema>;
+
+export const switchClanSchema = z.object({
+  currentClanId: z.string().min(1),
+});
+
+export type SwitchClanInput = z.infer<typeof switchClanSchema>;
 
 // --- Channel Post schemas ---
 
@@ -732,28 +744,74 @@ export type EaCalendarEventsInput = z.infer<typeof eaCalendarEventsSchema>;
 
 // --- Kanban Project Board schemas ---
 
-const kanbanPhases = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"] as const;
-const kanbanColumns = ["BACKLOG", "TODO", "IN_PROGRESS", "TESTING", "DONE"] as const;
+const kanbanPhases = ["W1", "W2", "W3", "W4", "W5", "W6", "W7", "W8"] as const;
+const kanbanColumns = ["BACKLOG", "TODO", "IN_PROGRESS", "TESTING", "DONE", "BUGS_FIXED"] as const;
 const kanbanPriorities = ["CRITICAL", "HIGH", "NORMAL", "LOW"] as const;
+const taskCategories = ["FEATURE", "BUG_FIX", "IMPROVEMENT", "MAINTENANCE", "INFRASTRUCTURE", "IDEA"] as const;
+
+const pmStatuses = ["PLANNED", "IMPLEMENTED", "INTEGRATED", "CONFIGURED", "VERIFIED", "HARDENED", "OPERABLE", "DEPRECATED"] as const;
+const pmWorkstreams = ["PRODUCT_CORE", "TRUST_INTEGRITY", "PLATFORM_OPS", "MONETIZATION_GROWTH", "MARKET_INTELLIGENCE"] as const;
+const pmMilestones = ["MVP_BETA", "ALPHA_TEST", "PUBLIC_LAUNCH", "POST_LAUNCH"] as const;
 
 export const createProjectTaskSchema = z.object({
   title: z.string().min(1, "Title is required").max(200),
-  description: z.string().max(2000).optional(),
+  description: z.string().max(10000).optional(),
   phase: z.enum(kanbanPhases),
   priority: z.enum(kanbanPriorities).optional(),
   column: z.enum(kanbanColumns).optional(),
-  notes: z.string().max(2000).optional(),
+  notes: z.string().max(5000).optional(),
+  category: z.enum(taskCategories).optional(),
+  dueDate: z.string().datetime().optional().nullable(),
+  result: z.string().max(10000).optional().nullable(),
+  // PM roadmap fields (all optional)
+  key: z.string().max(100).optional().nullable(),
+  epicKey: z.string().max(100).optional().nullable(),
+  epicTitle: z.string().max(200).optional().nullable(),
+  workstream: z.enum(pmWorkstreams).optional().nullable(),
+  milestone: z.enum(pmMilestones).optional().nullable(),
+  pmStatus: z.enum(pmStatuses).optional().nullable(),
+  owner: z.string().max(100).optional().nullable(),
+  isLaunchBlocker: z.boolean().optional(),
+  acceptanceCriteria: z.string().max(5000).optional().nullable(),
+  risks: z.string().max(5000).optional().nullable(),
+  dependencies: z.array(z.string()).optional().nullable(),
+  evidence: z.record(z.string(), z.unknown()).optional().nullable(),
+  estimateBest: z.number().int().min(0).max(365).optional().nullable(),
+  estimateLikely: z.number().int().min(0).max(365).optional().nullable(),
+  estimateWorst: z.number().int().min(0).max(365).optional().nullable(),
+  discoveredFromId: z.string().optional().nullable(),
 });
 
 export type CreateProjectTaskInput = z.infer<typeof createProjectTaskSchema>;
 
 export const updateProjectTaskSchema = z.object({
   title: z.string().min(1).max(200).optional(),
-  description: z.string().max(2000).optional().nullable(),
+  description: z.string().max(10000).optional().nullable(),
   phase: z.enum(kanbanPhases).optional(),
   priority: z.enum(kanbanPriorities).optional(),
   column: z.enum(kanbanColumns).optional(),
-  notes: z.string().max(2000).optional().nullable(),
+  notes: z.string().max(5000).optional().nullable(),
+  category: z.enum(taskCategories).optional(),
+  dueDate: z.string().datetime().optional().nullable(),
+  result: z.string().max(10000).optional().nullable(),
+  // PM roadmap fields
+  key: z.string().max(100).optional().nullable(),
+  epicKey: z.string().max(100).optional().nullable(),
+  epicTitle: z.string().max(200).optional().nullable(),
+  workstream: z.enum(pmWorkstreams).optional().nullable(),
+  milestone: z.enum(pmMilestones).optional().nullable(),
+  pmStatus: z.enum(pmStatuses).optional().nullable(),
+  owner: z.string().max(100).optional().nullable(),
+  isLaunchBlocker: z.boolean().optional(),
+  acceptanceCriteria: z.string().max(5000).optional().nullable(),
+  risks: z.string().max(5000).optional().nullable(),
+  dependencies: z.array(z.string()).optional().nullable(),
+  evidence: z.record(z.string(), z.unknown()).optional().nullable(),
+  estimateBest: z.number().int().min(0).max(365).optional().nullable(),
+  estimateLikely: z.number().int().min(0).max(365).optional().nullable(),
+  estimateWorst: z.number().int().min(0).max(365).optional().nullable(),
+  lastVerifiedAt: z.string().datetime().optional().nullable(),
+  discoveredFromId: z.string().optional().nullable(),
 });
 
 export type UpdateProjectTaskInput = z.infer<typeof updateProjectTaskSchema>;
@@ -765,32 +823,44 @@ export const kanbanReorderSchema = z.object({
 
 export type KanbanReorderInput = z.infer<typeof kanbanReorderSchema>;
 
-// --- PM Roadmap schemas ---
+// PM schemas removed — fields merged into ProjectTask schemas above
 
-const pmStatuses = ["PLANNED", "IMPLEMENTED", "INTEGRATED", "CONFIGURED", "VERIFIED", "HARDENED", "OPERABLE", "DEPRECATED"] as const;
-const pmPriorities = ["P0", "P1", "P2"] as const;
-const pmWorkstreams = ["PRODUCT_CORE", "TRUST_INTEGRITY", "PLATFORM_OPS", "MONETIZATION_GROWTH"] as const;
-const pmMilestones = ["MVP_BETA", "PUBLIC_LAUNCH", "POST_LAUNCH"] as const;
+// --- Alpha Issue Tracker schemas ---
 
-export const updatePmItemSchema = z.object({
-  status: z.enum(pmStatuses).optional(),
-  priority: z.enum(pmPriorities).optional(),
-  owner: z.string().max(100).optional().nullable(),
-  notes: z.string().max(5000).optional().nullable(),
-  lastVerifiedAt: z.string().datetime().optional().nullable(),
+const issueSeverities = ["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
+const issueStatuses = ["OPEN", "IN_PROGRESS", "FIXED", "WONT_FIX", "DUPLICATE"] as const;
+
+export const createAlphaIssueSchema = z.object({
+  title: z.string().min(1, "Title is required").max(300),
+  description: z.string().max(5000).optional(),
+  severity: z.enum(issueSeverities).optional(),
+  reproducibility: z.string().max(50).optional(),
+  device: z.string().max(200).optional(),
+  screenshot: z.string().max(500).optional(),
+  reportedBy: z.string().max(100).optional(),
+  linkedPmKey: z.string().max(100).optional(),
+  status: z.enum(issueStatuses).optional(),
 });
 
-export type UpdatePmItemInput = z.infer<typeof updatePmItemSchema>;
+export type CreateAlphaIssueInput = z.infer<typeof createAlphaIssueSchema>;
 
-export const pmItemQuerySchema = z.object({
-  workstream: z.enum(pmWorkstreams).optional(),
-  phase: z.string().optional(),
-  status: z.enum(pmStatuses).optional(),
-  milestone: z.enum(pmMilestones).optional(),
-  priority: z.enum(pmPriorities).optional(),
-  owner: z.string().optional(),
-  blockersOnly: z.coerce.boolean().optional(),
+export const updateAlphaIssueSchema = z.object({
+  title: z.string().min(1).max(300).optional(),
+  description: z.string().max(5000).optional().nullable(),
+  severity: z.enum(issueSeverities).optional(),
+  reproducibility: z.string().max(50).optional().nullable(),
+  device: z.string().max(200).optional().nullable(),
+  screenshot: z.string().max(500).optional().nullable(),
+  reportedBy: z.string().max(100).optional().nullable(),
+  linkedPmKey: z.string().max(100).optional().nullable(),
+  status: z.enum(issueStatuses).optional(),
+  fixedInCommit: z.string().max(100).optional().nullable(),
+});
+
+export type UpdateAlphaIssueInput = z.infer<typeof updateAlphaIssueSchema>;
+
+export const alphaIssueQuerySchema = z.object({
+  severity: z.enum(issueSeverities).optional(),
+  status: z.enum(issueStatuses).optional(),
   search: z.string().max(100).optional(),
 });
-
-export type PmItemQueryInput = z.infer<typeof pmItemQuerySchema>;

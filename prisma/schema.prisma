@@ -22,6 +22,7 @@ model User {
   preferredPairs    String[]
   emailVerified     DateTime?
   verifyToken       String?
+  verifyTokenExpiry DateTime?
   resetToken        String?
   resetTokenExpiry  DateTime?
   isPro             Boolean   @default(false)
@@ -991,6 +992,7 @@ enum KanbanColumn {
   IN_PROGRESS
   TESTING
   DONE
+  BUGS_FIXED
 }
 
 enum KanbanPriority {
@@ -998,6 +1000,15 @@ enum KanbanPriority {
   HIGH
   NORMAL
   LOW
+}
+
+enum TaskCategory {
+  FEATURE
+  BUG_FIX
+  IMPROVEMENT
+  MAINTENANCE
+  INFRASTRUCTURE
+  IDEA
 }
 
 model ProjectTask {
@@ -1009,69 +1020,75 @@ model ProjectTask {
   column      KanbanColumn   @default(BACKLOG)
   position    Int            @default(0)
   notes       String?
+  category    TaskCategory   @default(FEATURE)
+  dueDate     DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  result      String?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  @@index([column, position])
-}
-
-// --- PM Roadmap Items ---
-
-enum PmStatus {
-  PLANNED
-  IMPLEMENTED
-  INTEGRATED
-  CONFIGURED
-  VERIFIED
-  HARDENED
-  OPERABLE
-  DEPRECATED
-}
-
-enum PmPriority {
-  P0
-  P1
-  P2
-}
-
-enum PmWorkstream {
-  PRODUCT_CORE
-  TRUST_INTEGRITY
-  PLATFORM_OPS
-  MONETIZATION_GROWTH
-}
-
-enum PmMilestone {
-  MVP_BETA
-  PUBLIC_LAUNCH
-  POST_LAUNCH
-}
-
-model PmItem {
-  id                 String        @id @default(cuid())
-  key                String        @unique           // stable key for upsert e.g. "auth.phone-otp"
-  title              String
-  description        String?
-  epicKey            String                           // grouping e.g. "auth", "clans", "integrity"
-  epicTitle          String                           // display name e.g. "Authentication"
-  workstream         PmWorkstream
-  phase              String                           // "P1" through "P8"
-  priority           PmPriority    @default(P1)
-  status             PmStatus      @default(PLANNED)
-  milestone          PmMilestone   @default(MVP_BETA)
+  // PM roadmap fields (all optional — simple tasks leave null)
+  key                String?   @unique
+  epicKey            String?
+  epicTitle          String?
+  workstream         String?
+  milestone          String?
+  pmStatus           String?
   owner              String?
-  notes              String?
-  isLaunchBlocker    Boolean       @default(false)
+  isLaunchBlocker    Boolean   @default(false)
   acceptanceCriteria String?
   risks              String?
-  dependencies       Json?                            // string[] of PmItem keys
-  evidence           Json?                            // { files: string[], envVars: string[], tests: string[] }
+  dependencies       Json?
+  evidence           Json?
+  estimateBest       Int?
+  estimateLikely     Int?
+  estimateWorst      Int?
   lastVerifiedAt     DateTime?
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
 
+  // Bug tracking — link to the task where this bug was discovered
+  discoveredFromId String?
+  discoveredFrom   ProjectTask?  @relation("BugDiscoveredFrom", fields: [discoveredFromId], references: [id], onDelete: SetNull)
+  discoveredBugs   ProjectTask[] @relation("BugDiscoveredFrom")
+
+  @@index([column, position])
   @@index([workstream])
-  @@index([status])
-  @@index([phase])
+  @@index([pmStatus])
   @@index([isLaunchBlocker])
+}
+
+// --- Alpha Test Issue Tracker ---
+
+enum IssueSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum IssueStatus {
+  OPEN
+  IN_PROGRESS
+  FIXED
+  WONT_FIX
+  DUPLICATE
+}
+
+model AlphaIssue {
+  id              String          @id @default(cuid())
+  title           String
+  description     String?
+  severity        IssueSeverity   @default(MEDIUM)
+  reproducibility String?                              // ALWAYS, SOMETIMES, RARE, UNKNOWN
+  device          String?                              // "iPhone 13, Safari 17"
+  screenshot      String?                              // file path
+  reportedBy      String?                              // user name or "anonymous"
+  linkedPmKey     String?                              // links to PmItem.key
+  status          IssueStatus     @default(OPEN)
+  fixedInCommit   String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([status])
+  @@index([severity])
 }

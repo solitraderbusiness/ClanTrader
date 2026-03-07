@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
+    const limited = await rateLimit(`pub:user-profile:${getClientIp(request)}`, "PUBLIC_READ");
+    if (limited) return limited;
+
     const { userId } = await params;
 
     const user = await db.user.findUnique({

@@ -10,17 +10,17 @@ export async function GET() {
 
   const userId = session.user.id;
 
-  const [user, clanCount, postCount, followCount] = await Promise.all([
+  const [user, clanMembership, postCount, followCount] = await Promise.all([
     db.user.findUnique({
       where: { id: userId },
       select: {
-        bio: true,
-        tradingStyle: true,
-        preferredPairs: true,
         role: true,
       },
     }),
-    db.clanMember.count({ where: { userId } }),
+    db.clanMember.findFirst({
+      where: { userId },
+      select: { clanId: true },
+    }),
     db.channelPost.count({ where: { authorId: userId } }),
     db.follow.count({ where: { followerId: userId, followingType: "CLAN" } }),
   ]);
@@ -29,44 +29,51 @@ export async function GET() {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  const profileComplete =
-    !!user.bio && !!user.tradingStyle && user.preferredPairs.length > 0;
+  const hasClan = !!clanMembership;
+  const firstClanId = clanMembership?.clanId;
 
   const missions = [
     {
-      id: "profile",
-      label: "Complete your profile",
-      description: "Add your bio, trading style, and preferred pairs",
-      completed: profileComplete,
-      href: "/settings/profile",
-    },
-    {
-      id: "clan",
-      label: "Join a clan",
-      description: "Find a team of traders to compete with",
-      completed: clanCount > 0,
+      id: "explore",
+      labelKey: "missions.explore",
+      descriptionKey: "missions.exploreDesc",
+      completed: followCount > 0 || hasClan,
       href: "/explore",
-    },
-    {
-      id: "metatrader",
-      label: "Connect MetaTrader",
-      description: "Become a Verified Trader with live trade data",
-      completed: user.role === "TRADER" || user.role === "ADMIN",
-      href: "/settings/mt-accounts",
-    },
-    {
-      id: "post",
-      label: "Make your first post",
-      description: "Share a trade signal or insight with your clan",
-      completed: postCount > 0,
-      href: "/home",
+      icon: "Compass",
     },
     {
       id: "follow",
-      label: "Follow a clan",
-      description: "Stay updated with trade signals and announcements",
+      labelKey: "missions.follow",
+      descriptionKey: "missions.followDesc",
       completed: followCount > 0,
       href: "/explore",
+      icon: "Eye",
+    },
+    {
+      id: "clan",
+      labelKey: "missions.joinClan",
+      descriptionKey: "missions.joinClanDesc",
+      completed: hasClan,
+      href: "/explore",
+      icon: "Users",
+    },
+    {
+      id: "metatrader",
+      labelKey: "missions.metatrader",
+      descriptionKey: "missions.metatraderDesc",
+      completed: user.role === "TRADER" || user.role === "ADMIN",
+      href: "/settings/mt-accounts",
+      icon: "BarChart3",
+    },
+    {
+      id: "post",
+      labelKey: "missions.post",
+      descriptionKey: "missions.postDesc",
+      completed: postCount > 0,
+      href: firstClanId
+        ? `/clans/${firstClanId}?tab=channel`
+        : "/explore",
+      icon: "Send",
     },
   ];
 

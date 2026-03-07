@@ -22,8 +22,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         let user;
         if (username) {
-          // Username login (EA users) — no emailVerified requirement
           user = await db.user.findUnique({ where: { username } });
+          // Block web users who haven't verified email (EA-only users have no email)
+          if (user?.email && !user.emailVerified) return null;
         } else if (email) {
           // Email login — require emailVerified
           user = await db.user.findUnique({ where: { email } });
@@ -97,6 +98,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.phone = (user as { phone?: string | null }).phone ?? null;
         token.phoneVerified = (user as { phoneVerified?: string | null }).phoneVerified ?? null;
         token.onboardingComplete = (user as { onboardingComplete?: boolean }).onboardingComplete ?? false;
+      }
+
+      // Refresh onboardingComplete from DB if still false (one-time flip)
+      if (!trigger && token.id && token.onboardingComplete === false) {
+        const check = await db.user.findUnique({
+          where: { id: token.id as string },
+          select: { onboardingComplete: true },
+        });
+        if (check?.onboardingComplete) {
+          token.onboardingComplete = true;
+        }
       }
 
       // Refresh token from DB when client calls update()

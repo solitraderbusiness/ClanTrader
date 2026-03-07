@@ -1,9 +1,16 @@
 import nodemailer from "nodemailer";
 
 interface SendMailOptions {
+  from: string;
   to: string;
   subject: string;
   html: string;
+}
+
+const DEFAULT_FROM = "ClanTrader <noreply@clantrader.com>";
+
+function getFrom() {
+  return process.env.EMAIL_FROM || DEFAULT_FROM;
 }
 
 function getTransporter() {
@@ -12,6 +19,7 @@ function getTransporter() {
     return {
       sendMail: async (options: SendMailOptions) => {
         console.log("\n=== DEV EMAIL ===");
+        console.log("From:", options.from);
         console.log("To:", options.to);
         console.log("Subject:", options.subject);
         console.log("Body:", options.html);
@@ -21,9 +29,11 @@ function getTransporter() {
     };
   }
 
+  const port = Number(process.env.SMTP_PORT) || 587;
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT) || 587,
+    port,
+    secure: port === 465,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
@@ -37,6 +47,7 @@ export async function sendVerificationEmail(email: string, token: string) {
 
   const transporter = getTransporter();
   await transporter.sendMail({
+    from: getFrom(),
     to: email,
     subject: "Verify your ClanTrader account",
     html: `
@@ -54,6 +65,7 @@ export async function sendPasswordResetEmail(email: string, token: string) {
 
   const transporter = getTransporter();
   await transporter.sendMail({
+    from: getFrom(),
     to: email,
     subject: "Reset your ClanTrader password",
     html: `

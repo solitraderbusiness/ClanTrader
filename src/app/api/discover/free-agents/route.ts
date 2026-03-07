@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function GET(request: Request) {
   try {
+    const limited = await rateLimit(`pub:discover-agents:${getClientIp(request)}`, "PUBLIC_READ");
+    if (limited) return limited;
+
     const { searchParams } = new URL(request.url);
     const tradingStyle = searchParams.get("tradingStyle") || undefined;
     const sessionPreference =

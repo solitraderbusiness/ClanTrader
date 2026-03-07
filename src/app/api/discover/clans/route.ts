@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { searchClans } from "@/services/clan.service";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function GET(request: Request) {
   try {
+    const limited = await rateLimit(`pub:discover-clans:${getClientIp(request)}`, "PUBLIC_READ");
+    if (limited) return limited;
+
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q") || undefined;
     const tradingFocus = searchParams.get("tradingFocus") || undefined;

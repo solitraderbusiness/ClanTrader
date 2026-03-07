@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { rateLimit } from "@/lib/rate-limit";
 import { mkdir } from "fs/promises";
 import path from "path";
 import { nanoid } from "nanoid";
@@ -15,6 +16,9 @@ export async function POST(request: Request) {
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const limited = await rateLimit(`upload:chat-img:${session.user.id}`, "UPLOAD");
+    if (limited) return limited;
 
     const formData = await request.formData();
     const files = formData.getAll("images") as File[];

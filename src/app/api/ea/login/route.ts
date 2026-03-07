@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { eaLoginSchema } from "@/lib/validators";
 import { loginEaUser } from "@/services/ea.service";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
+    const limited = await rateLimit(`auth:ea-login:${getClientIp(request)}`, "AUTH_STRICT");
+    if (limited) return limited;
+
     const body = await request.json();
     const parsed = eaLoginSchema.safeParse(body);
 
@@ -19,7 +23,7 @@ export async function POST(request: Request) {
     return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Login failed";
-    if (message === "Invalid username or password") {
+    if (message === "Invalid credentials") {
       return NextResponse.json({ error: message }, { status: 401 });
     }
     if (message === "This trading account is already connected by another user") {

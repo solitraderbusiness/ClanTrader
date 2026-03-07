@@ -3,9 +3,13 @@ import { db } from "@/lib/db";
 import { generateToken } from "@/lib/auth-utils";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { forgotPasswordSchema } from "@/lib/validators";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
+    const limited = await rateLimit(`auth:forgot:${getClientIp(request)}`, "AUTH_STRICT");
+    if (limited) return limited;
+
     const body = await request.json();
     const parsed = forgotPasswordSchema.safeParse(body);
 
