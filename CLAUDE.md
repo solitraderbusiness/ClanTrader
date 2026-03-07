@@ -49,19 +49,30 @@ Competitive social trading platform — clans, seasons, leaderboards, real-time 
 
 ## Infrastructure
 
-- **Dev (US)**: `31.97.211.86`, `root`, `/root/projects/clantrader`, `clantrader.com`
-- **Prod (Iran)**: `37.32.10.153`, `ubuntu`, `/home/ubuntu/clantrader`, `clantrader.ir`
-- **Staging**: `/home/ubuntu/clantrader-staging` (port 3001, Redis DB 1)
-- Deploy: `deploy-pack.sh` (US) → scp → `deploy-staging.sh` → `promote-to-prod.sh`
+- **Dev**: `31.97.211.86`, `root`, `/root/projects/clantrader`, `clantrader.com`
+- **Prod/Stage (Germany)**: TBD — staging port 3001 (Redis DB 1), prod port 3000 (Redis DB 0)
+- Deploy: `deploy-pack.sh` (dev) → scp → `deploy-staging.sh` → `promote-to-prod.sh`
 
 ## Commit Style
 
 - Imperative verb prefix: `Fix`, `Add`, `Update`, `Refactor`, `Remove`
 - Multi-change: `Fix live R:R + weekend price persistence`
 
+## Project Board — IMPORTANT
+
+The project board (`/admin/kanban`) tracks all work. Column flow: **BACKLOG → TODO → IN_PROGRESS → TESTING → DONE**
+
+**The user does NOT move cards — that is always my job.** Follow this workflow for every task:
+
+1. **Start of task**: Run `/board check` to see overdue items, today's tasks, and what's in progress. If the user's request matches an existing board task, move it to IN_PROGRESS.
+2. **Code complete**: Move task to TESTING. In the result/note field, write **step-by-step testing instructions** the user should follow to verify the work (what to configure, what to click, what results to expect).
+3. **User confirms it works**: Move to DONE. Write a **result summary** of what was accomplished in the result field.
+4. **Testing fails**: Move back to IN_PROGRESS, fix the issue, then back to TESTING with updated instructions.
+5. **New work not on board**: Create a new task and follow the same flow.
+
 ## Agentic Workflow
 
 - **Subagents** (`.claude/agents/`): `security-reviewer`, `test-writer`, `ea-debugger` — use these for isolated review, testing, and EA debugging without filling main context
-- **Skills** (`.claude/skills/`): `api`, `component`, `i18n`, `test`, `deploy`, `ea-debug`, `fix-issue`, `review`, `migrate` — invoke with `/skill-name`
+- **Skills** (`.claude/skills/`): `api`, `component`, `i18n`, `test`, `deploy`, `ea-debug`, `fix-issue`, `review`, `migrate`, `board` — invoke with `/skill-name`
 - **Hooks**: pre-commit runs eslint via lint-staged; Claude Code runs eslint after every Edit/Write
 - When compacting, always preserve the full list of modified files and any test commands that were run
