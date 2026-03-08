@@ -79,7 +79,7 @@ export function TradeCardInline({
       });
     }, expiresMs);
     return () => clearTimeout(timer);
-  }, [pendingAction, tradeCard.trade?.id, clearTradeCardPendingAction, updateTradeCardPendingAction]);
+  }, [pendingAction, tradeCard.trade, clearTradeCardPendingAction, updateTradeCardPendingAction]);
 
   const isAnalysis = tradeCard.cardType === "ANALYSIS";
 
@@ -106,7 +106,7 @@ export function TradeCardInline({
     >
       {/* Colored accent bar */}
       <div
-        className={`absolute inset-y-0 start-0 w-1 ${
+        className={`absolute inset-y-0 start-0 w-1.5 ${
           isAnalysis
             ? "bg-blue-500"
             : tradeCard.direction === "LONG" ? "bg-green-500" : "bg-red-500"

@@ -272,7 +272,7 @@ export default async function ClanPage({
     />
   );
 
-  return (
+  const headerContent = (
     <div className="space-y-6">
       <ClanProfileHeader
         clan={clan}
@@ -303,12 +303,15 @@ export default async function ClanPage({
       </ClanProfileHeader>
 
       <ClanPerfBanner clanId={clanId} />
-
-      <ClanProfileTabs
-        channelContent={channelContent}
-        membersContent={membersContent}
-        chatContent={chatContent}
-      />
     </div>
+  );
+
+  return (
+    <ClanProfileTabs
+      headerContent={headerContent}
+      channelContent={channelContent}
+      membersContent={membersContent}
+      chatContent={chatContent}
+    />
   );
 }

@@ -30,6 +30,8 @@ interface MessageBubbleProps {
   userRole?: string;
   memberRole?: string;
   onUserClick?: (userId: string) => void;
+  isActive?: boolean;
+  onActivate?: (messageId: string | null) => void;
 }
 
 function formatContent(content: string): React.ReactNode {
@@ -72,6 +74,8 @@ export function MessageBubble({
   userRole,
   memberRole,
   onUserClick,
+  isActive,
+  onActivate,
 }: MessageBubbleProps) {
   const [showReactions, setShowReactions] = useState(false);
   const { setReplyingTo, setEditingMessage } = useChatStore();
@@ -96,6 +100,12 @@ export function MessageBubble({
     setShowReactions(false);
   }
 
+  function handleTap() {
+    if (onActivate) {
+      onActivate(isActive ? null : message.id);
+    }
+  }
+
   const canDelete = isOwn || canPin;
   const canEdit = isOwn && message.type !== "SYSTEM_SUMMARY";
   const reactions = message.reactions || {};
@@ -104,17 +114,27 @@ export function MessageBubble({
   const isSummary = message.type === "SYSTEM_SUMMARY";
   const isTradeAction = message.type === "TRADE_ACTION";
 
+  // TRADE_ACTION messages render as standalone system lines — no avatar/header wrapper
+  if (isTradeAction) {
+    return (
+      <div data-testid="message-bubble" className="mt-0.5">
+        <TradeEventLine content={message.content} createdAt={message.createdAt} />
+      </div>
+    );
+  }
+
   return (
     <div
       data-testid="message-bubble"
       className={`group flex items-start gap-2 ${
         isOwn ? "flex-row-reverse" : ""
-      } ${showAvatar ? "mt-3" : "mt-0.5"}`}
+      } ${showAvatar ? "mt-2.5" : "mt-0.5"} ${isTradeCard ? "mt-2" : ""}`}
+      onClick={handleTap}
     >
       {showAvatar ? (
         <Avatar
           className={`h-8 w-8 flex-shrink-0 ${!isOwn && onUserClick ? "cursor-pointer" : ""}`}
-          onClick={!isOwn && onUserClick ? () => onUserClick(message.user.id) : undefined}
+          onClick={!isOwn && onUserClick ? (e) => { e.stopPropagation(); onUserClick(message.user.id); } : undefined}
         >
           <AvatarImage src={message.user.avatar || undefined} alt={message.user.name || ""} />
           <AvatarFallback className="text-xs">
@@ -125,12 +145,12 @@ export function MessageBubble({
         <div className="w-8 flex-shrink-0" />
       )}
 
-      <div className={`max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
+      <div className={`${isTradeCard ? "max-w-full" : "max-w-[70%]"} ${isOwn ? "items-end" : "items-start"}`}>
         {showAvatar && (
           <div className={`mb-0.5 flex items-center gap-1.5 text-xs text-muted-foreground ${isOwn ? "justify-end" : ""}`}>
             <span
               className={`font-medium ${!isOwn && onUserClick ? "cursor-pointer hover:underline" : ""}`}
-              onClick={!isOwn && onUserClick ? () => onUserClick(message.user.id) : undefined}
+              onClick={!isOwn && onUserClick ? (e) => { e.stopPropagation(); onUserClick(message.user.id); } : undefined}
             >
               {message.user.name || "Unknown"}
             </span>
@@ -141,7 +161,7 @@ export function MessageBubble({
             <span>
               {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </span>
-            {message.isEdited && <span className="italic">(edited)</span>}
+            {message.isEdited === true && <span className="whitespace-nowrap italic">(edited)</span>}
           </div>
         )}
 
@@ -149,7 +169,8 @@ export function MessageBubble({
         {message.replyTo && (
           <button
             type="button"
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               const targetId = message.replyTo!.id;
               const el = document.getElementById(`msg-${targetId}`);
               if (el) {
@@ -172,10 +193,8 @@ export function MessageBubble({
           </button>
         )}
 
-        {/* Trade Action event line */}
-        {isTradeAction ? (
-          <TradeEventLine content={message.content} createdAt={message.createdAt} />
-        ) : isTradeCard && message.tradeCard ? (
+        {/* Trade Card or regular message content */}
+        {isTradeCard && message.tradeCard ? (
           <TradeCardInline
             tradeCard={message.tradeCard}
             messageId={message.id}
@@ -195,22 +214,13 @@ export function MessageBubble({
         ) : (
           /* Regular text message bubble */
           <div
-            className={`relative text-[15px] leading-relaxed ${
+            className={`chat-bubble relative text-[15px] leading-relaxed ${
               showAvatar
                 ? isOwn
                   ? "rounded-2xl rounded-ee-md"
                   : "rounded-2xl rounded-es-md"
                 : "rounded-2xl"
-            } px-3.5 py-2.5 ${message.isPinned ? "ring-2 ring-yellow-400/50" : ""}`}
-            style={{
-              backgroundColor: isOwn
-                ? "var(--chat-bubble-own)"
-                : "var(--chat-bubble-other)",
-              color: isOwn
-                ? "var(--chat-bubble-own-fg)"
-                : "var(--chat-bubble-other-fg)",
-              boxShadow: "var(--chat-bubble-shadow)",
-            }}
+            } px-3.5 py-2.5 ${isOwn ? "chat-bubble-own" : "chat-bubble-other"} ${message.isPinned ? "ring-2 ring-yellow-400/50" : ""}`}
           >
             {message.isPinned && (
               <Pin className="absolute -top-1 -end-1 h-3 w-3 text-yellow-500" />
@@ -230,7 +240,7 @@ export function MessageBubble({
             {activeReactions.map(([emoji, users]) => (
               <button
                 key={emoji}
-                onClick={() => handleReact(emoji)}
+                onClick={(e) => { e.stopPropagation(); handleReact(emoji); }}
                 className={`inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-xs transition-all ${
                   users.includes(currentUserId)
                     ? "border-primary bg-primary/10 shadow-sm"
@@ -244,11 +254,19 @@ export function MessageBubble({
           </div>
         )}
 
-        {/* Actions (hover) */}
-        <div data-testid="message-actions" className="mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+        {/* Actions — visible on desktop hover OR mobile tap */}
+        <div
+          data-testid="message-actions"
+          className={`mt-0.5 flex items-center gap-0.5 transition-opacity ${
+            isActive
+              ? "opacity-100"
+              : "opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto"
+          }`}
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="relative">
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setShowReactions(!showReactions)}>
-              <SmilePlus className="h-3 w-3" />
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setShowReactions(!showReactions)}>
+              <SmilePlus className="h-4 w-4" />
             </Button>
             {showReactions && (
               <div className="absolute bottom-full start-0 z-10 mb-1 flex gap-0.5 rounded-lg border bg-popover p-1 shadow-md">
@@ -261,15 +279,15 @@ export function MessageBubble({
             )}
           </div>
 
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setReplyingTo(message)}>
-            <Reply className="h-3 w-3" />
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setReplyingTo(message)}>
+            <Reply className="h-4 w-4" />
           </Button>
 
           {(canEdit || canDelete || canPin) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                  <MoreHorizontal className="h-3 w-3" />
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align={isOwn ? "end" : "start"}>

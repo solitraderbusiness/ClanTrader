@@ -192,7 +192,8 @@
     "instrumentPlaceholder": "e.g. EURUSD, XAUUSD",
     "summarySaved": "Summary saved as message in chat",
     "failedToGenerateSummary": "Failed to generate summary",
-    "status": "Status"
+    "status": "Status",
+    "inputPlaceholder": "Type a message..."
   },
   "dm": {
     "searchUsers": "Search users...",

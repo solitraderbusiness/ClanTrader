@@ -34,7 +34,7 @@ export function ChatToolbar({ openPanel, onTogglePanel }: ChatToolbarProps) {
               <Button
                 variant={openPanel === panel ? "secondary" : "ghost"}
                 size="sm"
-                className={`h-7 w-7 p-0 ${i >= 3 ? "hidden sm:inline-flex" : ""}`}
+                className={`h-7 w-7 p-0 ${i >= 2 ? "hidden sm:inline-flex" : ""}`}
                 onClick={() => onTogglePanel(panel)}
               >
                 <Icon className="h-3.5 w-3.5" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { getSocket } from "@/lib/socket-client";
 import { SOCKET_EVENTS, MESSAGE_CONTENT_MAX, CHAT_IMAGES_MAX } from "@/lib/chat-constants";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,18 @@ export function MessageInput({ clanId, topicId, disabled, onOpenPanel, onOpenTra
   const clanMembers = useChatStore((s) => s.clanMembers);
   const setReplyingTo = useChatStore((s) => s.setReplyingTo);
   const setEditingMessage = useChatStore((s) => s.setEditingMessage);
+
+  // Auto-resize textarea: reset to 1 line, measure scrollHeight, cap at max
+  const autoResize = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }, []);
+
+  useEffect(() => {
+    autoResize();
+  }, [content, autoResize]);
 
   const filteredMembers = mentionQuery !== null
     ? clanMembers.filter((m) =>
@@ -312,10 +324,10 @@ export function MessageInput({ clanId, topicId, disabled, onOpenPanel, onOpenTra
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 w-6 flex-shrink-0 p-0"
+            className="h-8 w-8 flex-shrink-0 p-0"
             onClick={handleCancel}
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-4 w-4" />
           </Button>
         </div>
       )}
@@ -407,12 +419,13 @@ export function MessageInput({ clanId, topicId, disabled, onOpenPanel, onOpenTra
                   ? "Edit your message..."
                   : replyingTo
                     ? `Reply to ${replyingTo.user.name}...`
-                    : "Type a message... (@ to mention, / for commands)"
+                    : t("chat.inputPlaceholder")
             }
             disabled={disabled}
             maxLength={MESSAGE_CONTENT_MAX}
             rows={1}
-            className="min-h-[40px] max-h-[120px] resize-none rounded-xl bg-muted/30"
+            className="max-h-[120px] resize-none rounded-xl bg-muted/30 overflow-y-auto text-[15px]"
+            style={{ fieldSizing: "fixed", minHeight: 40 } as React.CSSProperties}
           />
           <Button
             size="icon"

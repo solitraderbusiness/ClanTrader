@@ -53,7 +53,7 @@ export function FilterBar({ mode }: FilterBarProps) {
   );
 
   const selectClass =
-    "h-9 rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+    "h-10 rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
   if (mode === "agents") {
     return (

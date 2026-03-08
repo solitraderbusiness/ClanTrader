@@ -1,9 +1,14 @@
 "use client";
 
-import { TopicSelector } from "./TopicSelector";
+import { useState } from "react";
 import { ChatToolbar } from "./ChatToolbar";
-import { OnlineUsersBar } from "./OnlineUsersBar";
-import { MonitorSmartphone } from "lucide-react";
+import { MonitorSmartphone, ChevronDown, Plus, Hash } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { ChatTopic, OnlineUser } from "@/stores/chat-store";
 import { useTranslation } from "@/lib/i18n";
 
@@ -35,34 +40,63 @@ export function ChatHeader({
   onTogglePanel,
 }: ChatHeaderProps) {
   const { t } = useTranslation();
+  const [topicOpen, setTopicOpen] = useState(false);
+  const currentTopic = topics.find((t) => t.id === currentTopicId);
 
   return (
-    <div className="border-b bg-card/80 backdrop-blur-sm">
-      <div className="flex items-center justify-between px-3 py-1.5">
-        <OnlineUsersBar users={onlineUsers} />
-        <div className="flex items-center gap-2">
-          <ChatToolbar openPanel={openPanel} onTogglePanel={onTogglePanel} />
-          {!hasMtAccount && (
-            <button
-              type="button"
-              onClick={onConnectAccount}
-              className="flex items-center gap-1 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+    <div className="flex items-center gap-1.5 border-b bg-card/80 px-2 py-1.5 backdrop-blur-sm">
+      {/* Topic chip — dropdown selector */}
+      <DropdownMenu open={topicOpen} onOpenChange={setTopicOpen}>
+        <DropdownMenuTrigger asChild>
+          <button className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20">
+            <Hash className="h-3 w-3" />
+            <span className="max-w-[100px] truncate">{currentTopic?.name || "General"}</span>
+            <ChevronDown className="h-3 w-3" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="max-h-60 overflow-y-auto">
+          {topics.map((topic) => (
+            <DropdownMenuItem
+              key={topic.id}
+              onClick={() => { onSelectTopic(topic.id); setTopicOpen(false); }}
+              className={currentTopicId === topic.id ? "bg-accent" : ""}
             >
-              <MonitorSmartphone className="h-3 w-3" />
-              {t("profile.connect")}
-            </button>
+              <Hash className="me-1.5 h-3 w-3 text-muted-foreground" />
+              {topic.name}
+            </DropdownMenuItem>
+          ))}
+          {canManage && (
+            <DropdownMenuItem onClick={() => { onCreateTopic(); setTopicOpen(false); }}>
+              <Plus className="me-1.5 h-3 w-3" />
+              {t("chat.createTopic")}
+            </DropdownMenuItem>
           )}
-        </div>
-      </div>
-      <div className="border-t px-2">
-        <TopicSelector
-          topics={topics}
-          currentTopicId={currentTopicId}
-          onSelectTopic={onSelectTopic}
-          onCreateTopic={onCreateTopic}
-          canManage={canManage}
-        />
-      </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Online count — compact */}
+      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+        <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+        {onlineUsers.length}
+      </span>
+
+      {/* Spacer */}
+      <div className="flex-1" />
+
+      {/* Toolbar icons */}
+      <ChatToolbar openPanel={openPanel} onTogglePanel={onTogglePanel} />
+
+      {/* Connect MT button */}
+      {!hasMtAccount && (
+        <button
+          type="button"
+          onClick={onConnectAccount}
+          className="flex items-center gap-1 rounded-full border border-primary/30 bg-primary/5 px-2 py-0.5 text-[10px] font-medium text-primary transition-colors hover:bg-primary/10"
+        >
+          <MonitorSmartphone className="h-3 w-3" />
+          {t("profile.connect")}
+        </button>
+      )}
     </div>
   );
 }

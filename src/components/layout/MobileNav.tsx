@@ -50,13 +50,13 @@ export function MobileNav() {
               key={tab.label}
               href={tab.href}
               className={cn(
-                "relative flex flex-col items-center gap-0.5 px-3 py-2 text-xs transition-colors",
+                "relative flex flex-col items-center gap-0.5 px-3 py-2 text-[10px] transition-colors",
                 isActive
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <tab.icon className="h-5 w-5" />
+              <tab.icon className="h-4.5 w-4.5" />
               <span>{tab.label}</span>
               {tab.badge ? (
                 <span className="absolute -top-0.5 end-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] text-destructive-foreground">

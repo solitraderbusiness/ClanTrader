@@ -192,7 +192,8 @@
     "instrumentPlaceholder": "مثلاً EURUSD, XAUUSD",
     "summarySaved": "خلاصه به عنوان پیام در چت ذخیره شد",
     "failedToGenerateSummary": "تولید خلاصه ناموفق بود",
-    "status": "وضعیت"
+    "status": "وضعیت",
+    "inputPlaceholder": "پیام بنویسید..."
   },
   "dm": {
     "searchUsers": "جستجوی کاربران...",

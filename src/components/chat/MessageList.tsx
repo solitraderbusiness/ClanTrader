@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { MessageBubble } from "./MessageBubble";
 import { UserProfileSheet } from "./UserProfileSheet";
@@ -37,7 +37,15 @@ export function MessageList({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const prevMessageCount = useRef(messages.length);
+
+  // Clear active message when tapping the background
+  const handleBackgroundClick = useCallback((e: React.MouseEvent) => {
+    if (e.target === e.currentTarget || (e.target as HTMLElement).closest("[data-testid='message-bubble']") === null) {
+      setActiveMessageId(null);
+    }
+  }, []);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -103,8 +111,9 @@ export function MessageList({
     <div className="relative flex-1 overflow-hidden">
       <div
         ref={scrollRef}
-        className="chat-bg-pattern h-full overflow-y-auto p-4"
+        className="chat-bg-pattern h-full overflow-y-auto px-3 py-2 lg:px-4"
         onScroll={handleScroll}
+        onClick={handleBackgroundClick}
       >
         {hasMore && (
           <div className="mb-4 text-center">
@@ -125,13 +134,19 @@ export function MessageList({
           </div>
         )}
 
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           {messages.map((msg, index) => {
             const prevMsg = index > 0 ? messages[index - 1] : null;
             const showAvatar = !prevMsg || prevMsg.user.id !== msg.user.id;
+            const isTradeCard = msg.type === "TRADE_CARD" && msg.tradeCard;
+            const prevIsTradeCard = prevMsg?.type === "TRADE_CARD" && prevMsg?.tradeCard;
 
             return (
-              <div key={msg.id} id={`msg-${msg.id}`} className="animate-message-enter">
+              <div
+                key={msg.id}
+                id={`msg-${msg.id}`}
+                className={`animate-message-enter ${isTradeCard || prevIsTradeCard ? "pt-1" : ""}`}
+              >
                 <MessageBubble
                   message={msg}
                   isOwn={msg.user.id === currentUserId}
@@ -142,6 +157,8 @@ export function MessageList({
                   userRole={userRole}
                   memberRole={memberRole}
                   onUserClick={setProfileUserId}
+                  isActive={activeMessageId === msg.id}
+                  onActivate={setActiveMessageId}
                 />
               </div>
             );
@@ -155,7 +172,7 @@ export function MessageList({
         <Button
           variant="secondary"
           size="icon"
-          className="absolute bottom-2 end-2 rounded-full shadow-md"
+          className="absolute bottom-4 end-3 z-20 rounded-full shadow-lg"
           onClick={scrollToBottom}
         >
           <ChevronDown className="h-4 w-4" />

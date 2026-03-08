@@ -25,11 +25,12 @@ export function ExploreFilterBar() {
       params.delete("page");
       router.push(`?${params.toString()}`);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t needed for i18n re-render
     [router, searchParams, t]
   );
 
   const selectClass =
-    "h-9 rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+    "h-10 rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
   return (
     <div className="flex flex-wrap items-end gap-4">

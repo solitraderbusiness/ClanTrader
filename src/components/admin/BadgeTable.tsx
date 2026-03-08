@@ -125,6 +125,7 @@ export function BadgeTable({ badges, onEdit, onRefresh }: BadgeTableProps) {
             >
               <td className="px-2 py-2">
                 {badge.iconUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={badge.iconUrl}
                     alt=""
@@ -139,14 +140,14 @@ export function BadgeTable({ badges, onEdit, onRefresh }: BadgeTableProps) {
               <td className="px-2 py-2">
                 <div className={badge.isDeleted ? "line-through" : ""}>
                   <p className="font-medium">{badge.name}</p>
-                  <p className="font-mono text-[10px] text-muted-foreground">
+                  <p className="font-mono text-xs text-muted-foreground">
                     {badge.key}
                   </p>
                 </div>
               </td>
               <td className="px-2 py-2">
                 <span
-                  className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${CATEGORY_COLORS[badge.category] ?? ""}`}
+                  className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${CATEGORY_COLORS[badge.category] ?? ""}`}
                 >
                   {badge.category}
                 </span>
@@ -174,7 +175,7 @@ export function BadgeTable({ badges, onEdit, onRefresh }: BadgeTableProps) {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 w-7 p-0"
+                      className="h-8 w-8 p-0"
                       onClick={() => restoreBadge(badge.id)}
                       title="Restore"
                     >
@@ -185,7 +186,7 @@ export function BadgeTable({ badges, onEdit, onRefresh }: BadgeTableProps) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 w-7 p-0"
+                        className="h-8 w-8 p-0"
                         onClick={() => onEdit(badge)}
                         title="Edit"
                       >

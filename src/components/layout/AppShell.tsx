@@ -35,7 +35,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-20 lg:pb-4">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-16 lg:pb-4">
           {children}
         </main>
       </div>
