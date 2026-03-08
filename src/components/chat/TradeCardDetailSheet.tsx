@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { getSocket } from "@/lib/socket-client";
 import { SOCKET_EVENTS } from "@/lib/chat-constants";
-import { Loader2, Link2 } from "lucide-react";
+import { Loader2, Link2, BarChart3 } from "lucide-react";
 import { RiskStatusBadge } from "@/components/shared/RiskStatusBadge";
 import { useTranslation } from "@/lib/i18n";
 
@@ -139,6 +139,16 @@ export function TradeCardDetailSheet({
         {loading && (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        )}
+
+        {!loading && !trade && tradeId && (
+          <div className="flex flex-col items-center gap-3 py-12 text-center px-4">
+            <BarChart3 className="h-10 w-10 text-muted-foreground/50" />
+            <div>
+              <p className="text-sm font-medium">{t("trade.notFound")}</p>
+              <p className="text-xs text-muted-foreground">{t("trade.notFoundDesc")}</p>
+            </div>
           </div>
         )}
 

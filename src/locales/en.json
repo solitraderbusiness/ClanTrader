@@ -256,6 +256,8 @@
     "mtUpdateWarning": "This will update your MetaTrader trade. The change will be applied on the next EA heartbeat.",
     "noteChatOnly": "Notes don't affect MetaTrader — they are chat-only.",
     "tradeDetail": "Trade Detail",
+    "notFound": "Trade not found",
+    "notFoundDesc": "This trade may have been removed or is unavailable.",
     "tp": "TP",
     "closePriceLabel": "Close Price",
     "finalRR": "Final R:R",

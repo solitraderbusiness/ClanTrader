@@ -107,9 +107,13 @@ export function UserProfileSheet({
           ) : displayUser ? (
             <ProfileCard user={displayUser} />
           ) : (
-            <p className="text-center text-muted-foreground">
-              User not found
-            </p>
+            <div className="flex flex-col items-center gap-3 py-12 text-center">
+              <User className="h-10 w-10 text-muted-foreground/50" />
+              <div>
+                <p className="text-sm font-medium">User not found</p>
+                <p className="text-xs text-muted-foreground">This profile may have been removed or is unavailable.</p>
+              </div>
+            </div>
           )}
         </div>
 

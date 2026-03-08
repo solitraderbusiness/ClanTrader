@@ -26,6 +26,8 @@ import { Button } from "@/components/ui/button";
 import { useNavStore, type ChatItem, type ChannelItem, type DmConvItem } from "@/stores/nav-store";
 import { useSidebarStore } from "@/stores/sidebar-store";
 import { InviteFriendDialog } from "@/components/shared/InviteFriendDialog";
+import { LanguageSwitch } from "@/components/shared/LanguageSwitch";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useTranslation } from "@/lib/i18n";
 
 function timeAgo(dateStr: string): string {
@@ -138,8 +140,8 @@ export function LeftPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Top bar: logo + invite */}
-      <div className="flex items-center justify-between border-b px-3 h-12">
+      {/* Top bar: logo + actions (pe-10 avoids Sheet close button) */}
+      <div className="flex items-center justify-between border-b px-3 pe-10 h-12">
         <Link
           href="/home"
           className="flex items-center gap-2"
@@ -148,12 +150,16 @@ export function LeftPanel() {
           <Shield className="h-5 w-5 text-primary" />
           <span className="text-base font-bold">ClanTrader</span>
         </Link>
-        <NavIcon
-          icon={UserPlus}
-          label={t("nav.invite")}
-          active={false}
-          onClick={() => setInviteOpen(true)}
-        />
+        <div className="flex items-center gap-0.5">
+          <LanguageSwitch />
+          <ThemeToggle />
+          <NavIcon
+            icon={UserPlus}
+            label={t("nav.invite")}
+            active={false}
+            onClick={() => setInviteOpen(true)}
+          />
+        </div>
       </div>
 
       {/* Icon nav row */}
