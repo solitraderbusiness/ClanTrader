@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
 import { claimTestRun } from "@/services/test-run.service";
 import { audit } from "@/lib/audit";
 
@@ -6,7 +7,9 @@ function verifyWorkerToken(request: Request): boolean {
   const authHeader = request.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) return false;
   const token = authHeader.slice(7);
-  return token === process.env.TEST_WORKER_TOKEN;
+  const expected = process.env.TEST_WORKER_TOKEN ?? "";
+  if (token.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(token), Buffer.from(expected));
 }
 
 export async function POST(request: Request) {

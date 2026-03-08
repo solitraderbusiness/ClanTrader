@@ -7,7 +7,13 @@ export async function GET(
   { params }: { params: Promise<{ userId: string; accountId: string }> }
 ) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { userId, accountId } = await params;
+    const isOwner = session.user.id === userId;
 
     const account = await db.mtAccount.findFirst({
       where: { id: accountId, userId, isActive: true },
@@ -28,9 +34,6 @@ export async function GET(
     if (!account) {
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
-
-    const session = await auth();
-    const isOwner = session?.user?.id === userId;
 
     // Fetch statement metrics for this specific account
     const statement = await db.tradingStatement.findFirst({

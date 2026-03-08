@@ -1057,6 +1057,38 @@ model ProjectTask {
   @@index([isLaunchBlocker])
 }
 
+// --- Digest Records ---
+
+enum DigestType {
+  MORNING
+  EVENING
+  ALERT
+}
+
+enum DigestMode {
+  LAUNCH_GATE
+  STANDARD
+}
+
+model DigestRecord {
+  id                   String     @id @default(cuid())
+  type                 DigestType
+  mode                 DigestMode
+  content              String
+  metadata             Json?
+  blockerCount         Int        @default(0)
+  verificationDebtCount Int       @default(0)
+  staleInProgressCount Int        @default(0)
+  relatedMilestone     String?
+  focusItemIds         String[]   @default([])
+  sentToTelegramAt     DateTime?
+  sendStatus           String?
+  createdAt            DateTime   @default(now())
+
+  @@index([type])
+  @@index([createdAt])
+}
+
 // --- Alpha Test Issue Tracker ---
 
 enum IssueSeverity {

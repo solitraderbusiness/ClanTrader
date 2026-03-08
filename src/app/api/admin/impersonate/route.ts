@@ -66,6 +66,7 @@ export async function POST(request: Request) {
     // Set the session cookie
     response.cookies.set("authjs.session-token", token, {
       httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
       maxAge: 30 * 24 * 60 * 60, // 30 days

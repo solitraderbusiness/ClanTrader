@@ -891,7 +891,20 @@
     "alphaReproAlways": "Always",
     "alphaReproSometimes": "Sometimes",
     "alphaReproRare": "Rare",
-    "alphaReproUnknown": "Unknown"
+    "alphaReproUnknown": "Unknown",
+    "digestsTitle": "Digests",
+    "digestsDescription": "Daily launch control pulse & history",
+    "digestsMorning": "Morning",
+    "digestsEvening": "Evening",
+    "digestsSent": "sent",
+    "digestsSendMorning": "Send Morning",
+    "digestsSendEvening": "Send Evening",
+    "digestsFilterAll": "All Types",
+    "digestsFilterMorning": "Morning Only",
+    "digestsFilterEvening": "Evening Only",
+    "digestsRecords": "records",
+    "digestsEmpty": "No digests yet. Send your first one!",
+    "digestsLoadMore": "Load more"
   },
   "banner": {
     "addEmail": "Add an email to secure your account and enable password recovery.",

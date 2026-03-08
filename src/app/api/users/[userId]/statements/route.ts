@@ -14,6 +14,11 @@ export async function GET(
     }
 
     const { userId } = await params;
+
+    if (session.user.id !== userId && session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const periodType = searchParams.get("periodType") as StatementPeriod | null;
 

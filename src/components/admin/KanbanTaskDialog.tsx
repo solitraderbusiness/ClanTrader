@@ -444,7 +444,6 @@ export function KanbanTaskDialog({
                   onChange={(e) => {
                     setTaskSearch(e.target.value);
                     if (e.target.value.length >= 2) {
-                      setSearchingTasks(true);
                       fetch(`/api/admin/kanban?search=${encodeURIComponent(e.target.value)}`)
                         .then((r) => r.json())
                         .then((data) => {
@@ -453,8 +452,7 @@ export function KanbanTaskDialog({
                             .slice(0, 5)
                             .map((t: { id: string; title: string }) => ({ id: t.id, title: t.title }));
                           setTaskSearchResults(results);
-                        })
-                        .finally(() => setSearchingTasks(false));
+                        });
                     } else {
                       setTaskSearchResults([]);
                     }

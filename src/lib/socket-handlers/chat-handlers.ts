@@ -92,6 +92,15 @@ export function registerChatHandlers(ctx: HandlerContext) {
     async (data: { clanId: string; fromTopicId: string; toTopicId: string }) => {
       try {
         const { clanId, fromTopicId, toTopicId } = data;
+
+        if (!joinedClans.has(clanId)) {
+          socket.emit(SOCKET_EVENTS.ERROR, {
+            event: SOCKET_EVENTS.SWITCH_TOPIC,
+            message: "Not a member of this clan",
+          });
+          return;
+        }
+
         socket.leave(topicRoom(clanId, fromTopicId));
         socket.join(topicRoom(clanId, toTopicId));
         joinedTopics.set(clanId, toTopicId);

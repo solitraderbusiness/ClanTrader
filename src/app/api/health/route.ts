@@ -2,14 +2,12 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { redis } from "@/lib/redis";
 import { getIO } from "@/lib/socket-io-global";
+import { auth } from "@/lib/auth";
 
-export async function GET(request: Request) {
-  const forwarded = request.headers.get("x-forwarded-for");
-  const ip = forwarded?.split(",")[0]?.trim() ?? "unknown";
-
+export async function GET() {
   const [dbStatus, redisStatus] = await Promise.all([
     db
-      .$queryRawUnsafe("SELECT 1")
+      .$queryRaw`SELECT 1`
       .then(() => "connected" as const)
       .catch(() => "disconnected" as const),
     redis
@@ -26,11 +24,20 @@ export async function GET(request: Request) {
     redisStatus === "connected" &&
     socketStatus === "running";
 
+  // Public: only return status code
+  const session = await auth();
+  if (!session?.user?.id || session.user.role !== "ADMIN") {
+    return NextResponse.json(
+      { status: allHealthy ? "ok" : "degraded" },
+      { status: allHealthy ? 200 : 503 },
+    );
+  }
+
+  // Admin: return full diagnostics
   return NextResponse.json(
     {
       status: allHealthy ? "ok" : "degraded",
       serverTime: new Date().toISOString(),
-      clientIp: ip,
       uptime: process.uptime(),
       database: dbStatus,
       redis: redisStatus,

@@ -891,7 +891,20 @@
     "alphaReproAlways": "همیشه",
     "alphaReproSometimes": "گاهی",
     "alphaReproRare": "نادر",
-    "alphaReproUnknown": "نامشخص"
+    "alphaReproUnknown": "نامشخص",
+    "digestsTitle": "خلاصه‌ها",
+    "digestsDescription": "گزارش روزانه وضعیت پروژه",
+    "digestsMorning": "صبح",
+    "digestsEvening": "عصر",
+    "digestsSent": "ارسال شد",
+    "digestsSendMorning": "ارسال صبح",
+    "digestsSendEvening": "ارسال عصر",
+    "digestsFilterAll": "همه",
+    "digestsFilterMorning": "فقط صبح",
+    "digestsFilterEvening": "فقط عصر",
+    "digestsRecords": "رکورد",
+    "digestsEmpty": "هنوز خلاصه‌ای ارسال نشده. اولین را ارسال کنید!",
+    "digestsLoadMore": "بارگذاری بیشتر"
   },
   "banner": {
     "addEmail": "ایمیل اضافه کنید تا حساب شما امن شود و بازیابی رمز عبور فعال شود.",

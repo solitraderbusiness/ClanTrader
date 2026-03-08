@@ -17,6 +17,7 @@ import {
   UserCheck,
   Kanban,
   Bug,
+  Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -98,6 +99,12 @@ const NAV_ITEMS = [
     label: "Project Board",
     desc: "Feature tracking board",
     icon: Kanban,
+  },
+  {
+    href: "/admin/digests",
+    label: "Digests",
+    desc: "Daily pulse & history",
+    icon: Bell,
   },
   {
     href: "/admin/impersonate",

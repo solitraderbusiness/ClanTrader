@@ -3,8 +3,10 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { redis } from "@/lib/redis";
 import { sendTelegramMessage } from "@/lib/telegram";
-import { buildEveningDigest } from "@/lib/digest/evening";
+import { buildEveningDigest, buildEveningMetadata } from "@/lib/digest/evening";
+import { detectMode } from "@/lib/digest/classification";
 import { loadStreak, saveStreak, updateStreak } from "@/lib/digest/streak-store";
+import { DIGEST_TASK_SELECT, DIGEST_TASK_ORDER } from "@/lib/digest/adapters";
 
 export async function POST() {
   try {
@@ -14,12 +16,8 @@ export async function POST() {
     }
 
     const tasks = await db.projectTask.findMany({
-      select: {
-        id: true, title: true, phase: true, priority: true, column: true,
-        dueDate: true, completedAt: true, startedAt: true, category: true,
-        isLaunchBlocker: true, result: true,
-      },
-      orderBy: [{ phase: "asc" }, { position: "asc" }],
+      select: DIGEST_TASK_SELECT,
+      orderBy: DIGEST_TASK_ORDER,
     });
 
     const now = new Date();
@@ -38,9 +36,35 @@ export async function POST() {
     await saveStreak(redis, streak);
 
     const message = buildEveningDigest(tasks, now, streak);
-    await sendTelegramMessage(message, { parseMode: "HTML" });
+    const metadata = buildEveningMetadata(tasks, now, streak);
+    const mode = detectMode(tasks);
 
-    return NextResponse.json({ ok: true, message: "Evening digest sent", streak });
+    let sentAt: Date | null = null;
+    let sendStatus = "sent";
+    try {
+      await sendTelegramMessage(message, { parseMode: "HTML" });
+      sentAt = new Date();
+    } catch (err) {
+      sendStatus = `failed: ${err instanceof Error ? err.message : "unknown"}`;
+    }
+
+    const record = await db.digestRecord.create({
+      data: {
+        type: "EVENING",
+        mode,
+        content: message,
+        metadata: JSON.parse(JSON.stringify(metadata)),
+        blockerCount: metadata.blockerCount,
+        verificationDebtCount: metadata.verificationDebtCount,
+        staleInProgressCount: metadata.staleInProgressCount,
+        relatedMilestone: metadata.milestone,
+        focusItemIds: metadata.focusItemIds,
+        sentToTelegramAt: sentAt,
+        sendStatus,
+      },
+    });
+
+    return NextResponse.json({ ok: true, digestId: record.id, mode, streak, sendStatus });
   } catch (error) {
     console.error("Evening digest error:", error);
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });

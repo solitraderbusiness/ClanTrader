@@ -1,5 +1,5 @@
 /**
- * Evening Project Digest — day results, streak, tomorrow preview.
+ * Evening Launch Control Digest — day results, blocker movement, streak.
  *
  * Run manually:   npx tsx scripts/evening-digest.ts
  * Cron (10 PM Iran): 30 18 * * * cd /root/projects/clantrader && npx tsx scripts/evening-digest.ts >> logs/digest.log 2>&1
@@ -10,20 +10,18 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import Redis from "ioredis";
 import "dotenv/config";
 
-import { buildEveningDigest } from "../src/lib/digest/evening";
+import { buildEveningDigest, buildEveningMetadata } from "../src/lib/digest/evening";
+import { detectMode } from "../src/lib/digest/classification";
 import { loadStreak, saveStreak, updateStreak } from "../src/lib/digest/streak-store";
+import { DIGEST_TASK_SELECT, DIGEST_TASK_ORDER } from "../src/lib/digest/adapters";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
   const tasks = await prisma.projectTask.findMany({
-    select: {
-      id: true, title: true, phase: true, priority: true, column: true,
-      dueDate: true, completedAt: true, startedAt: true, category: true,
-      isLaunchBlocker: true, result: true,
-    },
-    orderBy: [{ phase: "asc" }, { position: "asc" }],
+    select: DIGEST_TASK_SELECT,
+    orderBy: DIGEST_TASK_ORDER,
   });
 
   const now = new Date();
@@ -31,13 +29,12 @@ async function main() {
   const tomorrowStart = new Date(todayStart);
   tomorrowStart.setDate(tomorrowStart.getDate() + 1);
 
-  // Count today's completions
   const todayCompleted = tasks.filter(
     (t) => (t.column === "DONE" || t.column === "BUGS_FIXED")
       && t.completedAt && t.completedAt >= todayStart && t.completedAt < tomorrowStart
   ).length;
 
-  // Update streak in Redis
+  // Update streak in Redis (optional — graceful if unavailable)
   let streak = null;
   let redis: Redis | null = null;
   try {
@@ -51,18 +48,47 @@ async function main() {
   }
 
   const message = buildEveningDigest(tasks, now, streak);
+  const metadata = buildEveningMetadata(tasks, now, streak);
+  const mode = detectMode(tasks);
+
+  // Persist digest record
+  let sentAt: Date | null = null;
+  let sendStatus = "no_telegram_config";
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
-  if (!token || !chatId) {
-    console.log(message.replace(/<[^>]+>/g, ""));
-    return;
+  if (token && chatId) {
+    try {
+      const { sendTelegramMessage } = await import("../src/lib/telegram");
+      await sendTelegramMessage(message, { parseMode: "HTML" });
+      sentAt = new Date();
+      sendStatus = "sent";
+    } catch (err) {
+      sendStatus = `failed: ${err instanceof Error ? err.message : "unknown"}`;
+    }
   }
 
-  const { sendTelegramMessage } = await import("../src/lib/telegram");
-  await sendTelegramMessage(message, { parseMode: "HTML" });
-  console.log(`[${now.toISOString()}] Evening digest sent.`);
+  await prisma.digestRecord.create({
+    data: {
+      type: "EVENING",
+      mode,
+      content: message,
+      metadata: JSON.parse(JSON.stringify(metadata)),
+      blockerCount: metadata.blockerCount,
+      verificationDebtCount: metadata.verificationDebtCount,
+      staleInProgressCount: metadata.staleInProgressCount,
+      relatedMilestone: metadata.milestone,
+      focusItemIds: metadata.focusItemIds,
+      sentToTelegramAt: sentAt,
+      sendStatus,
+    },
+  });
+
+  if (!token || !chatId) {
+    console.log(message.replace(/<[^>]+>/g, ""));
+  }
+  console.log(`[${now.toISOString()}] Evening digest ${sendStatus}. Mode: ${mode}`);
 
   if (redis) await redis.quit();
 }
