@@ -2,7 +2,7 @@
 
 > Last updated: March 8, 2026
 
-ClanTrader is a competitive social trading platform where traders form clans, share signals, track trades via MetaTrader EA integration, and compete on leaderboards. This document tracks every task on the project board and defines the path to MVP launch.
+ClanTrader is a competitive social trading platform where traders form clans, share signals, track trades via MetaTrader EA integration, and compete on leaderboards. This document is the **single source of truth** for the launch schedule and syncs directly with the Admin Project Board.
 
 ---
 
@@ -31,63 +31,139 @@ The MVP delivers a fully functional trading community platform with:
 | DONE | 88 | Completed features and tasks |
 | BUGS_FIXED | 10 | Resolved bugs with root cause documentation |
 | TESTING | 1 | Awaiting user verification |
-| TODO | 36 | MVP pipeline — scheduled daily |
-| BACKLOG | 36 | Deprioritized — not blocking MVP |
+| TODO | 61 | MVP pipeline (36 parent + 25 QA sub-tasks) |
+| BACKLOG | 11 | Deferred, not launch-blocking |
 | IDEAS | 60 | Post-MVP features and concepts |
+
+### Board Fields
+
+Each task uses these fields for scheduling:
+
+- **phase**: `A-QA`, `B-HARDEN`, `C-INFRA`, `D-BETA`, `E-LAUNCH`, or `DEFERRED`
+- **workstream**: `PRODUCT_CORE`, `TRUST_INTEGRITY`, `PLATFORM_OPS`, `MONETIZATION_GROWTH`, `MARKET_INTELLIGENCE`
+- **milestone**: `MVP_BETA`, `ALPHA_TEST`, `PUBLIC_LAUNCH`, `POST_LAUNCH`
+- **epicKey/epicTitle**: Groups QA sub-tasks under parent QA days (e.g., `qa-clans`)
+- **isLaunchBlocker**: True for tasks on the critical path
+- **acceptanceCriteria**: What "done" looks like for each task
+- **position**: Sort order within a day (trust first, auth second, core third, infra after)
 
 ---
 
 ## MVP Timeline (March 9 - April 8)
 
-### Phase 1: QA & Validation (March 9-13)
+### Stage A: QA & Validation (March 9-13) — phase `A-QA`
 
-| Date | Task | Priority |
-|------|------|----------|
-| Mar 9 (Mon) | Manual E2E integrity test | CRITICAL |
-| Mar 10 (Tue) | QA: Auth flows (signup, login, verify, reset) | CRITICAL |
-| Mar 11 (Wed) | QA: Clans + chat + topics | CRITICAL |
-| Mar 12 (Thu) | QA: Trade cards + signals + DMs | CRITICAL |
-| Mar 13 (Fri) | QA: Admin panel + leaderboards | HIGH |
+**Mar 9 (Mon) — Trust & Integrity**
+- Manual E2E integrity test `CRITICAL` `LAUNCH_BLOCKER`
+  - AC: Normal open/close, SL/TP detection, manual close, duplicate event handling, delayed sync recovery, leaderboard/profile consistency, integrity evaluator accuracy. Markets must be open.
 
-### Phase 2: Bug Fixes & Hardening (March 14-16)
+**Mar 10 (Tue) — Authentication** `[epic: qa-auth]`
+- QA: Auth flows (signup, login, verify, reset) `CRITICAL` `LAUNCH_BLOCKER`
+  - AC: Signup (valid/duplicate/weak), login (correct/wrong/unverified), email verification (click/expired/resend), password reset (request/click/expired). Desktop + mobile, EN + FA. Rate limiting triggers.
+- Sub-tasks: Prepare QA test accounts
 
-| Date | Task | Priority |
-|------|------|----------|
-| Mar 14 (Sat) | QA fix round 1 | CRITICAL |
-| Mar 15 (Sun) | QA fix round 2 + Statement accuracy check + Statement performance test | HIGH |
-| Mar 16 (Mon) | Performance audit + CI/CD pipeline + Deployment docs | HIGH |
+**Mar 11 (Wed) — Clans & Chat** `[epic: qa-clans]`
+- QA: Clans + chat + topics `CRITICAL` `LAUNCH_BLOCKER`
+  - AC: Create/discover/join clan, invite codes, join requests, leave/switch, chat send/receive, reactions, pin/unpin, typing/presence, topics CRUD, chat pagination. Desktop + mobile, EN + FA.
+- Sub-tasks: Clan profile, Clan settings, Create/join, Real-time chat, Topics & invites, Channel posts, Chat history, Reactions/pinning/presence
 
-### Phase 3: Infrastructure & Deployment (March 17-21)
+**Mar 12 (Thu) — Trading & DMs** `[epic: qa-trades]`
+- QA: Trade cards + signals + DMs `CRITICAL` `LAUNCH_BLOCKER`
+  - AC: Signal card creation (all fields validate), analysis card (Live P&L), auto-post, track/untrack, trade actions (TP/SL/BE/close), MT-linked guard, edit/cancel, DM text/image/share. Mobile readability, real-time R:R.
+- Sub-tasks: Signal & analysis cards, Trade actions & lifecycle, Direct messages
 
-| Date | Task | Priority |
-|------|------|----------|
-| Mar 17 (Tue) | Prod/Stage server setup (Germany VPS) | CRITICAL |
-| Mar 18 (Wed) | Deploy pipeline to prod/stage + SMTP for production email | CRITICAL |
-| Mar 19 (Thu) | Deploy to staging + verify landing page + verify onboarding | HIGH |
-| Mar 20 (Fri) | Final regression + promote staging to production | CRITICAL |
-| Mar 21 (Sat) | Uptime monitoring + Telegram alerts + Blackout resilience test | HIGH |
+**Mar 13 (Fri) — Admin & Everything Else** `[epic: qa-admin]`
+- QA: Admin panel + leaderboards `HIGH` `LAUNCH_BLOCKER`
+  - AC: Statement review, badge management, ranking config, impersonation, audit log, leaderboard accuracy, profile badges, explore rankings, admin-only 403.
+- Sub-tasks: Admin panel (full), Leaderboard & badges, Journal, Watchlist & statements, Navigation, Top bar & RTL, PWA/invite, Profiles, Settings, MT accounts, Home feed
 
-### Phase 4: Beta Testing (March 22-30)
+### Stage B: Bug Fixes & Hardening (March 14-16) — phase `B-HARDEN`
 
-| Date | Task | Priority |
-|------|------|----------|
-| Mar 22 (Sun) | Prepare beta materials + Send invites to 10 beta traders | HIGH |
-| Mar 23 (Mon) | Beta day 1-2: Onboarding monitoring | HIGH |
-| Mar 24 (Tue) | Beta day 3-4: Chat & trade flow check | HIGH |
-| Mar 25 (Wed) | Beta mid-point: Fix critical feedback | HIGH |
-| Mar 26 (Thu) | Beta day 5-6: Collect first feedback round | NORMAL |
-| Mar 27 (Fri) | Beta day 7-8: Statements & leaderboard check | NORMAL |
-| Mar 28 (Sat) | Beta day 9-10: Final feedback collection | NORMAL |
-| Mar 29 (Sun) | Fix all beta feedback issues | HIGH |
-| Mar 30 (Mon) | Final regression test | HIGH |
+**Mar 14 (Sat) — Critical Bug Fixes**
+- QA fix round 1 `CRITICAL` `LAUNCH_BLOCKER`
+  - AC: All CRITICAL and HIGH bugs from Stage A fixed. Each fix: regression test + BUGS_FIXED log + build passes + verified live.
 
-### Phase 5: Alpha & Launch (March 31 - April 8)
+**Mar 15 (Sun) — Remaining Fixes + Statement Validation**
+- QA fix round 2 `HIGH` `LAUNCH_BLOCKER`
+  - AC: All MEDIUM/LOW bugs from Stage A. Zero CRITICAL bugs remaining.
+- Statement recalculation accuracy check `HIGH` `LAUNCH_BLOCKER`
+  - AC: 5+ sample statements compared: Total R, win rate, max drawdown, avg trades/week accuracy.
+- Statement performance test `HIGH`
+  - AC: Recalculation completes for 100+ trade users. Leaderboard query < 2s.
 
-| Date | Task | Priority |
-|------|------|----------|
-| Mar 31 (Tue) | Alpha invite batch | CRITICAL |
-| Apr 1-7 | Alpha bug-fix buffer | CRITICAL |
-| **Apr 8 (Tue)** | **Soft launch -- open to public** | **CRITICAL** |
+**Mar 16 (Mon) — Performance & CI/CD**
+- Performance audit & optimization `NORMAL`
+  - AC: Home < 3s, chat < 2s, socket < 1s, no memory leaks, no queries > 500ms.
+- CI/CD pipeline (GitHub Actions) `HIGH` `LAUNCH_BLOCKER`
+  - AC: Lint + type-check + tests on PR. Build check. Branch protection on main.
+- Deployment checklist & docs `NORMAL`
+  - AC: Server requirements, env vars, deploy steps, rollback, monitoring, backup/restore documented.
+
+### Stage C: Infrastructure & Deployment (March 17-21) — phase `C-INFRA`
+
+**Mar 17 (Tue) — Server Setup**
+- Prod/Stage server setup (Germany VPS) `CRITICAL` `LAUNCH_BLOCKER`
+  - AC: Ubuntu + Node 20 + PM2 + Nginx + PostgreSQL 16 + Redis. SSH access. Staging :3001 (Redis DB 1), prod :3000 (Redis DB 0). Firewall (80/443/22). SSL. DNS.
+
+**Mar 18 (Wed) — Deploy Pipeline & Email**
+- Deploy pipeline to prod/stage end-to-end `CRITICAL` `LAUNCH_BLOCKER`
+  - AC: deploy-pack.sh, scp, deploy-staging.sh, promote-to-prod.sh, zero-downtime restart, rollback script.
+- SMTP for production email `CRITICAL` `LAUNCH_BLOCKER`
+  - AC: Resend SMTP on Germany VPS. Verification + reset emails deliver. noreply@clantrader.com. Not spam.
+
+**Mar 19 (Thu) — Staging Deployment**
+- Deploy latest build to staging `HIGH` `LAUNCH_BLOCKER`
+- Final fixes + deploy to staging `HIGH`
+- Verify landing page on staging/prod `NORMAL`
+  - AC: Hero renders, CTAs work, responsive, EN/FA, no console errors.
+- Verify onboarding flow on staging `NORMAL`
+  - AC: Signup, email verification, intent, missions, dismiss persists.
+
+**Mar 20 (Fri) — Production Go-Live**
+- Final regression + staging deploy `CRITICAL` `LAUNCH_BLOCKER`
+  - AC: All tests pass, build succeeds, smoke test on staging, zero CRITICAL bugs, GlitchTip active.
+- Promote staging to production `CRITICAL` `LAUNCH_BLOCKER`
+  - AC: Production responds, SSL works, login works, chat connects, GlitchTip receives, backups running.
+
+**Mar 21 (Sat) — Monitoring**
+- Uptime monitoring + Telegram alerts `HIGH`
+  - AC: /api/health pinged every 5 min, Telegram alert within 2 min of downtime, resolves on recovery.
+- Blackout resilience test `HIGH`
+  - AC: PM2 auto-restart, server reboot recovery, Redis/DB reconnect, no silent data loss, socket auto-reconnect.
+
+### Stage D: Beta Testing (March 22-30) — phase `D-BETA`
+
+**Mar 22 (Sun) — Beta Launch**
+- Prepare beta invite materials `NORMAL`
+  - AC: Welcome message, feedback channel, known limitations doc, test scenarios list.
+- Send invites to 10 beta traders `HIGH` `LAUNCH_BLOCKER`
+  - AC: 10 codes generated, messages sent, 5+ confirmed.
+
+**Mar 23 (Mon)** — Beta day 1-2: Onboarding monitoring `HIGH`
+**Mar 24 (Tue)** — Beta day 3-4: Chat & trade flow check `HIGH`
+**Mar 25 (Wed)** — Beta mid-point: Fix critical feedback `HIGH` `LAUNCH_BLOCKER`
+  - AC: No data loss, no auth bugs, no trade tracking bugs. Core flows work for all testers.
+
+**Mar 26 (Thu)** — Beta day 5-6: Collect first feedback round `NORMAL`
+**Mar 27 (Fri)** — Beta day 7-8: Statements & leaderboard check `NORMAL`
+**Mar 28 (Sat)** — Beta day 9-10: Final feedback collection `NORMAL`
+
+**Mar 29 (Sun)** — Fix all beta feedback issues `HIGH` `LAUNCH_BLOCKER`
+  - AC: Every CRITICAL fixed with regression test. HIGH fixed or documented. Testers confirm.
+
+**Mar 30 (Mon)** — Final regression test `HIGH` `LAUNCH_BLOCKER`
+  - AC: All tests pass, build succeeds, full smoke on production, zero CRITICAL/HIGH, backups verified, monitoring active.
+
+### Stage E: Alpha & Launch (March 31 - April 8) — phase `E-LAUNCH`
+
+**Mar 31 (Tue)** — Alpha invite batch `CRITICAL` `LAUNCH_BLOCKER`
+  - AC: 50+ codes distributed, monitoring active for traffic spike, support channel ready.
+
+**Apr 1-7** — Alpha bug-fix buffer `CRITICAL` `LAUNCH_BLOCKER`
+  - AC: Fix alpha bugs, performance holds, no integrity issues, zero CRITICAL for 48h+.
+
+**Apr 8 (Tue)** — **Soft launch -- open to public** `CRITICAL` `LAUNCH_BLOCKER`
+  - AC: Signup open, landing live, all core features working, monitoring active, backups running, support ready.
 
 ---
 
@@ -99,48 +175,21 @@ The MVP delivers a fully functional trading community platform with:
 
 ---
 
-## Backlog (Not Blocking MVP)
+## Backlog — Deferred (11 tasks)
 
-These tasks are deprioritized. They may be pulled in if time permits or after launch.
+Not launch-blocking. May be pulled in after MVP or if capacity allows.
 
-### Detailed QA Checklists (covered by grouped QA tasks above)
-- QA: Desktop & mobile navigation
-- QA: Top bar & RTL/LTR
-- QA: Clan profile page (all tabs)
-- QA: Clan settings & management
-- QA: Create clan + discover/join
-- QA: Real-time clan chat
-- QA: Signal & analysis trade cards
-- QA: Trade actions & status lifecycle
-- QA: Direct messages
-- QA: Admin panel (full)
-- QA: PWA, invite, cross-cutting
-- QA: Channel posts & reactions
-- QA: Chat history & pagination
-- QA: Reactions, pinning, typing, presence
-- QA: Topics & invites + edge cases
-- QA: User profiles (own + others)
-- QA: Edit profile settings
-- QA: Appearance & security settings
-- QA: MT accounts settings
-- QA: Home feed & missions
-- QA: Leaderboard & badges
-- QA: Journal filters
-- QA: Trade journal dashboard & analytics
-- QA: Watchlist & statements
-- Prepare QA test accounts
-
-### Bug Fix Buffers
-- Fix critical bugs from QA (day 1)
-- Fix critical bugs from QA (day 2)
-- Fix remaining QA bugs + regression test
-
-### Phone OTP (Deferred)
+### Phone OTP (no current plan for phone verification)
 - Phone OTP signup/login (Kavenegar)
 - Kavenegar OTP on production
 - Get Kavenegar API key for production
 - QA: Phone OTP signup & login
 - QA: Phone & email verification
+
+### Bug Fix Buffers (standby)
+- Fix critical bugs from QA (day 1)
+- Fix critical bugs from QA (day 2)
+- Fix remaining QA bugs + regression test
 
 ### Other
 - RTL visual regression tests
@@ -149,11 +198,11 @@ These tasks are deprioritized. They may be pulled in if time permits or after la
 
 ---
 
-## Ideas (Post-MVP)
+## Ideas — Post-MVP (60 tasks)
 
-Features and concepts for future development, organized by domain.
+Not scheduled. Will not enter the launch calendar.
 
-### AI & Intelligence
+### AI & Intelligence (15)
 - OpenRouter client wrapper (retries, rate limits, prompt versioning, cost tracking)
 - AI news classifier (category, instruments, impact, sentiment)
 - Daily briefing generator (per-asset + overall market summary)
@@ -171,14 +220,14 @@ Features and concepts for future development, organized by domain.
 - Weekly coaching digest
 - Trader insight reports
 
-### Market Data Pipeline
+### Market Data Pipeline (5)
 - MT quote storage
 - OHLC candle aggregation
 - Price freshness rules
 - Symbol normalization resolver
 - Market data health dashboard
 
-### News System
+### News System (11)
 - RSS fetcher service
 - NewsItem model
 - Finnhub + NewsData.io API fetcher
@@ -191,7 +240,7 @@ Features and concepts for future development, organized by domain.
 - Live News Feed (financial & geopolitical aggregation)
 - Add Geo Live News page with Liveuamap widget
 
-### Paper Trading / Vibe Trading
+### Paper Trading / Vibe Trading (16)
 - TradePlanCandidate builder (deterministic math)
 - Typed contracts (Zod schemas for MarketSnapshot, EventCard, BriefingRecord)
 - Vibe input UI
@@ -209,7 +258,7 @@ Features and concepts for future development, organized by domain.
 - Watch tasks
 - Alert pipeline
 
-### Monetization
+### Monetization (8)
 - ZarinPal payment gateway
 - Subscription checkout flow
 - Subscription management
@@ -219,11 +268,11 @@ Features and concepts for future development, organized by domain.
 - Invoice generation
 - Referral reward system
 
-### Social
+### Social (2)
 - Stories system
 - Season results page
 
-### Infrastructure
+### Infrastructure (2)
 - Structured logging (Pino)
 - Telegram error alerts: production-only mode
 
@@ -286,7 +335,7 @@ Features and concepts for future development, organized by domain.
 - Redesign Explore page (unified clan leaderboard)
 
 ### Infrastructure & Security
-- Security audit (OWASP Top 10) -- 8 HIGH-severity fixes
+- Security audit (OWASP Top 10) — 8 HIGH-severity fixes
 - Exploit regression tests (30 tests covering 9 attack vectors)
 - Rate limiting on all public routes (Redis-based, 5 tiers)
 - Zod env validation at startup
