@@ -18,7 +18,7 @@ import { KanbanDashboard } from "@/components/admin/KanbanDashboard";
 import { KanbanCalendar } from "@/components/admin/KanbanCalendar";
 import { cn } from "@/lib/utils";
 
-const COLUMNS = ["BACKLOG", "TODO", "IN_PROGRESS", "TESTING", "DONE", "BUGS_FIXED"] as const;
+const COLUMNS = ["IDEAS", "BACKLOG", "TODO", "IN_PROGRESS", "TESTING", "DONE", "BUGS_FIXED"] as const;
 const PHASES = ["ALL", "W1", "W2", "W3", "W4", "W5", "W6", "W7", "W8"];
 const CATEGORY_FILTERS = ["ALL", "FEATURE", "BUG_FIX", "IMPROVEMENT", "MAINTENANCE", "INFRASTRUCTURE", "IDEA"] as const;
 const CATEGORY_FILTER_LABELS: Record<string, string> = {
@@ -32,6 +32,7 @@ const CATEGORY_FILTER_LABELS: Record<string, string> = {
 };
 
 const COLUMN_STYLE: Record<string, string> = {
+  IDEAS: "border-t-purple-400",
   BACKLOG: "border-t-muted-foreground/40",
   TODO: "border-t-blue-500",
   IN_PROGRESS: "border-t-amber-500",
