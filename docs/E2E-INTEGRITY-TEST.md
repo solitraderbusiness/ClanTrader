@@ -4,17 +4,23 @@
 > Purpose: Verify the trade integrity system works correctly end-to-end with real MetaTrader EA trades.
 > Requirement: Markets must be open. MetaTrader 4/5 running with ClanTrader EA connected.
 
+**Operational note:** The EA sends a heartbeat every 10 seconds, so after each MT action, wait 10-30 seconds before judging the result, unless you're intentionally testing reconnect/history catch-up.
+
 ---
 
-## Prerequisites
+## Before You Start
 
-Before starting, ensure:
-- [ ] MetaTrader terminal is running with ClanTrader EA loaded on a chart
-- [ ] EA is logged in (green smiley face, "Connected" in EA panel)
-- [ ] You are logged into clantrader.com in the browser
-- [ ] You are a LEADER or CO_LEADER in at least one clan
-- [ ] A demo or live account is connected (demo recommended for testing)
-- [ ] Markets are open (forex pairs are moving)
+- [ ] Log in to ClanTrader
+- [ ] Make sure your user is LEADER or CO_LEADER in a clan
+- [ ] Make sure at least one MT account is linked and the EA is connected
+- [ ] Use a demo account if possible
+- [ ] Confirm markets are open and moving
+- [ ] Take a baseline screenshot of:
+  - Clan chat
+  - Statement page
+  - Leaderboard
+  - MT terminal open trades / history
+- [ ] Create a simple test log with: scenario number, ticket, symbol, direction, entry / SL / TP, expected, actual, pass/fail, screenshot links
 
 ---
 
@@ -35,539 +41,554 @@ If any condition fails, the trade is excluded from statements with a specific re
 
 ---
 
-## Scenario 1: Happy Path — Full Signal Lifecycle
+## Best Execution Order
 
-**Goal:** Verify a complete signal card trade flows correctly from creation to close.
+Run them in this order so you don't waste time:
 
-### Steps:
-1. In clan chat, post a **Signal card**: e.g., EURUSD LONG, Entry 1.0800, SL 1.0750, TP 1.0900
-2. In MetaTrader, open a matching trade: Buy EURUSD at market, set SL to 1.0750 and TP to 1.0900
-3. Wait 30 seconds for EA heartbeat to sync
-4. In the chat, check if the trade card shows "MT Linked" badge
-5. Wait for the trade to close (either manually close it from MT, or let it hit TP/SL)
-6. After close, check the trade detail sheet
-
-### Expected Results:
-- [ ] Trade card in chat shows blue "MT Linked" badge
-- [ ] Trade status updates to the correct outcome (TP_HIT / SL_HIT / CLOSED)
-- [ ] `finalRR` is calculated and shown (positive for TP, negative for SL)
-- [ ] `netProfit` shows actual profit/loss including commission and swap
-- [ ] Integrity section shows no warnings (trade is statement-eligible)
-- [ ] A system message appears in chat: "Trade closed — TP Hit (+X.XXR)"
-- [ ] Your statement page shows this trade in the list
-- [ ] Leaderboard updates with the new R:R
-
-### Failure Indicators:
-- Trade card does not show "MT Linked"
-- Status stays OPEN after MT trade is closed
-- finalRR shows 0 or incorrect value
-- Trade is marked as "Not counted in statement"
+1. **Baseline prep**
+2. **Scenarios 1-7** — core contract first
+3. **Scenarios 13-18** — live action/risk second
+4. **Scenarios 20-25** — nasty real-world bugs third
+5. **Scenarios 8-12** — disconnect/reconnect
+6. **Scenarios 26-29** — admin/config/aggregation last
+7. **Final statement/leaderboard reconciliation**
 
 ---
 
-## Scenario 2: EA Auto-Creates Signal Card
+## Scenario 1: Happy Path — Manual Signal First, Then MT Trade
 
-**Goal:** Verify that when you open a trade directly in MT (with SL and TP), the EA auto-creates a signal card in chat.
+### Do:
+1. In clan chat, post a signal card manually with exact entry, SL, and TP
+2. Open the matching MT trade immediately with the same symbol, direction, SL, and TP
+3. Wait 10-30 seconds
+4. Close the trade at TP or manually at a known price
+5. Open the trade detail sheet, statement page, and leaderboard
 
-### Steps:
-1. Do NOT post a signal card manually in chat
-2. In MetaTrader, open a trade: Buy GBPUSD at market, set SL and TP immediately
-3. Wait 30 seconds for EA heartbeat
-
-### Expected Results:
-- [ ] A new trade card automatically appears in the clan chat
-- [ ] Card type is SIGNAL (because both SL and TP were set)
-- [ ] Card has note: "Auto-generated from MetaTrader (Ticket #...)"
-- [ ] Trade is MT-linked from the start
-- [ ] Trade detail shows `integrityStatus: PENDING` (will promote to VERIFIED if all conditions pass)
-
-### Failure Indicators:
-- No card appears in chat after 60 seconds
-- Card appears but type is ANALYSIS instead of SIGNAL
-- Card appears but is not MT-linked
+### Expect:
+- [ ] Trade becomes MT-linked
+- [ ] Correct open/close status
+- [ ] Correct `finalRR`
+- [ ] Correct `netProfit`
+- [ ] No integrity warning
+- [ ] Counted in statement
+- [ ] Leaderboard updates once
 
 ---
 
-## Scenario 3: EA Opens Trade Without SL — Analysis Card Created
+## Scenario 2: EA Auto-Creates a Signal Card
 
-**Goal:** Verify that opening a trade WITHOUT a stop loss creates an ANALYSIS card (not SIGNAL), and it is NOT statement-eligible.
+### Do:
+1. Do not post anything in chat
+2. Open an MT trade with SL and TP already set
+3. Wait 10-30 seconds
 
-### Steps:
-1. In MetaTrader, open a trade: Buy XAUUSD at market, do NOT set SL, do NOT set TP
-2. Wait 30 seconds for EA heartbeat
-3. Check the chat for the new card
-
-### Expected Results:
-- [ ] A trade card appears in chat with type ANALYSIS (not SIGNAL)
-- [ ] Tag shown is "analysis" (not "signal")
-- [ ] Trade detail shows `initialRiskMissing: true`
-- [ ] Trade is NOT auto-posted to the channel (only signals auto-post)
-- [ ] Trade detail shows the trade is NOT statement-eligible
-- [ ] Reason: "NO_INITIAL_RISK"
-
-### Failure Indicators:
-- Card type is SIGNAL despite no SL
-- Trade is marked as statement-eligible
-- Trade is auto-posted to channel
+### Expect:
+- [ ] A new signal card appears automatically
+- [ ] It is MT-linked from the start
+- [ ] It is treated as a signal, not analysis
+- [ ] Detail page shows it as evaluator/EA-driven, not manual
 
 ---
 
-## Scenario 4: Analysis Upgrade — Add SL and TP Later
+## Scenario 3: Open MT Trade Without SL — Analysis Card
 
-**Goal:** Verify that adding SL + TP to an analysis trade upgrades it to SIGNAL, but it STILL does NOT become statement-eligible (anti-cheat protection).
+### Do:
+1. Open an MT trade with no SL and no TP
+2. Wait 10-30 seconds
+3. Check the card and detail page
 
-### Steps:
-1. Continue from Scenario 3 (trade is open as ANALYSIS without SL/TP)
-2. In MetaTrader, modify the trade to add SL and TP
-3. Wait 30 seconds for EA heartbeat to detect the change
-4. Check the chat card and trade detail
-
-### Expected Results:
-- [ ] Card type changes from ANALYSIS to SIGNAL
-- [ ] Tags change from "analysis" to "signal"
-- [ ] A system message appears: "Card upgraded from Analysis to Signal"
-- [ ] The card is now auto-posted to the channel (if auto-post is enabled)
-- [ ] **BUT**: Trade is STILL NOT statement-eligible
-- [ ] Reason: "ANALYSIS_UPGRADE" — trade started as analysis, so it can never be eligible
-- [ ] Trade detail shows integrity warning about the upgrade
-
-### Why This Matters:
-This prevents a cheat where a trader opens a trade, waits to see if it wins, THEN adds SL/TP to make it look like a planned signal. The system remembers the trade started without risk management.
-
-### Failure Indicators:
-- Trade becomes statement-eligible after upgrade
-- Card type does not change to SIGNAL
-- No system message about the upgrade
+### Expect:
+- [ ] Card type is ANALYSIS
+- [ ] Live P&L may still show
+- [ ] Trade is not statement-eligible
+- [ ] Integrity reason points to missing initial risk
 
 ---
 
-## Scenario 5: SL Removal Warning
+## Scenario 4: Add SL/TP Later to That Analysis Trade
 
-**Goal:** Verify that removing a stop loss from an open trade triggers a critical warning.
+### Do:
+1. Continue from Scenario 3
+2. Add SL and TP later in MT
+3. Wait 10-30 seconds
 
-### Steps:
-1. Open a trade in MT with SL and TP (creates a SIGNAL card)
-2. Wait for sync (30 seconds)
-3. In MetaTrader, modify the trade to REMOVE the SL (set to 0)
-4. Wait for EA heartbeat
-
-### Expected Results:
-- [ ] A critical system message appears in chat: "Stop Loss removed — trade is now UNPROTECTED"
-- [ ] Trade detail shows `riskStatus: UNPROTECTED`
-- [ ] The SL on the card changes to 0
-- [ ] Channel post (if exists) shows a risk warning
-
-### Note:
-Removing SL does NOT retroactively disqualify the trade from statements IF it already had initial risk captured. The integrity contract checks the initial snapshot, not the current state.
-
-### Failure Indicators:
-- No warning message appears
-- riskStatus still shows PROTECTED
-- Card still shows the old SL value
+### Expect:
+- [ ] Card upgrades visually from analysis to signal
+- [ ] Upgrade event is logged
+- [ ] Trade still does not become statement-eligible
+- [ ] Anti-cheat memory of "started without risk" remains
 
 ---
 
-## Scenario 6: TP Modification
+## Scenario 5: Remove SL After Starting Correctly
 
-**Goal:** Verify that changing TP is allowed and doesn't break eligibility.
-
-### Steps:
-1. Open a trade in MT with SL and TP (SIGNAL card created)
+### Do:
+1. Open a normal MT signal with SL/TP
 2. Wait for sync
-3. In MetaTrader, change the TP to a different value
-4. Wait for EA heartbeat
+3. Remove the SL in MT
+4. Wait for sync
 
-### Expected Results:
-- [ ] Trade card target updates to the new TP value
-- [ ] A system message appears about the TP change
-- [ ] Trade is still statement-eligible (TP changes are allowed)
-- [ ] `tpEverModified` flag is set to true in trade detail
-
-### Failure Indicators:
-- TP value doesn't update on card
-- Trade becomes ineligible after TP change
+### Expect:
+- [ ] Critical warning or clear warning state
+- [ ] Risk status becomes UNPROTECTED
+- [ ] Current card SL updates to 0/empty
+- [ ] Eligibility should not be retroactively destroyed if initial risk snapshot was valid
 
 ---
 
-## Scenario 7: Manual Status Change Kills Eligibility
+## Scenario 6: Modify TP After Open
 
-**Goal:** Verify that manually changing a trade's status from the web UI makes it permanently ineligible.
+### Do:
+1. Open a normal MT signal with SL/TP
+2. Wait for sync
+3. Change only TP in MT
+4. Wait for sync
 
-### Steps:
-1. Open a trade in MT with SL and TP (SIGNAL card, MT-linked)
-2. Wait for sync and verify it is statement-eligible
-3. In the web UI, open the trade detail sheet
-4. Click "TP Hit" button (manual status change)
-5. Check the trade detail again
-
-### Expected Results:
-- [ ] Trade status changes to TP_HIT
-- [ ] `integrityStatus` changes to UNVERIFIED
-- [ ] `integrityReason` shows MANUAL_OVERRIDE
-- [ ] `statementEligible` is now false
-- [ ] Trade shows "Not counted in statement" warning
-- [ ] This trade does NOT appear in your statement metrics
-- [ ] This cannot be undone (permanent exclusion)
-
-### Why This Matters:
-This prevents traders from manually claiming wins. Only EA-verified or evaluator-resolved trades count.
-
-### Failure Indicators:
-- Trade remains statement-eligible after manual status change
-- integrityStatus doesn't change to UNVERIFIED
-- Trade still appears in statement calculations
+### Expect:
+- [ ] TP updates on the card
+- [ ] Modification event is logged
+- [ ] Trade remains eligible
 
 ---
 
-## Scenario 8: EA Disconnected During Trade Close
+## Scenario 7: Manual Status Override From Web UI Kills Eligibility
 
-**Goal:** Verify that if the EA is offline when a trade closes in MT, the system catches up when the EA reconnects.
+### Do:
+1. Open a valid MT-linked trade
+2. Confirm it looks eligible
+3. In the web UI, manually press TP Hit / SL Hit / Closed
+4. Refresh trade detail and statement
 
-### Steps:
-1. Open a trade in MT with SL and TP (SIGNAL card created, MT-linked)
-2. In the EA panel, disconnect/disable the EA (or close the chart)
-3. Close the trade manually in MT while EA is offline
-4. Verify the trade still shows as OPEN on the website
-5. Re-enable the EA / reopen the chart
-6. Wait for EA to reconnect and sync (heartbeat + history sync up to 5 minutes)
-
-### Expected Results:
-- [ ] While EA is offline: trade remains OPEN on the website (no update)
-- [ ] After EA reconnects: trade status updates to CLOSED (or TP_HIT/SL_HIT)
-- [ ] `finalRR` and `netProfit` are calculated from the actual MT close data
-- [ ] System message appears in chat about the trade closure
-- [ ] Statement updates with the correct result
-- [ ] Sync happens within 5 minutes of EA reconnection (history sync interval)
-
-### Failure Indicators:
-- Trade stays OPEN permanently after EA reconnects
-- finalRR is incorrect or missing
-- Trade is not picked up by history sync
+### Expect:
+- [ ] Trade becomes unverified / ineligible
+- [ ] Integrity reason reflects manual override
+- [ ] It no longer counts in statement metrics
 
 ---
 
-## Scenario 9: EA Running But User Not Logged Into Website
+## Scenario 8: EA Disconnected While Trade Closes
 
-**Goal:** Verify that trades are recorded correctly even when the user is not browsing the website.
+### Do:
+1. Open a valid MT-linked trade
+2. Disable EA or close the chart
+3. Close the trade in MT while EA is offline
+4. Confirm website still shows OPEN
+5. Re-enable EA and wait for reconnect/history sync
 
-### Steps:
-1. Log out of the website (or close the browser tab)
-2. Keep MetaTrader running with EA connected
-3. Open a trade in MT with SL and TP
-4. Close the trade in MT
-5. Wait 2 minutes
-6. Log back into the website and go to the clan chat
-
-### Expected Results:
-- [ ] Trade card exists in the clan chat (was auto-created while you were offline)
-- [ ] Trade shows as closed with correct status
-- [ ] `finalRR` and `netProfit` are calculated correctly
-- [ ] Trade is statement-eligible (all integrity conditions pass)
-- [ ] Statement page reflects this trade
-
-### Why This Matters:
-The EA communicates directly with the server via API — it doesn't need the website to be open. Trades are recorded server-side regardless of browser state.
-
-### Failure Indicators:
-- No trade card in chat
-- Trade exists but is not closed
-- Trade is not statement-eligible despite being a proper signal
+### Expect:
+- [ ] Site remains stale while EA is offline
+- [ ] After reconnect, trade catches up correctly
+- [ ] Final status, `finalRR`, and `netProfit` reconcile to MT history
+- [ ] Statement updates once
 
 ---
 
-## Scenario 10: Manual Card From Web UI — Never Eligible
+## Scenario 9: User Logged Out / Browser Closed
 
-**Goal:** Verify that trade cards posted manually (not from EA) are NEVER statement-eligible.
+### Do:
+1. Close the browser or log out
+2. Keep EA running
+3. Open and close a valid MT trade
+4. Return to the site later
 
-### Steps:
-1. In the clan chat, post a Signal card manually: USDJPY SHORT, Entry 150.00, SL 150.50, TP 149.00
-2. Click "Track" on the card
-3. Open the trade detail sheet
-4. Check the integrity section
+### Expect:
+- [ ] Card exists even though browser was closed
+- [ ] Closure is already synced
+- [ ] Trade is eligible if all integrity rules passed
 
-### Expected Results:
-- [ ] Trade shows `integrityStatus: UNVERIFIED`
-- [ ] Trade shows `resolutionSource: MANUAL`
-- [ ] Trade shows `mtLinked: false`
-- [ ] Trade is NOT statement-eligible
-- [ ] Reason: "NOT_MT_LINKED" and "UNTRUSTED_RESOLUTION"
-- [ ] Trade does NOT appear in statement calculations
-- [ ] Manual status buttons (TP Hit, SL Hit, etc.) are visible (since not MT-linked)
+---
 
-### Why This Matters:
-Manual cards are for discussion/analysis only. Only EA-verified trades can count toward statements and leaderboards.
+## Scenario 10: Manual Web Card Only — Never Eligible
 
-### Failure Indicators:
-- Manual card trade is statement-eligible
-- integrityStatus is anything other than UNVERIFIED
+### Do:
+1. Post a signal card manually from the web UI
+2. Track it
+3. Never connect it to a real MT trade
+
+### Expect:
+- [ ] It stays manual/unverified
+- [ ] It never affects statement or leaderboard
+- [ ] Manual action buttons remain available
 
 ---
 
 ## Scenario 11: Duplicate MT Ticket Prevention
 
-**Goal:** Verify that the same MetaTrader ticket cannot be counted twice.
+### Do:
+1. Open one MT trade and let it sync
+2. Watch for any accidental duplicate records after refreshes/reconnects
+3. If you can reproduce duplicate rendering, close the trade and inspect both entries
 
-### Steps:
-1. Open a trade in MT (creates signal card A in clan 1)
-2. Wait for sync
-3. If you are in two clans, check if the same ticket appears in both
-4. Close the trade
-5. Check both clans' trade history
-
-### Expected Results:
-- [ ] The MT ticket is linked to only ONE trade record
-- [ ] If a second trade somehow exists with the same ticket, it shows reason: "DUPLICATE_MT_TICKET"
-- [ ] Only one trade counts in statements
-
-### Note:
-This is primarily an integrity safeguard — in normal usage, the EA creates signals in one clan only (the user's first/primary clan). The dedup check is a safety net.
-
-### Failure Indicators:
-- Same ticket counted twice in statements
-- Two eligible trades exist for the same MT ticket
+### Expect:
+- [ ] One MT ticket maps to one counted trade
+- [ ] Any duplicate visual artifact must not count twice
+- [ ] Statement contribution stays single
 
 ---
 
-## Scenario 12: Signal-First Rule — Card Must Exist Before Trade
+## Scenario 12: Signal-First Rule — Late Manual Card Must Not Hijack the Trade
 
-**Goal:** Verify that a signal card created AFTER the MT trade opens does NOT become eligible.
+### Do:
+1. Open an MT trade first
+2. Wait for the EA-created card to appear
+3. Then manually post another matching signal card after the trade is already open
+4. Inspect which card is linked
 
-### Steps:
-1. Open a trade in MT (EA auto-creates card at T=0)
-2. The auto-created card's `createdAt` should match or be after the MT `openTime`
-3. Check the trade detail — is the signal-first condition satisfied?
-
-### Expected Results:
-- [ ] For EA auto-created cards: the card is created simultaneously with the trade, so timing is correct
-- [ ] The signal-first check should pass for EA auto-created cards
-- [ ] If you manually create a card AFTER opening a trade, and the EA tries to match it, the condition FAILS
-
-### How to Test the Failure Case:
-1. Open a trade in MT
-2. Wait for EA auto-create (card A appears)
-3. Delete or ignore card A
-4. Manually post a new signal card matching the same instrument/direction
-5. The manual card should NOT be matched (it was created AFTER the trade opened)
-
-### Failure Indicators:
-- A manually-created card (posted after trade open) becomes linked and eligible
+### Expect:
+- [ ] The late manual card does not become the valid counted record
+- [ ] No after-the-fact card should become eligible
 
 ---
 
-## Scenario 13: Break Even Detection
+## Scenario 13: Breakeven Detection
 
-**Goal:** Verify that moving SL to entry price correctly shows BREAKEVEN status.
+### Do:
+1. Open a valid MT signal
+2. Move SL to entry using MT or the web "Set BE" action
+3. Wait for sync
 
-### Steps:
-1. Open a trade in MT with SL and TP
-2. Wait for sync
-3. In the web UI, click "Set BE" on the trade card (or manually move SL to entry in MT)
-4. Wait for EA to execute the action (if MT-linked, it routes through EA)
-
-### Expected Results:
-- [ ] SL moves to the entry price
-- [ ] `riskStatus` shows BREAKEVEN
-- [ ] A system message confirms: "Break even set"
-- [ ] If trade later closes near entry, outcome is BE (break even)
-- [ ] `finalRR` for a BE trade is approximately 0
-
-### Failure Indicators:
-- riskStatus doesn't change to BREAKEVEN
-- SL doesn't move (pending action times out)
+### Expect:
+- [ ] Risk state becomes BREAKEVEN
+- [ ] SL equals entry
+- [ ] Event is logged
+- [ ] If trade closes near entry, `finalRR` is around 0
 
 ---
 
 ## Scenario 14: Locked Profit Detection
 
-**Goal:** Verify that moving SL beyond entry (into profit) shows LOCKED_PROFIT status.
+### Do:
+1. Open a valid MT signal
+2. Move SL beyond entry into profit
+3. Wait for sync
 
-### Steps:
-1. Open a BUY trade in MT with SL below entry and TP above entry
-2. Wait for sync
-3. In MT, move the SL ABOVE the entry price (e.g., if entry is 1.0800, move SL to 1.0820)
-4. Wait for EA heartbeat
-
-### Expected Results:
-- [ ] `riskStatus` changes to LOCKED_PROFIT
-- [ ] System message shows the SL change
-- [ ] Trade is still statement-eligible (SL modifications are allowed)
-- [ ] If trade closes at SL, the result is positive R:R (profit was locked)
-
-### Failure Indicators:
-- riskStatus shows PROTECTED instead of LOCKED_PROFIT
-- riskStatus shows UNPROTECTED
+### Expect:
+- [ ] Risk state becomes LOCKED_PROFIT
+- [ ] Modification event is logged
+- [ ] Trade remains eligible
 
 ---
 
-## Scenario 15: Multiple Open Trades — Independent Tracking
+## Scenario 15: Multiple Open Trades at Once
 
-**Goal:** Verify that multiple simultaneous trades are tracked independently.
+### Do:
+1. Open three trades:
+   - One valid signal
+   - One valid signal
+   - One no-SL analysis
+2. Modify and close them independently
 
-### Steps:
-1. Open 3 trades simultaneously in MT:
-   - Trade A: EURUSD LONG with SL + TP
-   - Trade B: GBPUSD SHORT with SL + TP
-   - Trade C: XAUUSD LONG without SL (analysis)
-2. Wait for all 3 to appear in chat
-3. Close Trade A (let it hit TP)
-4. Close Trade B (let it hit SL)
-5. Add SL + TP to Trade C, then close it
-
-### Expected Results:
-- [ ] Three separate trade cards appear in chat
-- [ ] Trade A: SIGNAL, eligible, positive R:R
-- [ ] Trade B: SIGNAL, eligible, negative R:R
-- [ ] Trade C: ANALYSIS → upgraded to SIGNAL, but NOT eligible (started as analysis)
-- [ ] Statement shows only Trade A and Trade B
-- [ ] Leaderboard correctly sums both R:R values
-
-### Failure Indicators:
-- Trades interfere with each other
-- Trade C counts in statement despite starting as ANALYSIS
-- Missing trades in chat
+### Expect:
+- [ ] Each trade updates independently
+- [ ] Valid signals count
+- [ ] Analysis-start trade stays ineligible even if later upgraded
+- [ ] Statement totals only include eligible trades
 
 ---
 
-## Scenario 16: Close Price Accuracy — finalRR Verification
+## Scenario 16: Long-Side finalRR Accuracy
 
-**Goal:** Verify that the `finalRR` calculation matches the actual R:R from the trade numbers.
+### Do:
+1. Open a BUY with known numbers
+2. Close at a known manual price
+3. Calculate expected R manually
+4. Compare with ClanTrader
 
-### Steps:
-1. Open a trade in MT: Buy EURUSD @ 1.0800, SL 1.0750, TP 1.0900
-   - Risk = 1.0800 - 1.0750 = 50 pips
-2. Close the trade at a known price (e.g., 1.0850)
-3. Calculate expected R:R manually:
-   - Reward = 1.0850 - 1.0800 = 50 pips
-   - R:R = 50 / 50 = 1.00R
-4. Check the trade detail on the website
-
-### Expected Results:
-- [ ] `closePrice` matches the MT close price
-- [ ] `finalRR` matches your manual calculation (within rounding)
-- [ ] Formula: `finalRR = (closePrice - initialEntry) / initialRiskAbs` (for LONG)
-- [ ] For SHORT: `finalRR = (initialEntry - closePrice) / initialRiskAbs`
-- [ ] `netProfit` = MT profit + commission + swap
-
-### Failure Indicators:
-- finalRR is significantly different from manual calculation
-- closePrice doesn't match MT terminal
-- netProfit is wrong or missing
+### Expect:
+- [ ] `closePrice` matches MT
+- [ ] `finalRR` matches your manual calculation within rounding
+- [ ] `netProfit` matches MT profit after fees/swap
 
 ---
 
-## Scenario 17: Win Rate Based on finalRR, Not Status Label
+## Scenario 17: Win/Loss Classification Based on Actual Result, Not Label
 
-**Goal:** Verify that the win rate calculation uses the actual R:R, not the status label.
+### Do:
+1. Create a trade where the label might be misleading
+2. Close it at a small loss or small win manually
+3. Check statement win rate
 
-### Steps:
-1. Open a trade with TP at +2R
-2. Close it manually in MT at -0.3R (a small loss, even though you might expect it to be TP_HIT based on proximity rules)
-3. Check if it counts as a WIN or LOSS in your statement
-
-### Expected Results:
-- [ ] If `finalRR < 0`, the trade counts as a LOSS regardless of status label
-- [ ] If `finalRR > 0`, the trade counts as a WIN regardless of status label
-- [ ] If `finalRR = 0`, the trade counts as BREAK EVEN
-- [ ] Statement win rate = wins / (wins + losses + break-evens)
-
-### Why This Matters:
-The system uses actual P&L, not what the trader claims. A trade labeled "TP_HIT" with negative R:R is still a loss.
-
-### Failure Indicators:
-- Win rate counts trades by status label instead of finalRR value
-- A negative R:R trade counts as a win
+### Expect:
+- [ ] Negative `finalRR` counts as loss
+- [ ] Positive `finalRR` counts as win
+- [ ] Zero-ish `finalRR` counts as breakeven
+- [ ] Statement math uses actual result, not cosmetic status wording
 
 ---
 
-## Scenario 18: Rapid Open/Close — Race Condition Test
+## Scenario 18: Very Fast Open/Close Race Condition
 
-**Goal:** Verify that very fast trades (open and close within seconds) are handled correctly.
+### Do:
+1. Open a trade with SL/TP
+2. Close it within a few seconds
+3. Refresh chat and detail repeatedly
 
-### Steps:
-1. Open a trade in MT with SL and TP
-2. Close it almost immediately (within 5-10 seconds)
-3. Check the chat and trade detail
-
-### Expected Results:
-- [ ] Signal card appears in chat
-- [ ] Trade is closed with correct status
-- [ ] No duplicate cards or duplicate close events
-- [ ] Trade detail shows all fields correctly
-
-### Failure Indicators:
-- Duplicate trade cards appear
-- Trade stays OPEN
-- Multiple close events recorded
+### Expect:
+- [ ] No duplicate cards
+- [ ] No stuck OPEN state
+- [ ] One clean close event
+- [ ] Single statement contribution
 
 ---
 
-## Scenario 19: Weekend/Market Closed Behavior
+## Scenario 19: Weekend / Market-Closed Behavior
 
-**Goal:** Verify behavior when markets are closed (this is a reference scenario — test during weekend if needed).
+### Do:
+1. Leave a trade open into market close, or test when market is closed
+2. Check chat and detail page later
 
-### Steps:
-1. Note any trades that were open when markets closed Friday
-2. Check their status on Saturday/Sunday
-
-### Expected Results:
-- [ ] Open trades remain OPEN (no false closes)
-- [ ] Live R:R shows last known price (frozen)
-- [ ] No spurious system messages
-
-### Failure Indicators:
-- Trades auto-close on weekends
-- False TP/SL hit detection from stale prices
+### Expect:
+- [ ] Trade does not false-close
+- [ ] Last known values freeze
+- [ ] No fake TP/SL hit generated from stale price
 
 ---
 
-## Final Verification Checklist
+## Scenario 20: SELL-Path Parity Test
 
-After completing all scenarios, verify the overall system state:
+> Important because the product supports both Long and Short directions and tracks R:R by direction.
 
-### Statement Accuracy
-- [ ] Go to your statement page
-- [ ] Count eligible trades — matches the number of EA-verified SIGNAL trades that closed
-- [ ] Win rate matches: wins (finalRR > 0) / total eligible trades
-- [ ] Total R matches sum of all finalRR values from eligible trades
-- [ ] No manual trades or analysis trades appear in statements
+### Do:
+1. Run one full clean scenario using a SELL trade, not BUY
+2. Preferably use something like USDJPY or XAUUSD
+3. Open, modify, and close it at a known price
 
-### Leaderboard Consistency
-- [ ] Leaderboard rankings use the same data as statements
-- [ ] Your clan's stats reflect the correct aggregate
+### Expect:
+- [ ] Short-side math is correct
+- [ ] SL/TP logic is inverted correctly for sell
+- [ ] `finalRR`, live R:R, and status all behave correctly
 
-### Integrity Contract Summary
-- [ ] EA-created SIGNAL trades with SL → statement-eligible (Scenarios 1, 2)
-- [ ] EA-created ANALYSIS trades → NOT eligible, even after upgrade (Scenarios 3, 4)
-- [ ] Manual web UI trades → NEVER eligible (Scenario 10)
-- [ ] Manual status changes → permanently kills eligibility (Scenario 7)
-- [ ] SL removal → warning shown, but doesn't retroactively disqualify (Scenario 5)
-- [ ] Disconnected trades → catch up on reconnect (Scenarios 8, 9)
-- [ ] Duplicate tickets → only one counts (Scenario 11)
+---
+
+## Scenario 21: Multiple TP Targets + Partial Close
+
+> The docs say signal cards support multiple targets.
+
+### Do:
+1. Create a trade/card with TP1 and TP2 if your UI supports it
+2. Partially close at TP1
+3. Leave the rest open
+4. Move SL after TP1
+5. Close the remainder later
+
+### Expect:
+- [ ] The card/history remains coherent
+- [ ] Partial realization does not create duplicate counted trades
+- [ ] Final statement contribution happens once
+- [ ] Final P&L reflects the actual MT result
+
+**Honesty note:** The docs confirm multiple targets, but they do not fully define the exact partial-close UI wording. The must-pass standard is: no double counting, no broken lifecycle, and correct final accounting.
+
+---
+
+## Scenario 22: Same Symbol, Same Direction, Two Tickets Open Together
+
+> One of the nastiest real bugs in trading systems.
+
+### Do:
+1. Open EURUSD BUY ticket A
+2. A few seconds later open EURUSD BUY ticket B
+3. Modify only B
+4. Close only A
+5. Then close B
+
+### Expect:
+- [ ] Events attach to the correct ticket
+- [ ] A's close does not mutate B
+- [ ] B's SL/TP change does not leak into A
+- [ ] Statement counts both separately and correctly
+
+---
+
+## Scenario 23: Web Action -> Pending EA Action -> MT Execution Round-Trip
+
+> The docs describe server-to-EA pending actions like "set breakeven."
+
+### Do:
+1. Open a valid MT-linked trade
+2. From the web UI, trigger a supported action like Set BE
+3. Watch both the site and MT terminal
+4. Repeat once with EA offline if possible
+
+### Expect:
+- [ ] Action becomes pending first
+- [ ] EA executes it on MT
+- [ ] UI shows success only after MT-side execution/sync
+- [ ] If EA is offline, it should not pretend success immediately
+
+---
+
+## Scenario 24: Multi-Account Isolation
+
+> The docs say multiple MT accounts are supported, with per-account connection status.
+
+### Do:
+1. Link two MT accounts to the same user
+2. Open a trade on account A
+3. Open another trade on account B
+4. Reconnect only one EA if you can
+5. Check account pages, trade detail, statement, and logs
+
+### Expect:
+- [ ] Each trade remains tied to the correct MT account
+- [ ] Heartbeat/reconnect for one account does not mutate the other
+- [ ] Balances/equity/connection status remain separated
+- [ ] Statement aggregation behaves as intended
+
+---
+
+## Scenario 25: Reconnect Replay / Idempotency
+
+### Do:
+1. Open a valid trade
+2. Disconnect EA
+3. Reconnect it
+4. Disconnect and reconnect again
+5. Refresh after multiple sync cycles
+
+### Expect:
+- [ ] No duplicate close event
+- [ ] No duplicate statement contribution
+- [ ] No duplicate system messages
+- [ ] Final state remains stable after repeated replay opportunities
+
+---
+
+## Scenario 26: Admin Override Governance + Permissions
+
+> The docs mention admin override governance and full trade-event audit trails.
+
+### Do:
+1. Try an override with a normal user who should not have that power
+2. Then test with the proper admin role if available
+3. Inspect trade events / audit logs afterward
+
+### Expect:
+- [ ] Unauthorized users cannot do governed overrides
+- [ ] Authorized override is clearly logged
+- [ ] Audit trail shows who changed what and when
+- [ ] Overridden trades do not silently look identical to clean EA-verified trades
+
+---
+
+## Scenario 27: Feature Flag Behavior
+
+> Auto-post from trades is feature-flag gated.
+
+### Do:
+1. Note current relevant flag states
+2. Test one auto-post scenario with flag ON
+3. Toggle OFF in admin if safe
+4. Repeat with the same kind of trade
+
+### Expect:
+- [ ] With flag ON: expected auto-post behavior happens
+- [ ] With flag OFF: no auto-post happens
+- [ ] Integrity/statement logic should not silently depend on the wrong flag state
+
+---
+
+## Scenario 28: Aggregation Boundaries — Clan, Season, Monthly, All-Time
+
+> Stats are auto-recalculated monthly, seasonal, and all-time. Statements are per trader per clan from verified trades only, with seasonal rankings and a minimum trade threshold.
+
+### Do:
+1. Note your current trade counts and statement totals
+2. Add one clean eligible trade
+3. Check:
+   - Clan statement
+   - Seasonal ranking
+   - Monthly stats
+   - All-time stats
+4. If possible, test around the minimum-trade threshold boundary
+
+### Expect:
+- [ ] Only verified trades are counted
+- [ ] Data lands in the correct clan/season bucket
+- [ ] Monthly / seasonal / all-time numbers reconcile
+- [ ] Qualification threshold behaves correctly just before and after crossing it
+
+---
+
+## Scenario 29: Edit/Delete Linked Card After MT Linkage
+
+> Signal/analysis cards have version history and trade lifecycle is immutable.
+
+### Do:
+1. Create a valid MT-linked trade
+2. Edit the card text if editing is allowed
+3. If deletion exists, test it carefully in staging/dev only
+4. Re-check trade detail, integrity, statement, and event history
+
+### Expect:
+- [ ] Presentation edits do not erase underlying evidence
+- [ ] Immutable trade history remains intact
+- [ ] Statement eligibility does not reset accidentally
+
+**Honesty note:** The docs support version history and immutable lifecycle, but they do not spell out the exact delete behavior. Treat this as a high-value integrity probe, especially in staging.
+
+---
+
+## Final Reconciliation
+
+After all scenarios, do one full audit pass:
+
+- [ ] Count all trades you created
+- [ ] Mark which ones should be eligible
+- [ ] Compare with the statement list
+- [ ] Sum expected `finalRR` of eligible trades only
+- [ ] Compare with leaderboard totals
+- [ ] Check that no manual-only or analysis-start trades slipped in
+- [ ] Check that no trade counted twice
+
+---
+
+## Launch-Blocking Bugs
+
+If you hit any of these, **stop and fix before moving on:**
+
+- [ ] A manual override still counts in statement
+- [ ] An analysis-start trade becomes eligible later
+- [ ] Duplicate ticket gets counted twice
+- [ ] Same-symbol concurrent tickets cross-wire
+- [ ] Pending web action shows success before EA actually executes
+- [ ] Reconnect replay duplicates close events or statement contributions
+- [ ] Multi-account trades contaminate each other
+- [ ] Monthly/seasonal/all-time totals disagree
 
 ---
 
 ## Test Results Log
 
-| # | Scenario | Pass/Fail | Notes |
-|---|----------|-----------|-------|
-| 1 | Happy path — full signal lifecycle | | |
-| 2 | EA auto-creates signal card | | |
-| 3 | EA trade without SL — analysis card | | |
-| 4 | Analysis upgrade — add SL/TP later | | |
-| 5 | SL removal warning | | |
-| 6 | TP modification | | |
-| 7 | Manual status change kills eligibility | | |
-| 8 | EA disconnected during trade close | | |
-| 9 | EA running, user not logged in | | |
-| 10 | Manual card — never eligible | | |
-| 11 | Duplicate MT ticket prevention | | |
-| 12 | Signal-first rule | | |
-| 13 | Break even detection | | |
-| 14 | Locked profit detection | | |
-| 15 | Multiple open trades | | |
-| 16 | Close price / finalRR accuracy | | |
-| 17 | Win rate based on finalRR | | |
-| 18 | Rapid open/close race condition | | |
-| 19 | Weekend/market closed behavior | | |
-| -- | Statement accuracy check | | |
-| -- | Leaderboard consistency check | | |
+| # | Scenario | Ticket | Symbol | Direction | Entry/SL/TP | Expected | Actual | Pass/Fail | Notes |
+|---|----------|--------|--------|-----------|-------------|----------|--------|-----------|-------|
+| 1 | Happy path — manual signal first | | | | | | | | |
+| 2 | EA auto-creates signal card | | | | | | | | |
+| 3 | MT trade without SL — analysis | | | | | | | | |
+| 4 | Add SL/TP later — upgrade | | | | | | | | |
+| 5 | Remove SL warning | | | | | | | | |
+| 6 | Modify TP | | | | | | | | |
+| 7 | Manual status override | | | | | | | | |
+| 8 | EA disconnected during close | | | | | | | | |
+| 9 | User logged out | | | | | | | | |
+| 10 | Manual web card only | | | | | | | | |
+| 11 | Duplicate ticket prevention | | | | | | | | |
+| 12 | Signal-first rule | | | | | | | | |
+| 13 | Breakeven detection | | | | | | | | |
+| 14 | Locked profit detection | | | | | | | | |
+| 15 | Multiple open trades | | | | | | | | |
+| 16 | Long-side finalRR accuracy | | | | | | | | |
+| 17 | Win/loss by actual result | | | | | | | | |
+| 18 | Fast open/close race | | | | | | | | |
+| 19 | Weekend behavior | | | | | | | | |
+| 20 | SELL-path parity | | | | | | | | |
+| 21 | Multiple TP + partial close | | | | | | | | |
+| 22 | Same symbol, two tickets | | | | | | | | |
+| 23 | Web action -> EA round-trip | | | | | | | | |
+| 24 | Multi-account isolation | | | | | | | | |
+| 25 | Reconnect replay idempotency | | | | | | | | |
+| 26 | Admin override governance | | | | | | | | |
+| 27 | Feature flag behavior | | | | | | | | |
+| 28 | Aggregation boundaries | | | | | | | | |
+| 29 | Edit/delete linked card | | | | | | | | |
+| -- | Final reconciliation | | | | | | | | |
