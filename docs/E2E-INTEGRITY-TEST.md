@@ -1,6 +1,6 @@
 # ClanTrader E2E Integrity Test Plan
 
-> Date: March 9, 2026
+> Date: March 9, 2026 (updated March 9, 2026 — single-statement architecture scenarios added)
 > Purpose: Verify the trade integrity system works correctly end-to-end with real MetaTrader EA trades.
 > Requirement: Markets must be open. MetaTrader 4/5 running with ClanTrader EA connected.
 
@@ -26,7 +26,7 @@
 
 ## How the System Works (Quick Reference)
 
-A trade counts toward your statement/leaderboard ONLY if ALL 6 conditions pass:
+A trade counts toward your statement/leaderboard ONLY if ALL 7 conditions pass:
 
 | # | Condition | Rule |
 |---|-----------|------|
@@ -36,8 +36,21 @@ A trade counts toward your statement/leaderboard ONLY if ALL 6 conditions pass:
 | 4 | Signal-first | Signal card in chat must exist BEFORE the MT trade opens |
 | 5 | Initial risk | Stop Loss must exist when the trade is first created |
 | 6 | No duplicates | Same MT ticket cannot count twice |
+| 7 | **Signal qualified** | **SL + TP must be set within 20 seconds of MT open (the "qualification window")** |
 
 If any condition fails, the trade is excluded from statements with a specific reason code.
+
+### New Concepts (Single-Statement Architecture)
+
+| Concept | How It Works |
+|---------|-------------|
+| **20-second qualification window** | From the moment MT opens the trade, you have exactly 20 seconds to have both SL and TP set. If met, the trade becomes `officialSignalQualified` and a frozen risk snapshot is taken. If missed, the trade becomes ANALYSIS permanently. |
+| **Frozen official risk snapshot** | At qualification, `officialEntryPrice`, `officialInitialStopLoss`, `officialInitialTargets`, `officialInitialRiskAbs`, and `officialInitialRiskMoney` are locked. These NEVER change after qualification, even if you move SL/TP later. |
+| **Effective Rank R** | `effectiveRankR = closedOfficialR + sum(min(0, liveFloatingR))`. Open gains contribute 0. Open losses penalize your rank immediately. |
+| **Live Open Risk overlay** | Shows floating R, floating PnL, equity drawdown, biggest loser, unprotected count, stale warning — auto-refreshes every 30 seconds on profile. |
+| **Tracking status** | Per MT account: ACTIVE (<60s since heartbeat), STALE (60-120s), TRACKING_LOST (>120s). Affects ranking eligibility. |
+| **Ranking eligibility** | RANKED (all accounts healthy), PROVISIONAL (stale account with open trades), UNRANKED (tracking lost with open trades). |
+| **Profit factor** | `sum(positive R) / |sum(negative R)|` — displayed in closed performance block. |
 
 ---
 
@@ -51,7 +64,8 @@ Run them in this order so you don't waste time:
 4. **Scenarios 20-25** — nasty real-world bugs third
 5. **Scenarios 8-12** — disconnect/reconnect
 6. **Scenarios 26-29** — admin/config/aggregation last
-7. **Final statement/leaderboard reconciliation**
+7. **Scenarios 30-41** — single-statement architecture (qualification window, live risk, effective rank, tracking)
+8. **Final statement/leaderboard reconciliation**
 
 ---
 
@@ -87,6 +101,8 @@ Run them in this order so you don't waste time:
 - [ ] It is MT-linked from the start
 - [ ] It is treated as a signal, not analysis
 - [ ] Detail page shows it as evaluator/EA-driven, not manual
+- [ ] `officialSignalQualified` = true (qualified AT_OPEN since SL+TP were present)
+- [ ] Official frozen snapshot is set (entry, SL, TP, risk abs)
 
 ---
 
@@ -102,21 +118,24 @@ Run them in this order so you don't waste time:
 - [ ] Live P&L may still show
 - [ ] Trade is not statement-eligible
 - [ ] Integrity reason points to missing initial risk
+- [ ] `officialSignalQualified` = false
+- [ ] `qualificationDeadline` is set to openTime + 20 seconds
 
 ---
 
-## Scenario 4: Add SL/TP Later to That Analysis Trade
+## Scenario 4: Add SL/TP Later to That Analysis Trade (After 20s Window)
 
 ### Do:
-1. Continue from Scenario 3
-2. Add SL and TP later in MT
-3. Wait 10-30 seconds
+1. Continue from Scenario 3 — **wait at least 25 seconds** after the MT trade opened
+2. Add SL and TP in MT
+3. Wait 10-30 seconds for sync
 
 ### Expect:
 - [ ] Card upgrades visually from analysis to signal
 - [ ] Upgrade event is logged
-- [ ] Trade still does not become statement-eligible
-- [ ] Anti-cheat memory of "started without risk" remains
+- [ ] Trade still does NOT become `officialSignalQualified` (window expired)
+- [ ] Trade is not statement-eligible — integrity reason includes `NOT_SIGNAL_QUALIFIED`
+- [ ] Anti-cheat memory of "missed qualification window" is permanent — no way to undo
 
 ---
 
@@ -132,7 +151,8 @@ Run them in this order so you don't waste time:
 - [ ] Critical warning or clear warning state
 - [ ] Risk status becomes UNPROTECTED
 - [ ] Current card SL updates to 0/empty
-- [ ] Eligibility should not be retroactively destroyed if initial risk snapshot was valid
+- [ ] Eligibility should not be retroactively destroyed — the frozen `officialInitialStopLoss` is still set
+- [ ] Live open risk overlay shows this trade in `unprotectedCount`
 
 ---
 
@@ -529,17 +549,242 @@ Run them in this order so you don't waste time:
 
 ---
 
+## Scenario 30: 20-Second Qualification Window — Instant Qualification (AT_OPEN)
+
+> The most common happy path: trade opens with SL+TP already set.
+
+### Do:
+1. Open an MT trade with both SL and TP set from the start
+2. Wait 10-30 seconds for sync
+3. Check the trade in the database or trade detail
+
+### Expect:
+- [ ] `officialSignalQualified` = true
+- [ ] `officialSignalOriginType` = "AT_OPEN"
+- [ ] `officialQualifiedAt` is set to around the open time
+- [ ] Frozen snapshot fields are set: `officialEntryPrice`, `officialInitialStopLoss`, `officialInitialTargets`, `officialInitialRiskAbs`
+- [ ] These frozen values match the initial SL/TP/entry at the moment of qualification
+
+---
+
+## Scenario 31: 20-Second Qualification Window — Within Window (WITHIN_WINDOW)
+
+> Trade opens without SL, but SL+TP are added within the 20-second window.
+
+### Do:
+1. Open an MT trade with NO SL and NO TP
+2. **Within 15 seconds**, add both SL and TP in MT
+3. Wait for the next heartbeat (10-30 seconds)
+4. Check qualification status
+
+### Expect:
+- [ ] `officialSignalQualified` = true
+- [ ] `officialSignalOriginType` = "WITHIN_WINDOW"
+- [ ] Card type upgrades from ANALYSIS to SIGNAL
+- [ ] Frozen snapshot reflects the SL/TP/entry at the moment of qualification
+- [ ] Trade IS statement-eligible (all 7 conditions pass)
+
+---
+
+## Scenario 32: 20-Second Qualification Window — Expired (Permanent ANALYSIS)
+
+> Trade opens without SL, and 20 seconds pass before SL+TP are added.
+
+### Do:
+1. Open an MT trade with NO SL and NO TP
+2. **Wait at least 25 seconds** (well past the 20-second window)
+3. Now add both SL and TP in MT
+4. Wait for sync
+
+### Expect:
+- [ ] `officialSignalQualified` remains false forever
+- [ ] Card may upgrade visually to SIGNAL, but integrity check still fails
+- [ ] Trade is NOT statement-eligible — reason: `NOT_SIGNAL_QUALIFIED`
+- [ ] This is permanent — no way to fix a missed window after the fact
+
+---
+
+## Scenario 33: Frozen Official Snapshot Immutability
+
+> After qualification, the official risk snapshot must NEVER change, even if the trader moves SL/TP later.
+
+### Do:
+1. Open a trade with SL=100 and TP=200 (or appropriate values for your instrument)
+2. Wait for qualification (check `officialSignalQualified` = true)
+3. Note the frozen values: `officialEntryPrice`, `officialInitialStopLoss`, `officialInitialTargets`
+4. Move SL in MT to a different value (e.g., SL=110)
+5. Move TP in MT to a different value (e.g., TP=250)
+6. Wait for sync
+7. Check the frozen fields again
+
+### Expect:
+- [ ] Current SL/TP on the card update to new values (110/250)
+- [ ] `officialInitialStopLoss` still shows original value (100)
+- [ ] `officialInitialTargets` still shows original value ([200])
+- [ ] `officialEntryPrice` unchanged
+- [ ] `officialInitialRiskAbs` unchanged
+- [ ] Statement R calculations use the FROZEN values, not the current SL/TP
+
+---
+
+## Scenario 34: Trader Statement 3-Block UI on Profile Page
+
+### Do:
+1. Have at least one qualified closed trade and one qualified open trade
+2. Navigate to `/profile/[your-userId]`
+3. Inspect the TraderStatementView component
+
+### Expect:
+- [ ] **Block A: Official Closed Performance** shows: trade count, win rate, avg R, total R, profit factor, best R, worst R, W/L/BE breakdown
+- [ ] **Block B: Live Open Risk** shows: open trade count, floating R, floating PnL, equity drawdown %, max drawdown %, biggest loser R, unprotected count
+- [ ] **Block C: Effective Rank** shows: closed R + open penalty = effective R
+- [ ] Only `officialSignalQualified` trades appear in Block A metrics
+- [ ] Analysis trades and unqualified trades are excluded
+- [ ] Live data auto-refreshes (check values change over ~30 seconds if trades are open)
+
+---
+
+## Scenario 35: Effective Rank R — Open Loss Penalizes Rank
+
+> The core ranking formula: open gains don't help, open losses penalize immediately.
+
+### Do:
+1. Note your current closed official R (from statement Block A or the API)
+2. Open a qualified trade that goes into loss (floating R < 0)
+3. Wait for live risk to update (~30 seconds)
+4. Check Block C on your profile
+
+### Expect:
+- [ ] `closedOfficialR` stays the same as before
+- [ ] `openRiskPenalty` shows a negative number (the sum of your open losing R)
+- [ ] `effectiveRankR` = closedOfficialR + openRiskPenalty (lower than closedR)
+- [ ] Leaderboard shows the penalized `effectiveRankR`, not the closed R
+
+---
+
+## Scenario 36: Effective Rank R — Open Gain Does NOT Boost Rank
+
+### Do:
+1. Note your current effective rank
+2. Open a qualified trade that goes into profit (floating R > 0)
+3. Wait for live risk to update
+
+### Expect:
+- [ ] `openRiskPenalty` is 0 (positive floating R contributes 0, not a bonus)
+- [ ] `effectiveRankR` equals `closedOfficialR` exactly
+- [ ] Leaderboard rank does NOT improve from unrealized gains
+
+---
+
+## Scenario 37: Tracking Status — ACTIVE / STALE / TRACKING_LOST
+
+> Per-account heartbeat freshness determines tracking status.
+
+### Do:
+1. With EA running, check your MT account's `trackingStatus` — should be ACTIVE
+2. Disable the EA (close the chart or kill MT)
+3. Wait 60-90 seconds
+4. Check `trackingStatus` — should be STALE
+5. Wait another 60 seconds (total ~120+ seconds offline)
+6. Check `trackingStatus` — should be TRACKING_LOST
+7. Re-enable EA and wait for one heartbeat
+8. Check `trackingStatus` — should return to ACTIVE
+
+### Expect:
+- [ ] ACTIVE when heartbeat is <60 seconds old
+- [ ] STALE when heartbeat is 60-120 seconds old
+- [ ] TRACKING_LOST when heartbeat is >120 seconds old
+- [ ] Recovers to ACTIVE immediately on next heartbeat
+- [ ] Live Open Risk block shows stale warning when account is STALE or TRACKING_LOST
+
+---
+
+## Scenario 38: Ranking Eligibility — PROVISIONAL and UNRANKED
+
+> Stale/tracking-lost accounts with open official trades degrade ranking status.
+
+### Do:
+1. Have a qualified open trade running
+2. Disable the EA
+3. Wait until `trackingStatus` becomes TRACKING_LOST (>120 seconds)
+4. Trigger the stale-check endpoint: `POST /api/admin/stale-check` (as admin)
+5. Check your `TraderStatement.rankingStatus`
+
+### Expect:
+- [ ] With TRACKING_LOST + open official trades → `rankingStatus` = "UNRANKED"
+- [ ] With STALE + open official trades → `rankingStatus` = "PROVISIONAL"
+- [ ] With all accounts ACTIVE → `rankingStatus` = "RANKED"
+- [ ] Re-enable EA, wait for ACTIVE, re-run stale-check → should return to RANKED
+
+---
+
+## Scenario 39: Equity Drawdown Tracking
+
+### Do:
+1. Note your MT account's current equity and `peakEquity` in the database
+2. Let equity increase above the peak (winning trade or deposit)
+3. Wait for a heartbeat
+4. Check `peakEquity` — should update to new high
+5. Let equity drop (losing trade)
+6. Wait for a heartbeat
+
+### Expect:
+- [ ] `peakEquity` tracks the highest equity seen
+- [ ] `peakEquity` never decreases (it's a high-water mark)
+- [ ] `maxDrawdownPct` = `(peakEquity - lowestEquitySincePeak) / peakEquity * 100`
+- [ ] `maxDrawdownMoney` tracks the absolute money amount of worst drawdown
+- [ ] Live Open Risk block shows `currentEquityDrawdownPct` and `maxEquityDrawdownPct`
+
+---
+
+## Scenario 40: Risk Money Backfill on Heartbeat
+
+> When a trade qualifies, `officialInitialRiskMoney` may be null if there's no price movement yet. It gets filled on subsequent heartbeats.
+
+### Do:
+1. Open a trade with SL+TP (qualifies AT_OPEN)
+2. Check `officialInitialRiskMoney` immediately after qualification — may be null
+3. Wait for 2-3 heartbeats while price moves
+4. Check `officialInitialRiskMoney` again
+
+### Expect:
+- [ ] `officialInitialRiskMoney` eventually gets filled (once price moves enough to compute dollarPerPoint)
+- [ ] Once set, it does not change on subsequent heartbeats
+- [ ] Formula: `dollarPerPoint = |profit / priceMove|`, then `riskMoney = dollarPerPoint * riskAbs`
+
+---
+
+## Scenario 41: Statement API — 3-Block JSON Response
+
+### Do:
+1. Call `GET /api/users/[userId]/trader-statement?clanId=[clanId]`
+2. Inspect the JSON response
+
+### Expect:
+- [ ] Response has three blocks: `closedPerformance`, `liveOpenRisk`, `effectiveRank`
+- [ ] `closedPerformance` contains: `totalTrades`, `winRate`, `avgRMultiple`, `totalRMultiple`, `profitFactor`, `bestR`, `worstR`, `wins`, `losses`, `breakevens`, `signalCount`
+- [ ] `liveOpenRisk` contains: `openOfficialCount`, `liveFloatingPnl`, `liveFloatingR`, `currentEquityDrawdownPct`, `maxEquityDrawdownPct`, `biggestOpenLoserR`, `unprotectedCount`, `staleWarning`, `lastUpdate`
+- [ ] `effectiveRank` contains: `closedOfficialR`, `openRiskPenalty`, `effectiveRankR`
+- [ ] `effectiveRankR` = `closedOfficialR` + `openRiskPenalty`
+- [ ] Only `officialSignalQualified` trades are included in closed performance metrics
+- [ ] Returns 401 for unauthenticated requests
+
+---
+
 ## Final Reconciliation
 
 After all scenarios, do one full audit pass:
 
 - [ ] Count all trades you created
-- [ ] Mark which ones should be eligible
+- [ ] Mark which ones should be eligible (must pass all 7 conditions including signal qualification)
 - [ ] Compare with the statement list
 - [ ] Sum expected `finalRR` of eligible trades only
-- [ ] Compare with leaderboard totals
+- [ ] Compare with leaderboard totals (should use `effectiveRankR`, not raw `totalR`)
 - [ ] Check that no manual-only or analysis-start trades slipped in
 - [ ] Check that no trade counted twice
+- [ ] Verify unqualified trades (missed 20s window) are permanently excluded
+- [ ] Verify frozen official snapshots did not change after SL/TP modifications
+- [ ] Verify effective rank penalizes open losses but not open gains
 
 ---
 
@@ -555,6 +800,12 @@ If you hit any of these, **stop and fix before moving on:**
 - [ ] Reconnect replay duplicates close events or statement contributions
 - [ ] Multi-account trades contaminate each other
 - [ ] Monthly/seasonal/all-time totals disagree
+- [ ] A trade that missed the 20-second window later becomes `officialSignalQualified`
+- [ ] Frozen official snapshot values change after SL/TP modification
+- [ ] Open profitable trades boost effective rank (should contribute 0, not positive)
+- [ ] `effectiveRankR` does not match `closedOfficialR + openRiskPenalty` formula
+- [ ] Tracking status does not recover to ACTIVE after EA reconnects
+- [ ] Stale-check endpoint crashes or returns wrong counts
 
 ---
 
@@ -591,4 +842,16 @@ If you hit any of these, **stop and fix before moving on:**
 | 27 | Feature flag behavior | | | | | | | | |
 | 28 | Aggregation boundaries | | | | | | | | |
 | 29 | Edit/delete linked card | | | | | | | | |
+| 30 | 20s window — instant qualification (AT_OPEN) | | | | | | | | |
+| 31 | 20s window — within window (WITHIN_WINDOW) | | | | | | | | |
+| 32 | 20s window — expired (permanent ANALYSIS) | | | | | | | | |
+| 33 | Frozen snapshot immutability | | | | | | | | |
+| 34 | Statement 3-block UI on profile | | | | | | | | |
+| 35 | Effective rank — open loss penalizes | | | | | | | | |
+| 36 | Effective rank — open gain does NOT boost | | | | | | | | |
+| 37 | Tracking status ACTIVE/STALE/TRACKING_LOST | | | | | | | | |
+| 38 | Ranking eligibility PROVISIONAL/UNRANKED | | | | | | | | |
+| 39 | Equity drawdown tracking | | | | | | | | |
+| 40 | Risk money backfill on heartbeat | | | | | | | | |
+| 41 | Statement API 3-block JSON | | | | | | | | |
 | -- | Final reconciliation | | | | | | | | |
