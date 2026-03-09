@@ -290,7 +290,14 @@
     "analysis": "Analysis",
     "shareAnalysis": "Share Analysis",
     "createAnalysis": "Create Analysis Card",
-    "analysisDisclaimer": "Analysis trades are not included in official statistics"
+    "analysisDisclaimer": "Analysis trades are not included in official statistics",
+    "priceLive": "Live",
+    "priceStale": "Stale price",
+    "priceCrossSource": "Price from another source",
+    "priceMarketClosed": "Market closed",
+    "priceHistorical": "Historical (last trade close)",
+    "priceNoPrice": "No price available",
+    "priceEstimated": "Estimated"
   },
   "clan": {
     "create": "Create Clan",

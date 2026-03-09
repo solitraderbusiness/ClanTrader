@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { redis } from "@/lib/redis";
 import { MessageServiceError } from "@/services/message.service";
+import { getDisplayPrices, makeHistoricalPrice, type ResolvedPrice } from "@/services/price-pool.service";
 
 export async function getWatchlist(userId: string, clanId: string) {
   return db.watchlist.findMany({
@@ -66,6 +66,9 @@ export interface InstrumentRow {
   instrument: string;
   price: number | null;
   priceTs: number | null;
+  priceStatus: string;
+  priceCrossSource: boolean;
+  priceSourceGroup: string | null;
   trades: number;
   open: number;
   wins: number;
@@ -77,30 +80,6 @@ export interface InstrumentRow {
   shorts: number;
   lastTradeAt: string | null;
   isStarred: boolean;
-}
-
-async function getInstrumentPrices(
-  symbols: string[]
-): Promise<Map<string, { price: number; ts: number }>> {
-  const result = new Map<string, { price: number; ts: number }>();
-  if (symbols.length === 0) return result;
-
-  const keys = symbols.map((s) => `price:${s}`);
-  const values = await redis.mget(...keys);
-
-  for (let i = 0; i < symbols.length; i++) {
-    const raw = values[i];
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw) as { price: number; ts: number };
-        result.set(symbols[i], parsed);
-      } catch {
-        // skip malformed entries
-      }
-    }
-  }
-
-  return result;
 }
 
 export async function getClanWatchlistData(
@@ -194,13 +173,16 @@ export async function getClanWatchlistData(
     ...new Set([...Object.keys(statsMap), ...starredSet]),
   ];
 
-  // 5. Fetch cached prices from Redis
-  const prices = await getInstrumentPrices(allSymbols);
+  // 5. Fetch cached prices via display API (cross-source OK for watchlist)
+  const prices: Map<string, ResolvedPrice> = await getDisplayPrices(allSymbols);
 
-  // 6. For instruments without cached price, get fallback from latest MtTrade closePrice
-  const missingPriceSymbols = allSymbols.filter((s) => !prices.has(s));
+  // 6. For instruments without cached price, fall back to latest MtTrade closePrice from DB.
+  // This is explicitly marked as historical — never treated as a live quote.
+  const missingPriceSymbols = allSymbols.filter((s) => {
+    const p = prices.get(s);
+    return !p || p.status === "no_price";
+  });
   if (missingPriceSymbols.length > 0) {
-    // Get clan member IDs for scoping MtTrade queries
     const members = await db.clanMember.findMany({
       where: { clanId },
       select: { userId: true },
@@ -219,10 +201,7 @@ export async function getClanWatchlistData(
       });
 
       if (fallback?.closePrice && fallback.closeTime) {
-        prices.set(sym, {
-          price: fallback.closePrice,
-          ts: fallback.closeTime.getTime(),
-        });
+        prices.set(sym, makeHistoricalPrice(sym, fallback.closePrice, fallback.closeTime.getTime()));
       }
     }
   }
@@ -237,6 +216,9 @@ export async function getClanWatchlistData(
       instrument: inst,
       price: p?.price ?? null,
       priceTs: p?.ts ?? null,
+      priceStatus: p?.status ?? "no_price",
+      priceCrossSource: p?.crossSource ?? false,
+      priceSourceGroup: p?.sourceGroup ?? null,
       trades: s?.trades ?? 0,
       open: s?.open ?? 0,
       wins: s?.wins ?? 0,

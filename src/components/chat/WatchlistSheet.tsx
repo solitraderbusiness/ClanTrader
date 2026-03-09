@@ -28,6 +28,9 @@ interface InstrumentRow {
   instrument: string;
   price: number | null;
   priceTs: number | null;
+  priceStatus?: string;
+  priceCrossSource?: boolean;
+  priceSourceGroup?: string | null;
   trades: number;
   open: number;
   wins: number;
@@ -54,26 +57,46 @@ function formatPrice(price: number): string {
   return price.toFixed(5);
 }
 
-function PriceStaleDot({ ts, now }: { ts: number | null; now: number }) {
-  if (!ts) return null;
-  const age = now - ts;
-  const color =
-    age < 60_000
-      ? "bg-emerald-500"
-      : age < 300_000
-        ? "bg-yellow-500"
-        : "bg-muted-foreground/40";
+function PriceStatusDot({ status, crossSource }: { status?: string; crossSource?: boolean }) {
+  if (!status || status === "no_price") return null;
+
+  let color: string;
+  let label: string;
+
+  switch (status) {
+    case "fresh_same_source":
+      color = "bg-emerald-500";
+      label = "Live";
+      break;
+    case "fresh_cross_source":
+      color = "bg-yellow-500";
+      label = "Live (other source)";
+      break;
+    case "stale_same_source":
+      color = "bg-orange-500";
+      label = "Stale";
+      break;
+    case "stale_cross_source":
+      color = "bg-red-500";
+      label = "Stale (other source)";
+      break;
+    case "market_closed":
+      color = "bg-muted-foreground/40";
+      label = "Market closed";
+      break;
+    case "historical_trade_close":
+      color = "bg-muted-foreground/40";
+      label = "Historical (last trade close)";
+      break;
+    default:
+      color = "bg-muted-foreground/40";
+      label = crossSource ? "Other source" : "Unknown";
+  }
 
   return (
     <span
       className={cn("inline-block h-1.5 w-1.5 rounded-full", color)}
-      title={
-        age < 60_000
-          ? "Live (<1m)"
-          : age < 300_000
-            ? "Recent (<5m)"
-            : "Stale"
-      }
+      title={label}
     />
   );
 }
@@ -119,7 +142,7 @@ export function WatchlistSheet({
   const [showAdd, setShowAdd] = useState(false);
   const [addInput, setAddInput] = useState("");
   const [adding, setAdding] = useState(false);
-  const [now, setNow] = useState(() => Date.now());
+  const [, setNow] = useState(() => Date.now());
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -345,8 +368,11 @@ export function WatchlistSheet({
                     <div className="flex items-center gap-1.5 shrink-0">
                       {row.price !== null ? (
                         <>
-                          <PriceStaleDot ts={row.priceTs} now={now} />
-                          <span className="font-mono text-sm tabular-nums">
+                          <PriceStatusDot status={row.priceStatus} crossSource={row.priceCrossSource} />
+                          <span className={cn(
+                            "font-mono text-sm tabular-nums",
+                            row.priceStatus === "historical_trade_close" && "text-muted-foreground italic"
+                          )}>
                             {formatPrice(row.price)}
                           </span>
                         </>

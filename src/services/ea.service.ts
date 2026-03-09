@@ -12,6 +12,13 @@ import { autoCreateSignalFromMtTrade, syncSignalModification, syncSignalClose } 
 import { calculateTargetRR } from "@/lib/risk-utils";
 import { getIO } from "@/lib/socket-io-global";
 import { SOCKET_EVENTS } from "@/lib/chat-constants";
+import {
+  writeHeartbeatPrice,
+  getTradeLastPrice,
+  getVerifiedPrice,
+  buildSourceGroup,
+  normalizeSymbol,
+} from "@/services/price-pool.service";
 
 function generateApiKey(): string {
   return crypto.randomBytes(32).toString("hex");
@@ -246,18 +253,28 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
     const dbOpenTrades = await db.mtTrade.findMany({
       where: { mtAccountId: account.id, isOpen: true },
     });
+    const sourceGroup = buildSourceGroup(account.broker, account.serverName, account.platform);
+
     for (const dbTrade of dbOpenTrades) {
       if (!openTickets.has(dbTrade.ticket)) {
-        // If no close price, try to fill from Redis-cached price
+        // VERIFICATION-GRADE close-price fallback.
+        // Order: exact trade → same account → same source group → unresolved.
+        // NEVER uses cross-source/display prices for trade reconciliation.
         let closePrice = dbTrade.closePrice;
         if (!closePrice) {
           try {
             const sym = dbTrade.symbol?.toUpperCase();
             if (sym) {
-              const cached = await redis.get(`price:${sym}`);
-              if (cached) {
-                const parsed = JSON.parse(cached) as { price: number };
-                closePrice = parsed.price;
+              // 1. Try exact trade last-known price
+              const tradePrice = await getTradeLastPrice(account.id, String(dbTrade.ticket));
+              if (tradePrice?.price) {
+                closePrice = tradePrice.price;
+              } else {
+                // 2-3. Try same account → same source group (never cross-source)
+                const verified = await getVerifiedPrice(sym, account.id, sourceGroup);
+                if (verified.price && verified.scope !== "none") {
+                  closePrice = verified.price;
+                }
               }
             }
           } catch { /* best effort */ }
@@ -299,22 +316,22 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
     }
   }
 
-  // Cache latest prices per symbol for watchlist + live R:R
+  // Write prices through source-aware price pool (all cache layers)
   if (data.openTrades.length > 0) {
-    const ttl = priceCacheTTL();
     const seen = new Set<string>();
     for (const trade of data.openTrades) {
       const sym = trade.symbol?.toUpperCase();
       if (sym && trade.currentPrice && trade.currentPrice > 0 && !seen.has(sym)) {
         seen.add(sym);
-        const priceJson = JSON.stringify({ price: trade.currentPrice, ts: Date.now() });
-        redis.set(`price:${sym}`, priceJson, "EX", ttl).catch(() => {});
-        // Also cache under normalized symbol so unlinked trade cards can find prices
-        const norm = normalizeSymbol(sym);
-        if (norm !== sym && !seen.has(norm)) {
-          seen.add(norm);
-          redis.set(`price:${norm}`, priceJson, "EX", ttl).catch(() => {});
-        }
+        writeHeartbeatPrice({
+          symbol: sym,
+          currentPrice: trade.currentPrice,
+          accountId: account.id,
+          ticket: String(trade.ticket),
+          broker: account.broker,
+          serverName: account.serverName,
+          platform: account.platform,
+        }).catch(() => {});
       }
     }
   }
@@ -481,55 +498,7 @@ export async function disconnectAccount(userId: string, accountId: string) {
 
 // --- Internal helpers ---
 
-/**
- * Return a TTL for cached prices.
- * During market hours (Sun 22:00 UTC – Fri 22:00 UTC): 300s (5 min).
- * Outside market hours: seconds until next Sunday 22:00 UTC so the
- * last Friday close price persists through the weekend.
- */
-function priceCacheTTL(): number {
-  const now = new Date();
-  const day = now.getUTCDay(); // 0=Sun … 6=Sat
-  const hour = now.getUTCHours();
-
-  const marketOpen =
-    (day === 0 && hour >= 22) ||  // Sunday after 22:00
-    (day >= 1 && day <= 4) ||      // Mon–Thu all day
-    (day === 5 && hour < 22);      // Friday before 22:00
-
-  if (marketOpen) return 300;
-
-  // Market is closed — compute seconds until Sunday 22:00 UTC
-  let daysUntilSunday: number;
-  if (day === 5) {
-    // Friday 22:00+ → 2 days to Sunday
-    daysUntilSunday = 2;
-  } else if (day === 6) {
-    // Saturday → 1 day to Sunday
-    daysUntilSunday = 1;
-  } else {
-    // Sunday before 22:00 → 0 days (same day)
-    daysUntilSunday = 0;
-  }
-
-  const nextOpen = new Date(now);
-  nextOpen.setUTCDate(now.getUTCDate() + daysUntilSunday);
-  // If we're on Saturday or Friday, target the upcoming Sunday
-  // Adjust to Sunday if needed
-  while (nextOpen.getUTCDay() !== 0) {
-    nextOpen.setUTCDate(nextOpen.getUTCDate() + 1);
-  }
-  nextOpen.setUTCHours(22, 0, 0, 0);
-
-  const seconds = Math.ceil((nextOpen.getTime() - now.getTime()) / 1000);
-  // Minimum 300s, maximum ~3 days
-  return Math.max(300, Math.min(seconds, 259200));
-}
-
-/** Strip common broker suffixes like _L, _l, .i, _m, _M etc. */
-function normalizeSymbol(symbol: string): string {
-  return symbol.toUpperCase().replace(/[._][A-Z]$/i, "");
-}
+// priceCacheTTL() and normalizeSymbol() moved to price-pool.service.ts
 
 async function broadcastTradePnl(
   linkedTrades: { matchedTradeId: string; currentPrice: number; mtProfit?: number }[]

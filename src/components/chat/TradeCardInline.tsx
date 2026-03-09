@@ -234,7 +234,7 @@ export function TradeCardInline({
                   }`}>
                     {livePnl.currentRR > 0 ? "+" : ""}{livePnl.currentRR.toFixed(2)}R
                   </p>
-                  <p className="font-mono text-[10px] text-muted-foreground/60">{livePnl.currentPrice}</p>
+                  <p className={`font-mono text-[10px] ${livePnl.crossSource ? "text-yellow-500/70" : "text-muted-foreground/60"}`}>{livePnl.crossSource ? "~" : ""}{livePnl.currentPrice}</p>
                   {livePnl.targetRR != null ? (
                     <p className="font-mono text-[10px] text-muted-foreground/60">{t("trade.target")}: {livePnl.targetRR.toFixed(1)}R</p>
                   ) : (
@@ -253,7 +253,7 @@ export function TradeCardInline({
                   }`}>
                     {livePnl.mtProfit > 0 ? "+" : ""}{livePnl.mtProfit.toFixed(2)}$
                   </p>
-                  <p className="font-mono text-[10px] text-muted-foreground/60">{livePnl.currentPrice}</p>
+                  <p className={`font-mono text-[10px] ${livePnl.crossSource ? "text-yellow-500/70" : "text-muted-foreground/60"}`}>{livePnl.crossSource ? "~" : ""}{livePnl.currentPrice}</p>
                 </>
               ) : livePnl.pricePnl != null ? (
                 <>
@@ -267,7 +267,7 @@ export function TradeCardInline({
                   }`}>
                     {livePnl.pricePnl > 0 ? "+" : ""}{formatPricePnl(livePnl.pricePnl)}
                   </p>
-                  <p className="font-mono text-[10px] text-muted-foreground/60">{livePnl.currentPrice}</p>
+                  <p className={`font-mono text-[10px] ${livePnl.crossSource ? "text-yellow-500/70" : "text-muted-foreground/60"}`}>{livePnl.crossSource ? "~" : ""}{livePnl.currentPrice}</p>
                 </>
               ) : (
                 <>

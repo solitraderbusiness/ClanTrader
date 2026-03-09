@@ -160,8 +160,8 @@ interface ChatState {
   updateTradeCardValues: (tradeId: string, updates: { stopLoss?: number; targets?: number[] }) => void;
 
   // Live R:R PnL
-  tradePnl: Record<string, { currentRR: number | null; currentPrice: number; targetRR?: number | null; riskStatus?: string; pricePnl?: number | null; mtProfit?: number | null }>;
-  updateTradePnl: (updates: Array<{ tradeId: string; currentRR: number | null; currentPrice: number; targetRR?: number | null; riskStatus?: string; pricePnl?: number | null; mtProfit?: number | null }>) => void;
+  tradePnl: Record<string, { currentRR: number | null; currentPrice: number; targetRR?: number | null; riskStatus?: string; pricePnl?: number | null; mtProfit?: number | null; priceStatus?: string; crossSource?: boolean }>;
+  updateTradePnl: (updates: Array<{ tradeId: string; currentRR: number | null; currentPrice: number; targetRR?: number | null; riskStatus?: string; pricePnl?: number | null; mtProfit?: number | null; priceStatus?: string; crossSource?: boolean }>) => void;
 
   reset: () => void;
 }
@@ -182,7 +182,7 @@ const initialState = {
   replyingTo: null as ChatMessage | null,
   editingMessage: null as ChatMessage | null,
   clanMembers: [] as ClanMember[],
-  tradePnl: {} as Record<string, { currentRR: number | null; currentPrice: number; targetRR?: number | null; riskStatus?: string; pricePnl?: number | null }>,
+  tradePnl: {} as Record<string, { currentRR: number | null; currentPrice: number; targetRR?: number | null; riskStatus?: string; pricePnl?: number | null; priceStatus?: string; crossSource?: boolean }>,
 };
 
 export const useChatStore = create<ChatState>((set) => ({

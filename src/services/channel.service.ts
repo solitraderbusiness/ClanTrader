@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { redis } from "@/lib/redis";
 import { CHANNEL_POSTS_PER_PAGE } from "@/lib/clan-constants";
+import { getDisplayPrices } from "@/services/price-pool.service";
 import type {
   CreateChannelPostInput,
   UpdateChannelPostInput,
@@ -245,21 +245,16 @@ export async function getChannelPosts(
     return [{ tradeId: trade.id, symbol, trade, card: p.tradeCard! }];
   });
 
-  const livePnlMap = new Map<string, { currentRR: number | null; currentPrice: number; targetRR: number | null; pricePnl: number; mtProfit?: number }>();
+  const livePnlMap = new Map<string, { currentRR: number | null; currentPrice: number; targetRR: number | null; pricePnl: number; mtProfit?: number; priceStatus?: string; crossSource?: boolean }>();
 
   if (openTrades.length > 0) {
     try {
       const symbols = [...new Set(openTrades.map((t) => t.symbol))];
-      const priceKeys = symbols.map((s) => `price:${s}`);
-      const priceValues = await redis.mget(...priceKeys);
+      // DISPLAY-GRADE: cross-source fallback is OK for channel post display
+      const resolvedPrices = await getDisplayPrices(symbols);
       const priceMap = new Map<string, number>();
-      for (let i = 0; i < symbols.length; i++) {
-        if (priceValues[i]) {
-          try {
-            const parsed = JSON.parse(priceValues[i]!) as { price: number };
-            priceMap.set(symbols[i], parsed.price);
-          } catch { /* skip */ }
-        }
+      for (const [sym, resolved] of resolvedPrices) {
+        if (resolved.price) priceMap.set(sym, resolved.price);
       }
 
       for (const { tradeId, symbol, trade, card } of openTrades) {

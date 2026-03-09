@@ -290,7 +290,14 @@
     "analysis": "تحلیل",
     "shareAnalysis": "اشتراک تحلیل",
     "createAnalysis": "ساخت کارت تحلیل",
-    "analysisDisclaimer": "معاملات تحلیلی در آمار رسمی لحاظ نمی‌شوند"
+    "analysisDisclaimer": "معاملات تحلیلی در آمار رسمی لحاظ نمی‌شوند",
+    "priceLive": "زنده",
+    "priceStale": "قیمت قدیمی",
+    "priceCrossSource": "قیمت از منبع دیگر",
+    "priceMarketClosed": "بازار بسته",
+    "priceHistorical": "تاریخی (آخرین بسته‌شدن معامله)",
+    "priceNoPrice": "قیمتی موجود نیست",
+    "priceEstimated": "تخمینی"
   },
   "clan": {
     "create": "ایجاد کلن",

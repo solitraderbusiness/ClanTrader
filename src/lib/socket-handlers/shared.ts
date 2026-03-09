@@ -2,6 +2,7 @@ import type { Server, Socket } from "socket.io";
 import type { SocketUser } from "../socket-auth";
 import { redis } from "../redis";
 import { db } from "@/lib/db";
+import { getDisplayPrices } from "@/services/price-pool.service";
 import {
   SOCKET_EVENTS,
   MESSAGE_RATE_LIMIT,
@@ -142,19 +143,13 @@ export async function sendInitialPnl(socket: Socket, clanId: string, topicId: st
       if (cardInstrument) symbolSet.add(cardInstrument);
     }
 
-    // Read cached prices from Redis using the broker symbol
+    // DISPLAY-GRADE: Read cached prices via display API (cross-source OK for initial load)
     const symbols = [...symbolSet];
     const priceMap = new Map<string, number>();
     if (symbols.length > 0) {
-      const priceKeys = symbols.map((s) => `price:${s}`);
-      const priceValues = await redis.mget(...priceKeys);
-      for (let i = 0; i < symbols.length; i++) {
-        if (priceValues[i]) {
-          try {
-            const parsed = JSON.parse(priceValues[i]!) as { price: number };
-            priceMap.set(symbols[i], parsed.price);
-          } catch { /* skip */ }
-        }
+      const resolvedPrices = await getDisplayPrices(symbols);
+      for (const [sym, resolved] of resolvedPrices) {
+        if (resolved.price) priceMap.set(sym, resolved.price);
       }
     }
 
