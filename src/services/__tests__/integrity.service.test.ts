@@ -29,6 +29,7 @@ function makeTrade(overrides: Record<string, unknown> = {}) {
     resolutionSource: "EA_VERIFIED",
     initialStopLoss: 1.0950,
     initialRiskMissing: false,
+    officialSignalQualified: true,
     wasEverCounted: false,
     userId: "user-1",
     tradeCard: {
@@ -235,6 +236,127 @@ describe("Integrity Contract - computeAndSetEligibility", () => {
 
     const updateCall = mockUpdate.mock.calls[0][0];
     expect(updateCall.data.wasEverCounted).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Condition 7: NOT_SIGNAL_QUALIFIED regression
+//
+// Trades must pass the 20-second qualification window (officialSignalQualified).
+// A trade that was never officially signal-qualified cannot be statement-eligible.
+// ---------------------------------------------------------------------------
+
+describe("Integrity Contract - NOT_SIGNAL_QUALIFIED", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpdate.mockResolvedValue({});
+    mockCount.mockResolvedValue(0);
+  });
+
+  it("rejects trade when officialSignalQualified is false", async () => {
+    mockFindUnique.mockResolvedValue(
+      makeTrade({ officialSignalQualified: false })
+    );
+
+    const result = await computeAndSetEligibility("trade-1");
+
+    expect(result).toBe(false);
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          statementEligible: false,
+          integrityDetails: expect.objectContaining({
+            reasons: expect.arrayContaining(["NOT_SIGNAL_QUALIFIED"]),
+          }),
+        }),
+      })
+    );
+  });
+
+  it("rejects trade when officialSignalQualified is undefined (never set)", async () => {
+    const trade = makeTrade();
+    // Remove the field entirely — simulates a trade created before the field existed
+    delete (trade as Record<string, unknown>).officialSignalQualified;
+    mockFindUnique.mockResolvedValue(trade);
+
+    const result = await computeAndSetEligibility("trade-1");
+
+    expect(result).toBe(false);
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          integrityDetails: expect.objectContaining({
+            reasons: expect.arrayContaining(["NOT_SIGNAL_QUALIFIED"]),
+          }),
+        }),
+      })
+    );
+  });
+
+  it("accepts trade when officialSignalQualified is true (all other conditions pass)", async () => {
+    mockFindUnique.mockResolvedValue(
+      makeTrade({ officialSignalQualified: true })
+    );
+
+    const result = await computeAndSetEligibility("trade-1");
+
+    expect(result).toBe(true);
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          statementEligible: true,
+          integrityStatus: "VERIFIED",
+        }),
+      })
+    );
+  });
+
+  it("NOT_SIGNAL_QUALIFIED accumulates with other failure reasons", async () => {
+    mockFindUnique.mockResolvedValue(
+      makeTrade({
+        officialSignalQualified: false,
+        mtLinked: false,
+        resolutionSource: "MANUAL",
+      })
+    );
+
+    const result = await computeAndSetEligibility("trade-1");
+
+    expect(result).toBe(false);
+    const updateCall = mockUpdate.mock.calls[0][0];
+    const reasons = updateCall.data.integrityDetails.reasons;
+    expect(reasons).toContain("NOT_SIGNAL_QUALIFIED");
+    expect(reasons).toContain("NOT_MT_LINKED");
+    expect(reasons).toContain("UNTRUSTED_RESOLUTION");
+  });
+
+  it("does not include NOT_SIGNAL_QUALIFIED when trade is qualified", async () => {
+    mockFindUnique.mockResolvedValue(
+      makeTrade({ officialSignalQualified: true })
+    );
+
+    await computeAndSetEligibility("trade-1");
+
+    const updateCall = mockUpdate.mock.calls[0][0];
+    // When eligible, integrityDetails is not set (undefined)
+    expect(updateCall.data.integrityDetails).toBeUndefined();
+  });
+
+  it("does not promote PENDING to VERIFIED when only NOT_SIGNAL_QUALIFIED fails", async () => {
+    mockFindUnique.mockResolvedValue(
+      makeTrade({ officialSignalQualified: false, integrityStatus: "PENDING" })
+    );
+
+    await computeAndSetEligibility("trade-1");
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          integrityStatus: "PENDING", // must NOT be promoted
+          statementEligible: false,
+        }),
+      })
+    );
   });
 });
 

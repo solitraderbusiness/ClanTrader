@@ -22,6 +22,7 @@ export const INTEGRITY_REASON_CODES = {
   CARD_AFTER_TRADE: "integrity.cardAfterTrade",
   NO_INITIAL_RISK: "integrity.noInitialRisk",
   DUPLICATE_MT_TICKET: "integrity.duplicateMtTicket",
+  NOT_SIGNAL_QUALIFIED: "integrity.notSignalQualified",
   ANALYSIS_UPGRADE: "integrity.analysisUpgrade",
   MANUAL_TRADE: "integrity.manualTrade",
   MANUAL_OVERRIDE: "integrity.manualOverride",
@@ -98,6 +99,11 @@ export async function computeAndSetEligibility(
     if (duplicates > 0) {
       reasons.push("DUPLICATE_MT_TICKET");
     }
+  }
+
+  // Condition 7: Official signal qualification (20-second window)
+  if (!trade.officialSignalQualified) {
+    reasons.push("NOT_SIGNAL_QUALIFIED");
   }
 
   const isEligible = reasons.length === 0;

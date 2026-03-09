@@ -10,9 +10,37 @@ export interface TraderStatementMetrics {
   bestRMultiple: number;
   worstRMultiple: number;
   totalRMultiple: number;
+  profitFactor: number;
   instrumentDistribution: Record<string, number>;
   directionDistribution: Record<string, number>;
   tagDistribution: Record<string, number>;
+}
+
+/** Live open risk overlay — computed on-demand, not stored in statement */
+export interface LiveOpenRisk {
+  openOfficialCount: number;
+  liveFloatingPnl: number;
+  liveFloatingR: number;
+  currentEquityDrawdownPct: number;
+  maxEquityDrawdownPct: number;
+  biggestOpenLoserR: number;
+  unprotectedCount: number;
+  staleWarning: boolean;
+  lastUpdate: string | null;
+}
+
+/** Effective rank view — combines closed R with open risk penalty */
+export interface EffectiveRankView {
+  closedOfficialR: number;
+  openRiskPenalty: number;
+  effectiveRankR: number;
+}
+
+/** Full 3-block statement page response */
+export interface StatementPageData {
+  closedPerformance: TraderStatementMetrics;
+  liveOpenRisk: LiveOpenRisk;
+  effectiveRank: EffectiveRankView;
 }
 
 export function emptyMetrics(): TraderStatementMetrics {
@@ -28,6 +56,7 @@ export function emptyMetrics(): TraderStatementMetrics {
     bestRMultiple: 0,
     worstRMultiple: -Infinity,
     totalRMultiple: 0,
+    profitFactor: 0,
     instrumentDistribution: {},
     directionDistribution: {},
     tagDistribution: {},

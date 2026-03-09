@@ -10,6 +10,8 @@ import { generateStatementFromMtAccount } from "@/services/mt-statement.service"
 import { fetchPendingActionsForAccount } from "@/services/ea-action.service";
 import { autoCreateSignalFromMtTrade, syncSignalModification, syncSignalClose } from "@/services/ea-signal.service";
 import { calculateTargetRR } from "@/lib/risk-utils";
+import { updateEquityDrawdown } from "@/services/live-risk.service";
+import { expireUnqualifiedTrades, backfillRiskMoney } from "@/services/signal-qualification.service";
 import { getIO } from "@/lib/socket-io-global";
 import { SOCKET_EVENTS } from "@/lib/chat-constants";
 import {
@@ -196,7 +198,7 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
   }
   await redis.set(rateLimitKey, "1", "EX", 10);
 
-  // Update account balance/equity
+  // Update account balance/equity + tracking status
   await db.mtAccount.update({
     where: { id: account.id },
     data: {
@@ -205,8 +207,12 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
       margin: data.margin,
       freeMargin: data.freeMargin,
       lastHeartbeat: new Date(),
+      trackingStatus: "ACTIVE",
     },
   });
+
+  // Update equity drawdown tracking
+  updateEquityDrawdown(account.id, data.equity).catch(() => {});
 
   // Upsert open trades with signal change detection
   const linkedTrades: { matchedTradeId: string; currentPrice: number; mtProfit?: number }[] = [];
@@ -348,6 +354,25 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
     broadcastUnlinkedTradePnl(account.userId, data.openTrades).catch((err) =>
       log("ea.broadcast_unlinked_pnl_error", "ERROR", "EA", { error: String(err) }, account.userId)
     );
+  }
+
+  // Expire trades that missed the 20-second qualification window
+  expireUnqualifiedTrades(account.userId).catch(() => {});
+
+  // Backfill risk money for qualified trades missing it
+  if (data.openTrades.length > 0) {
+    for (const ot of data.openTrades) {
+      if (ot.currentPrice && ot.currentPrice > 0) {
+        const mt = await db.mtTrade.findUnique({
+          where: { mtAccountId_ticket: { mtAccountId: account.id, ticket: BigInt(ot.ticket) } },
+          select: { matchedTradeId: true },
+        });
+        if (mt?.matchedTradeId) {
+          const pnl = (ot.profit ?? 0) + (ot.commission ?? 0) + (ot.swap ?? 0);
+          backfillRiskMoney(mt.matchedTradeId, ot.lots, ot.currentPrice, pnl, ot.direction).catch(() => {});
+        }
+      }
+    }
   }
 
   // Auto-generate trading statement from closed trades

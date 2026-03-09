@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ProfileCard } from "@/components/profile/ProfileCard";
 import { MtAccountsSection } from "@/components/profile/MtAccountsSection";
+import { TraderStatementView } from "@/components/profile/TraderStatementView";
 import { Button } from "@/components/ui/button";
 import { Mail } from "lucide-react";
 import Link from "next/link";
@@ -100,9 +101,17 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     })),
   };
 
+  // Get the first clan membership for statement display
+  const firstClan = user.clanMemberships[0]?.clan;
+
   return (
     <div className="mx-auto max-w-2xl">
       <ProfileCard user={serialized} isOwnProfile={isOwnProfile} />
+      {firstClan && (
+        <div className="mt-4">
+          <TraderStatementView userId={user.id} clanId={firstClan.id} />
+        </div>
+      )}
       {serialized.mtAccounts.length > 0 && (
         <MtAccountsSection
           accounts={serialized.mtAccounts}

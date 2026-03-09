@@ -2,6 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { getInitials } from "@/lib/utils";
 import type { TraderStatementMetrics } from "@/types/trader-statement";
@@ -11,7 +12,7 @@ interface LeaderboardEntry {
   entityId: string;
   rank: number | null;
   lens: string;
-  metrics: TraderStatementMetrics & { score: number };
+  metrics: TraderStatementMetrics & { score: number; effectiveRankR?: number };
   user: { id: string; name: string | null; avatar: string | null } | null;
 }
 
@@ -39,7 +40,7 @@ export function LeaderboardTable({ entries }: LeaderboardTableProps) {
             <th className="px-3 py-2 text-start">Trader</th>
             <th className="px-3 py-2 text-end">Score</th>
             <th className="hidden px-3 py-2 text-end sm:table-cell">Win Rate</th>
-            <th className="hidden px-3 py-2 text-end sm:table-cell">Total R</th>
+            <th className="hidden px-3 py-2 text-end sm:table-cell">{t("statement.effectiveR")}</th>
             <th className="hidden px-3 py-2 text-end md:table-cell">{t("leaderboard.signals")}</th>
           </tr>
         </thead>
@@ -87,7 +88,16 @@ export function LeaderboardTable({ entries }: LeaderboardTableProps) {
                 {((entry.metrics.winRate || 0) * 100).toFixed(0)}%
               </td>
               <td className="hidden px-3 py-2 text-end sm:table-cell">
-                {(entry.metrics.totalRMultiple || 0).toFixed(1)}R
+                <span className={cn(
+                  "font-mono",
+                  (entry.metrics.effectiveRankR ?? entry.metrics.totalRMultiple ?? 0) > 0
+                    ? "text-emerald-500"
+                    : (entry.metrics.effectiveRankR ?? entry.metrics.totalRMultiple ?? 0) < 0
+                      ? "text-red-500"
+                      : ""
+                )}>
+                  {(entry.metrics.effectiveRankR ?? entry.metrics.totalRMultiple ?? 0).toFixed(1)}R
+                </span>
               </td>
               <td className="hidden px-3 py-2 text-end md:table-cell">
                 {entry.metrics.signalCount || 0}

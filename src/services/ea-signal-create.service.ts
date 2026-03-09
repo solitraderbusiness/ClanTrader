@@ -9,6 +9,7 @@ import { createTradeCardMessage } from "@/services/trade-card.service";
 import { maybeAutoPost } from "@/services/auto-post.service";
 import { normalizeInstrument, mapDirection } from "@/services/signal-matcher.service";
 import { computeAndSetEligibility } from "@/services/integrity.service";
+import { computeQualificationDeadline, qualifyTrade } from "@/services/signal-qualification.service";
 import { serializeMessageForSocket, topicRoom } from "./ea-signal-helpers";
 import type { MtTrade } from "@prisma/client";
 
@@ -63,6 +64,8 @@ export async function autoCreateSignalFromMtTrade(
     const direction = mapDirection(mtTrade.direction);
 
     // Create Trade record — starts PENDING, eligibility computed after
+    const qualificationDeadline = computeQualificationDeadline(mtTrade.openTime);
+
     const trade = await db.trade.create({
       data: {
         tradeCardId: message.tradeCard.id,
@@ -83,6 +86,7 @@ export async function autoCreateSignalFromMtTrade(
         riskStatus: deriveRiskStatus(direction, mtTrade.openPrice, sl),
         openedAt: mtTrade.openTime,
         openReceivedAt: new Date(),
+        qualificationDeadline,
       },
     });
 
@@ -92,8 +96,21 @@ export async function autoCreateSignalFromMtTrade(
       data: { matchedTradeId: trade.id },
     });
 
-    // Compute eligibility (deny-by-default)
-    await computeAndSetEligibility(trade.id);
+    // If SL+TP present at open → qualify immediately
+    if (hasSL && hasTP) {
+      await qualifyTrade(
+        trade.id, sl, tp, mtTrade.openPrice, "AT_OPEN",
+        {
+          lots: mtTrade.lots,
+          currentPrice: mtTrade.openPrice,
+          profit: mtTrade.profit ?? 0,
+          direction: mtTrade.direction,
+        }
+      );
+    } else {
+      // Not qualified yet — eligibility check will fail, but run for audit
+      await computeAndSetEligibility(trade.id);
+    }
 
     // Broadcast via Socket.io
     const io = getIO();

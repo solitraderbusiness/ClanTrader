@@ -466,6 +466,19 @@ model Trade {
   wasEverCounted      Boolean          @default(false)
   countedAt           DateTime?
 
+  // Official signal qualification (20-second window from MT open)
+  officialSignalQualified  Boolean   @default(false)
+  officialQualifiedAt      DateTime?
+  qualificationDeadline    DateTime?
+  officialSignalOriginType String?   // "AT_OPEN" | "WITHIN_WINDOW"
+
+  // Frozen official risk snapshot (set at qualification, NEVER changed after)
+  officialEntryPrice       Float?
+  officialInitialStopLoss  Float?
+  officialInitialTargets   Float[]   @default([])
+  officialInitialRiskAbs   Float?
+  officialInitialRiskMoney Float?
+
   // Integrity contract fields
   eligibleAtOpen      Boolean          @default(false)
   openedAt            DateTime?
@@ -486,6 +499,7 @@ model Trade {
   @@index([clanId, status])
   @@index([clanId, createdAt])
   @@index([userId])
+  @@index([userId, officialSignalQualified])
   @@index([status, lastEvaluatedAt])
 }
 
@@ -626,6 +640,11 @@ model TraderStatement {
   metrics      Json
   tradeCount   Int
   calculatedAt DateTime        @default(now())
+
+  // Effective rank support (updated from live risk overlay)
+  effectiveRankR   Float?
+  openRiskPenalty  Float?
+  rankingStatus    String         @default("RANKED") // RANKED | PROVISIONAL | UNRANKED
 
   @@unique([userId, clanId, periodType, periodKey])
   @@index([clanId, periodType])
@@ -923,6 +942,14 @@ model MtAccount {
   lastHeartbeat DateTime?
   connectedAt   DateTime      @default(now())
   apiKey        String        @unique
+
+  // Tracking health (heartbeat-based)
+  trackingStatus    String    @default("ACTIVE") // ACTIVE | STALE | TRACKING_LOST
+
+  // Equity drawdown tracking (updated on heartbeat)
+  peakEquity        Float?
+  maxDrawdownPct    Float?
+  maxDrawdownMoney  Float?
 
   trades         MtTrade[]
   statements     TradingStatement[]

@@ -19,6 +19,7 @@ export async function getEligibleTrades(
       status: { in: ["TP_HIT", "SL_HIT", "BE", "CLOSED"] },
       integrityStatus: "VERIFIED",
       statementEligible: true,
+      officialSignalQualified: true,
       cardType: "SIGNAL",
       tradeCard: {
         tags: { hasSome: ["signal"] },
@@ -94,6 +95,7 @@ export async function calculateStatement(
     bestRMultiple: -Infinity,
     worstRMultiple: Infinity,
     totalRMultiple: 0,
+    profitFactor: 0,
     instrumentDistribution: {},
     directionDistribution: {},
     tagDistribution: {},
@@ -151,6 +153,11 @@ export async function calculateStatement(
   metrics.avgRMultiple = rValues.length > 0
     ? metrics.totalRMultiple / rValues.length
     : 0;
+
+  // Profit factor = sum(positive R) / |sum(negative R)|
+  const grossProfit = rValues.filter((r) => r > 0).reduce((a, b) => a + b, 0);
+  const grossLoss = Math.abs(rValues.filter((r) => r < 0).reduce((a, b) => a + b, 0));
+  metrics.profitFactor = grossLoss > 0 ? Math.round((grossProfit / grossLoss) * 100) / 100 : grossProfit > 0 ? Infinity : 0;
 
   if (metrics.bestRMultiple === -Infinity) metrics.bestRMultiple = 0;
   if (metrics.worstRMultiple === Infinity) metrics.worstRMultiple = 0;

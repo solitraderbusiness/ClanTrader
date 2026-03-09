@@ -56,6 +56,11 @@ vi.mock("@/services/integrity.service", () => ({
   computeAndSetEligibility: vi.fn(() => Promise.resolve(true)),
 }));
 
+vi.mock("@/services/signal-qualification.service", () => ({
+  computeQualificationDeadline: vi.fn((d: Date) => new Date(d.getTime() + 20_000)),
+  qualifyTrade: vi.fn(() => Promise.resolve(true)),
+}));
+
 vi.mock("@/services/signal-matcher.service", () => ({
   normalizeInstrument: vi.fn((s: string) => s.toUpperCase()),
   mapDirection: vi.fn((d: string) => (d === "BUY" ? "LONG" : "SHORT")),
@@ -72,6 +77,7 @@ import { db } from "@/lib/db";
 import { redis } from "@/lib/redis";
 import { createTradeCardMessage } from "@/services/trade-card.service";
 import { computeAndSetEligibility } from "@/services/integrity.service";
+import { qualifyTrade } from "@/services/signal-qualification.service";
 import { pipDistance } from "@/services/signal-matcher.service";
 import { deriveRiskStatus } from "@/lib/risk-utils";
 import { calculateStatement } from "@/services/statement-calc.service";
@@ -119,6 +125,9 @@ function makeTradeWithCard(overrides: Record<string, unknown> = {}) {
     initialRiskAbs: 0.005,
     initialRiskMissing: false,
     riskStatus: "PROTECTED",
+    officialSignalQualified: false,
+    qualificationDeadline: new Date(Date.now() + 20_000),
+    openedAt: new Date(),
     tradeCard: {
       id: "card-1",
       instrument: "EURUSD",
@@ -350,7 +359,7 @@ describe("autoCreateSignalFromMtTrade", () => {
     );
   });
 
-  it("calls computeAndSetEligibility after trade creation", async () => {
+  it("calls qualifyTrade (AT_OPEN) when SL+TP present at creation", async () => {
     const mtTrade = makeMtTrade();
     mockRedisSet.mockResolvedValue("OK" as never);
     mockClanMemberFindFirst.mockResolvedValue({ clanId: "clan-1" } as never);
@@ -367,7 +376,11 @@ describe("autoCreateSignalFromMtTrade", () => {
 
     await autoCreateSignalFromMtTrade(mtTrade as never, "user-1");
 
-    expect(mockComputeAndSetEligibility).toHaveBeenCalledWith("trade-1");
+    // With SL+TP present, qualifyTrade is called (not computeAndSetEligibility directly)
+    expect(qualifyTrade).toHaveBeenCalledWith(
+      "trade-1", 1.095, 1.11, 1.1, "AT_OPEN",
+      expect.objectContaining({ lots: 0.1, direction: "BUY" })
+    );
   });
 
   it("links MtTrade to Trade via mtTrade.update with matchedTradeId", async () => {
@@ -476,9 +489,14 @@ describe("syncSignalModification", () => {
 
     await syncSignalModification(mtTrade as never, "user-1");
 
-    // First trade.update is for the ANALYSIS->SIGNAL upgrade
-    const firstUpdateCall = mockTradeUpdate.mock.calls[0][0];
-    expect(firstUpdateCall).toEqual(
+    // qualifyTrade should be called (within-window qualification)
+    // Then ANALYSIS->SIGNAL upgrade should capture initial risk
+    const allUpdateCalls = mockTradeUpdate.mock.calls.map((c) => c[0]);
+    const upgradeCall = allUpdateCalls.find(
+      (c) => (c as Record<string, unknown>).data && (((c as Record<string, unknown>).data) as Record<string, unknown>).cardType === "SIGNAL"
+    );
+    expect(upgradeCall).toBeTruthy();
+    expect(upgradeCall).toEqual(
       expect.objectContaining({
         where: { id: "trade-1" },
         data: expect.objectContaining({

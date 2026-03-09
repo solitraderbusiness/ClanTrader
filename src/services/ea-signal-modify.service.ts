@@ -4,6 +4,7 @@ import { log } from "@/lib/audit";
 import { deriveRiskStatus } from "@/lib/risk-utils";
 import { maybeAutoPost, updateChannelPostRiskWarning, updateChannelPostTargets } from "@/services/auto-post.service";
 import { computeAndSetEligibility } from "@/services/integrity.service";
+import { qualifyTrade } from "@/services/signal-qualification.service";
 import { createSystemMessage, broadcastMessages } from "./ea-signal-helpers";
 import type { MtTrade } from "@prisma/client";
 
@@ -138,6 +139,27 @@ export async function syncSignalModification(
       let newTags = [...tradeCard.tags];
       let newCardType = tradeCard.cardType;
       const hasBothNow = newSL > 0 && newTP > 0;
+
+      // Attempt official signal qualification within 20-second window
+      if (hasBothNow && !trade.officialSignalQualified) {
+        const mtTradeData = {
+          lots: mtTrade.lots,
+          currentPrice: mtTrade.openPrice,
+          profit: mtTrade.profit ?? 0,
+          direction: mtTrade.direction,
+        };
+        const qualified = await qualifyTrade(
+          trade.id, newSL, newTP, tradeCard.entry, "WITHIN_WINDOW", mtTradeData
+        );
+
+        if (qualified) {
+          log("signal.qualified_within_window", "INFO", "TRADE", {
+            tradeId: trade.id,
+            ticket: String(mtTrade.ticket),
+          }, userId);
+        }
+      }
+
       if (hasBothNow && (newTags.includes("analysis") || newCardType === "ANALYSIS")) {
         // Upgrade from ANALYSIS to SIGNAL — cardType only, NOT eligibility
         newTags = newTags.filter((t) => t !== "analysis");

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { DEFAULT_WEIGHTS, DEFAULT_LENSES } from "@/lib/ranking-constants";
 import { evaluateTrophyBadges } from "@/services/badge-engine.service";
+import { computeEffectiveRank } from "@/services/live-risk.service";
 import type { Prisma } from "@prisma/client";
 import type { TraderStatementMetrics } from "@/types/trader-statement";
 import type { LeaderboardLens, RankingWeights } from "@/types/ranking";
@@ -56,18 +57,35 @@ export async function calculateRankings(seasonId: string) {
 
   if (eligible.length === 0) return [];
 
-  // Extract metrics
-  const metricsMap = eligible.map((s) => ({
-    userId: s.userId,
-    userName: s.user.name,
-    metrics: s.metrics as unknown as TraderStatementMetrics,
-  }));
+  // Extract metrics and compute effective rank R for each trader
+  const metricsMap: { userId: string; userName: string | null; metrics: TraderStatementMetrics; effectiveRankR: number }[] = [];
+  for (const s of eligible) {
+    const m = s.metrics as unknown as TraderStatementMetrics;
+    const effectiveRank = await computeEffectiveRank(s.userId, s.clanId, m.totalRMultiple);
+
+    // Update effective rank on the statement
+    await db.traderStatement.update({
+      where: { id: s.id },
+      data: {
+        effectiveRankR: effectiveRank.effectiveRankR,
+        openRiskPenalty: effectiveRank.openRiskPenalty,
+        rankingStatus: s.rankingStatus ?? "RANKED",
+      },
+    });
+
+    metricsMap.push({
+      userId: s.userId,
+      userName: s.user.name,
+      metrics: m,
+      effectiveRankR: effectiveRank.effectiveRankR,
+    });
+  }
 
   // Calculate per-lens scores
   const lensScores: Record<string, { userId: string; score: number }[]> = {};
 
-  // Profit: totalRMultiple DESC
-  const profitValues = metricsMap.map((m) => m.metrics.totalRMultiple);
+  // Profit: effectiveRankR DESC (penalizes open losses, ignores open gains)
+  const profitValues = metricsMap.map((m) => m.effectiveRankR);
   const normProfit = normalizeValues(profitValues);
 
   // Low Risk: worstRMultiple DESC (higher is better)
@@ -149,6 +167,7 @@ export async function calculateRankings(seasonId: string) {
           rank: i + 1,
           metrics: {
             score: entry.score,
+            effectiveRankR: trader.effectiveRankR,
             ...trader.metrics,
           } as unknown as Prisma.InputJsonValue,
         },
@@ -156,6 +175,7 @@ export async function calculateRankings(seasonId: string) {
           rank: i + 1,
           metrics: {
             score: entry.score,
+            effectiveRankR: trader.effectiveRankR,
             ...trader.metrics,
           } as unknown as Prisma.InputJsonValue,
         },
