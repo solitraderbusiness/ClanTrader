@@ -1,15 +1,445 @@
 //+------------------------------------------------------------------+
 //| ClanTrader_EA.mq4 — MetaTrader 4 Expert Advisor                |
 //| Connects MT4 to ClanTrader platform                             |
+//| Single-file version — no separate includes needed               |
 //+------------------------------------------------------------------+
 #property copyright "ClanTrader"
 #property link      "https://clantrader.com"
 #property version   "1.00"
 #property strict
 
-#include <ClanTrader_JSON.mqh>
-#include <ClanTrader_HTTP.mqh>
-#include <ClanTrader_Panel.mqh>
+//+==================================================================+
+//| === JSON UTILITIES ===                                           |
+//+==================================================================+
+
+//--- Simple JSON builder ---
+
+string JsonStart() { return "{"; }
+string JsonEnd(string &json) {
+   // Remove trailing comma
+   if (StringGetChar(json, StringLen(json)-1) == ',')
+      json = StringSubstr(json, 0, StringLen(json)-1);
+   json += "}";
+   return json;
+}
+
+string JsonArrayStart() { return "["; }
+string JsonArrayEnd(string &json) {
+   if (StringLen(json) > 1 && StringGetChar(json, StringLen(json)-1) == ',')
+      json = StringSubstr(json, 0, StringLen(json)-1);
+   json += "]";
+   return json;
+}
+
+string JsonAddString(string key, string value) {
+   return "\"" + key + "\":\"" + EscapeJson(value) + "\",";
+}
+
+string JsonAddInt(string key, int value) {
+   return "\"" + key + "\":" + IntegerToString(value) + ",";
+}
+
+string JsonAddDouble(string key, double value) {
+   return "\"" + key + "\":" + DoubleToStr(value, 5) + ",";
+}
+
+string JsonAddBool(string key, bool value) {
+   return "\"" + key + "\":" + (value ? "true" : "false") + ",";
+}
+
+string JsonAddRaw(string key, string rawJson) {
+   return "\"" + key + "\":" + rawJson + ",";
+}
+
+string EscapeJson(string s) {
+   string result = s;
+   StringReplace(result, "\\", "\\\\");
+   StringReplace(result, "\"", "\\\"");
+   StringReplace(result, "\n", "\\n");
+   StringReplace(result, "\r", "\\r");
+   StringReplace(result, "\t", "\\t");
+   return result;
+}
+
+//--- Simple JSON value extraction ---
+
+string JsonGetString(string json, string key) {
+   string search = "\"" + key + "\":\"";
+   int pos = StringFind(json, search);
+   if (pos < 0) return "";
+   int start = pos + StringLen(search);
+   int end = StringFind(json, "\"", start);
+   if (end < 0) return "";
+   return StringSubstr(json, start, end - start);
+}
+
+string JsonGetValue(string json, string key) {
+   // For non-string values (numbers, bools, objects)
+   string search = "\"" + key + "\":";
+   int pos = StringFind(json, search);
+   if (pos < 0) return "";
+   int start = pos + StringLen(search);
+   // Find end: comma, }, or ]
+   int end = start;
+   int len = StringLen(json);
+   int depth = 0;
+   while (end < len) {
+      int ch = StringGetChar(json, end);
+      if (ch == '{' || ch == '[') depth++;
+      else if (ch == '}' || ch == ']') {
+         if (depth == 0) break;
+         depth--;
+      }
+      else if (ch == ',' && depth == 0) break;
+      end++;
+   }
+   return StringSubstr(json, start, end - start);
+}
+
+//--- JSON array splitter ---
+
+// Split a JSON array string into individual elements.
+// Input: "[{...},{...}]"  Output: array of "{...}" strings
+int SplitJsonArray(string jsonArray, string &items[], int maxItems = 20) {
+   ArrayResize(items, 0);
+   int len = StringLen(jsonArray);
+   if (len < 2) return 0;
+
+   // Strip outer brackets
+   if (StringGetChar(jsonArray, 0) == '[')
+      jsonArray = StringSubstr(jsonArray, 1, len - 2);
+
+   len = StringLen(jsonArray);
+   int count = 0;
+   int depth = 0;
+   int start = 0;
+
+   for (int i = 0; i < len && count < maxItems; i++) {
+      int ch = StringGetChar(jsonArray, i);
+      if (ch == '{' || ch == '[') depth++;
+      else if (ch == '}' || ch == ']') depth--;
+      else if (ch == ',' && depth == 0) {
+         string item = StringSubstr(jsonArray, start, i - start);
+         StringTrimLeft(item);
+         StringTrimRight(item);
+         if (StringLen(item) > 0) {
+            int sz = ArraySize(items);
+            ArrayResize(items, sz + 1);
+            items[sz] = item;
+            count++;
+         }
+         start = i + 1;
+      }
+   }
+
+   // Last element
+   if (start < len && count < maxItems) {
+      string last = StringSubstr(jsonArray, start, len - start);
+      StringTrimLeft(last);
+      StringTrimRight(last);
+      if (StringLen(last) > 0) {
+         int sz = ArraySize(items);
+         ArrayResize(items, sz + 1);
+         items[sz] = last;
+         count++;
+      }
+   }
+
+   return count;
+}
+
+//--- DateTime conversion: MQL4 -> ISO 8601 ---
+
+string DateTimeToISO(datetime dt) {
+   return TimeToStr(dt, TIME_DATE) + "T" + TimeToStr(dt, TIME_SECONDS) + "Z";
+}
+
+//+==================================================================+
+//| === HTTP UTILITIES ===                                           |
+//+==================================================================+
+
+//--- Configuration ---
+string g_BaseUrl = "https://clantrader.com";
+string g_ApiKey = "";
+int    g_HttpTimeout = 10000; // 10 seconds
+
+void SetBaseUrl(string url)   { g_BaseUrl = url; }
+void SetApiKey(string key)    { g_ApiKey = key; }
+
+//--- HTTP POST with JSON body ---
+
+int HttpPost(string endpoint, string jsonBody, string &response) {
+   string url = g_BaseUrl + endpoint;
+   string headers = "Content-Type: application/json\r\n";
+   if (g_ApiKey != "")
+      headers += "Authorization: Bearer " + g_ApiKey + "\r\n";
+
+   char post[];
+   char result[];
+   string resultHeaders;
+
+   StringToCharArray(jsonBody, post, 0, WHOLE_ARRAY, CP_UTF8);
+   // Remove null terminator from char array
+   ArrayResize(post, ArraySize(post) - 1);
+
+   int httpCode = WebRequest(
+      "POST",
+      url,
+      headers,
+      g_HttpTimeout,
+      post,
+      result,
+      resultHeaders
+   );
+
+   if (httpCode == -1) {
+      int err = GetLastError();
+      response = "{\"error\":\"WebRequest failed, code " + IntegerToString(err) + ". Add " + g_BaseUrl + " to allowed URLs.\"}";
+      return -1;
+   }
+
+   response = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
+   return httpCode;
+}
+
+//--- HTTP GET ---
+
+int HttpGet(string endpoint, string &response) {
+   string url = g_BaseUrl + endpoint;
+   string headers = "";
+   if (g_ApiKey != "")
+      headers = "Authorization: Bearer " + g_ApiKey + "\r\n";
+
+   char post[];
+   char result[];
+   string resultHeaders;
+
+   int httpCode = WebRequest(
+      "GET",
+      url,
+      headers,
+      g_HttpTimeout,
+      post,
+      result,
+      resultHeaders
+   );
+
+   if (httpCode == -1) {
+      int err = GetLastError();
+      response = "{\"error\":\"WebRequest failed, code " + IntegerToString(err) + "\"}";
+      return -1;
+   }
+
+   response = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
+   return httpCode;
+}
+
+//+==================================================================+
+//| === PANEL UI ===                                                 |
+//+==================================================================+
+
+//--- Panel object names ---
+#define PANEL_BG         "CT_PanelBG"
+#define PANEL_TITLE      "CT_Title"
+#define PANEL_USER_LABEL "CT_UserLabel"
+#define PANEL_USER_INPUT "CT_UserInput"
+#define PANEL_PASS_LABEL "CT_PassLabel"
+#define PANEL_PASS_INPUT "CT_PassInput"
+#define PANEL_BTN_EYE    "CT_BtnEye"
+#define PANEL_BTN_LOGIN  "CT_BtnLogin"
+#define PANEL_BTN_REG    "CT_BtnRegister"
+#define PANEL_STATUS     "CT_Status"
+#define PANEL_ACCT_INFO  "CT_AcctInfo"
+
+//--- Panel dimensions ---
+#define PANEL_X     20
+#define PANEL_Y     30
+#define PANEL_W     260
+#define PANEL_H     280
+
+//--- Colors ---
+#define CLR_BG      C'30,30,40'
+#define CLR_BORDER  C'60,60,80'
+#define CLR_TEXT    clrWhite
+#define CLR_LABEL  clrLightGray
+#define CLR_INPUT  C'50,50,65'
+#define CLR_BTN    C'45,120,220'
+#define CLR_BTN2   C'80,80,100'
+#define CLR_OK     clrLime
+#define CLR_ERR    clrRed
+
+//--- Password masking state ---
+string g_RealPassword = "";
+bool   g_PasswordVisible = false;
+
+//--- Create dot mask of given length ---
+string MakeDotMask(int len) {
+   string mask = "";
+   for (int i = 0; i < len; i++)
+      mask += "*";
+   return mask;
+}
+
+//--- Create the panel ---
+void PanelCreate() {
+   // Background
+   ObjectCreate(0, PANEL_BG, OBJ_RECTANGLE_LABEL, 0, 0, 0);
+   ObjectSetInteger(0, PANEL_BG, OBJPROP_XDISTANCE, PANEL_X);
+   ObjectSetInteger(0, PANEL_BG, OBJPROP_YDISTANCE, PANEL_Y);
+   ObjectSetInteger(0, PANEL_BG, OBJPROP_XSIZE, PANEL_W);
+   ObjectSetInteger(0, PANEL_BG, OBJPROP_YSIZE, PANEL_H);
+   ObjectSetInteger(0, PANEL_BG, OBJPROP_BGCOLOR, CLR_BG);
+   ObjectSetInteger(0, PANEL_BG, OBJPROP_BORDER_COLOR, CLR_BORDER);
+   ObjectSetInteger(0, PANEL_BG, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+
+   // Title
+   CreateLabel(PANEL_TITLE, PANEL_X + 10, PANEL_Y + 10, "ClanTrader EA", CLR_TEXT, 12);
+
+   // Username / Email
+   CreateLabel(PANEL_USER_LABEL, PANEL_X + 10, PANEL_Y + 40, "Username / Email:", CLR_LABEL, 9);
+   CreateEdit(PANEL_USER_INPUT, PANEL_X + 10, PANEL_Y + 58, 240, 22, "");
+
+   // Password
+   CreateLabel(PANEL_PASS_LABEL, PANEL_X + 10, PANEL_Y + 90, "Password:", CLR_LABEL, 9);
+   CreateEdit(PANEL_PASS_INPUT, PANEL_X + 10, PANEL_Y + 108, 212, 22, "");
+
+   // Eye toggle button (next to password field)
+   CreateButton(PANEL_BTN_EYE, PANEL_X + 222, PANEL_Y + 108, 28, 22, "O", CLR_INPUT);
+   ObjectSetInteger(0, PANEL_BTN_EYE, OBJPROP_BORDER_COLOR, CLR_BORDER);
+
+   // Buttons
+   CreateButton(PANEL_BTN_LOGIN, PANEL_X + 10, PANEL_Y + 145, 115, 30, "Login", CLR_BTN);
+   CreateButton(PANEL_BTN_REG, PANEL_X + 135, PANEL_Y + 145, 115, 30, "Sign Up", CLR_BTN2);
+
+   // Status
+   CreateLabel(PANEL_STATUS, PANEL_X + 10, PANEL_Y + 185, "Disconnected", CLR_LABEL, 9);
+
+   // Account info (space to avoid MT default "label" text)
+   CreateLabel(PANEL_ACCT_INFO, PANEL_X + 10, PANEL_Y + 210, " ", CLR_LABEL, 8);
+
+   ChartRedraw();
+}
+
+//--- Remove the panel ---
+void PanelDestroy() {
+   ObjectDelete(0, PANEL_BG);
+   ObjectDelete(0, PANEL_TITLE);
+   ObjectDelete(0, PANEL_USER_LABEL);
+   ObjectDelete(0, PANEL_USER_INPUT);
+   ObjectDelete(0, PANEL_PASS_LABEL);
+   ObjectDelete(0, PANEL_PASS_INPUT);
+   ObjectDelete(0, PANEL_BTN_EYE);
+   ObjectDelete(0, PANEL_BTN_LOGIN);
+   ObjectDelete(0, PANEL_BTN_REG);
+   ObjectDelete(0, PANEL_STATUS);
+   ObjectDelete(0, PANEL_ACCT_INFO);
+   ChartRedraw();
+}
+
+//--- Get input values ---
+string PanelGetUsername() {
+   return ObjectGetString(0, PANEL_USER_INPUT, OBJPROP_TEXT);
+}
+
+string PanelGetPassword() {
+   return g_RealPassword;
+}
+
+//--- Called when password field loses focus (CHARTEVENT_OBJECT_ENDEDIT) ---
+void PanelOnPasswordEndEdit() {
+   string fieldText = ObjectGetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT);
+
+   // If field shows the mask, user didn't change it -- keep existing password
+   if (fieldText == MakeDotMask(StringLen(g_RealPassword)) && g_RealPassword != "")
+      return;
+
+   // Otherwise user typed a new password
+   g_RealPassword = fieldText;
+
+   // Auto-mask if not in visible mode
+   if (!g_PasswordVisible && g_RealPassword != "") {
+      ObjectSetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT, MakeDotMask(StringLen(g_RealPassword)));
+      ChartRedraw();
+   }
+}
+
+//--- Toggle password visibility ---
+void PanelTogglePasswordVisibility() {
+   g_PasswordVisible = !g_PasswordVisible;
+
+   if (g_PasswordVisible) {
+      ObjectSetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT, g_RealPassword);
+      ObjectSetString(0, PANEL_BTN_EYE, OBJPROP_TEXT, "#");
+   } else {
+      if (g_RealPassword != "")
+         ObjectSetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT, MakeDotMask(StringLen(g_RealPassword)));
+      ObjectSetString(0, PANEL_BTN_EYE, OBJPROP_TEXT, "O");
+   }
+   ChartRedraw();
+}
+
+//--- Update status ---
+void PanelSetStatus(string text, color clr = CLR_LABEL) {
+   ObjectSetString(0, PANEL_STATUS, OBJPROP_TEXT, text);
+   ObjectSetInteger(0, PANEL_STATUS, OBJPROP_COLOR, clr);
+   ChartRedraw();
+}
+
+//--- Update account info ---
+void PanelSetAccountInfo(string text) {
+   ObjectSetString(0, PANEL_ACCT_INFO, OBJPROP_TEXT, text);
+   ChartRedraw();
+}
+
+//--- Switch to connected view ---
+void PanelShowConnected(string broker, int acctNum, double balance, string currency) {
+   PanelSetStatus("Connected", CLR_OK);
+   string info = broker + " #" + IntegerToString(acctNum)
+               + " | " + DoubleToStr(balance, 2) + " " + currency;
+   PanelSetAccountInfo(info);
+}
+
+//--- Helpers ---
+void CreateLabel(string name, int x, int y, string text, color clr, int fontSize) {
+   ObjectCreate(0, name, OBJ_LABEL, 0, 0, 0);
+   ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
+   ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
+   ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+   ObjectSetString(0, name, OBJPROP_TEXT, text);
+   ObjectSetInteger(0, name, OBJPROP_COLOR, clr);
+   ObjectSetInteger(0, name, OBJPROP_FONTSIZE, fontSize);
+}
+
+void CreateEdit(string name, int x, int y, int w, int h, string text) {
+   ObjectCreate(0, name, OBJ_EDIT, 0, 0, 0);
+   ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
+   ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
+   ObjectSetInteger(0, name, OBJPROP_XSIZE, w);
+   ObjectSetInteger(0, name, OBJPROP_YSIZE, h);
+   ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+   ObjectSetString(0, name, OBJPROP_TEXT, text);
+   ObjectSetInteger(0, name, OBJPROP_BGCOLOR, CLR_INPUT);
+   ObjectSetInteger(0, name, OBJPROP_COLOR, CLR_TEXT);
+   ObjectSetInteger(0, name, OBJPROP_BORDER_COLOR, CLR_BORDER);
+   ObjectSetInteger(0, name, OBJPROP_FONTSIZE, 10);
+}
+
+void CreateButton(string name, int x, int y, int w, int h, string text, color bgClr) {
+   ObjectCreate(0, name, OBJ_BUTTON, 0, 0, 0);
+   ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
+   ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
+   ObjectSetInteger(0, name, OBJPROP_XSIZE, w);
+   ObjectSetInteger(0, name, OBJPROP_YSIZE, h);
+   ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+   ObjectSetString(0, name, OBJPROP_TEXT, text);
+   ObjectSetInteger(0, name, OBJPROP_BGCOLOR, bgClr);
+   ObjectSetInteger(0, name, OBJPROP_COLOR, CLR_TEXT);
+   ObjectSetInteger(0, name, OBJPROP_FONTSIZE, 10);
+}
+
+//+==================================================================+
+//| === MAIN EA CODE ===                                             |
+//+==================================================================+
 
 //--- Input parameters ---
 input string InpBaseUrl = "https://clantrader.com"; // Server URL
@@ -42,7 +472,7 @@ void OnDeinit(const int reason) {
 }
 
 //+------------------------------------------------------------------+
-//| Timer handler — fast poll + heartbeat                              |
+//| Timer handler -- fast poll + heartbeat                             |
 //+------------------------------------------------------------------+
 void OnTimer() {
    if (!g_Connected) return;
@@ -75,7 +505,7 @@ void PollPendingActions() {
 }
 
 //+------------------------------------------------------------------+
-//| Tick handler — detect trade changes                               |
+//| Tick handler -- detect trade changes                              |
 //+------------------------------------------------------------------+
 void OnTick() {
    if (!g_Connected) return;
@@ -83,7 +513,7 @@ void OnTick() {
 }
 
 //+------------------------------------------------------------------+
-//| Chart event handler — button clicks                               |
+//| Chart event handler -- button clicks                              |
 //+------------------------------------------------------------------+
 void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam) {
    if (id == CHARTEVENT_OBJECT_ENDEDIT && sparam == PANEL_PASS_INPUT) {
@@ -237,7 +667,7 @@ void SendHeartbeat() {
       ProcessPendingActions(response);
    }
    else if (code == 429) {
-      // Rate limited — ignore
+      // Rate limited -- ignore
    }
    else {
       PanelSetStatus("Heartbeat error", CLR_ERR);
@@ -484,7 +914,7 @@ void DetectTradeChanges() {
          if (g_KnownTickets[i] == currentTickets[j]) { found = true; break; }
       }
       if (!found) {
-         // Trade closed — try to select from history
+         // Trade closed -- try to select from history
          if (OrderSelect(g_KnownTickets[i], SELECT_BY_TICKET))
             SendTradeEvent("close", g_KnownTickets[i]);
       }
