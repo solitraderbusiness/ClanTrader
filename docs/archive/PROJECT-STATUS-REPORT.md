@@ -1,3 +1,9 @@
+> **ARCHIVED** — PM status snapshot. Redundant with PROJECT-REPORT.md (also archived).
+> See [docs/MVP.md](../MVP.md) for current status.
+> Last Verified: 2026-03-10 | Status: Archived
+
+---
+
 # ClanTrader — Project Status Report
 
 **Date:** March 2, 2026

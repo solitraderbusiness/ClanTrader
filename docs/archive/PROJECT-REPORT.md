@@ -1,3 +1,9 @@
+> **ARCHIVED** — Full project audit report (P1–P8). Point-in-time snapshot.
+> See [docs/MVP.md](../MVP.md) for current status and launch scope.
+> Last Verified: 2026-03-10 | Status: Archived
+
+---
+
 # ClanTrader — Project Report for PM
 
 > **Generated**: 2026-03-04

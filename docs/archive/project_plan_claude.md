@@ -1,3 +1,9 @@
+> **ARCHIVED** — Claude's working project plan. Superseded by current docs.
+> See CLAUDE.md and [docs/MVP.md](../MVP.md) for current guidance.
+> Last Verified: 2026-03-10 | Status: Archived
+
+---
+
 # ClanTrader - Claude Implementation Plan
 
 ## How to Read This Plan

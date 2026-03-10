@@ -1,3 +1,8 @@
+> **Status:** ACTIVE
+> **Last reviewed:** 2026-03-10
+> **Authority:** SOURCE_OF_TRUTH.md
+> **Notes:** Accurate for 12 loopholes. Needs update: condition 7 (signal qualification) should detail the 20-second window, origin types, and frozen snapshot mechanics.
+
 # Integrity Contract — Testing Checklist
 
 All loopholes identified during the security audit, with the fix applied and how to verify each one.

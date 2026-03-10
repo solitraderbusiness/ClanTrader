@@ -1,3 +1,8 @@
+> **ARCHIVED** — Investor/marketing pitch document. For current product overview, see [docs/MVP.md](../MVP.md).
+> Last Verified: 2026-03-10 | Status: Archived
+
+---
+
 # ClanTrader — Investor Overview
 
 **Competitive Social Trading for the Iranian Market**

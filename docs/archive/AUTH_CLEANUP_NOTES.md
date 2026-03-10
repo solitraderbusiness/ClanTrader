@@ -1,3 +1,8 @@
+> **ARCHIVED** — Auth refactor notes (Feb 2026). Refactor is complete.
+> Last Verified: 2026-03-10 | Status: Archived
+
+---
+
 # Auth System Cleanup Notes (Feb 2026)
 
 ## What Changed

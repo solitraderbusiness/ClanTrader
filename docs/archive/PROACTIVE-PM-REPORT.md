@@ -1,3 +1,9 @@
+> **ARCHIVED** — Digest system technical design report. Useful as historical reference.
+> Digest system is implemented in `src/services/clan-digest.service.ts` and `src/lib/digest/`.
+> Last Verified: 2026-03-10 | Status: Archived
+
+---
+
 # Proactive PM: AI-Powered Project Digest System
 
 > A productivity tool that turns your project board into an actionable daily pulse — not another report to read, but a system that drives daily focus, surfaces risks early, and builds accountability through streaks.

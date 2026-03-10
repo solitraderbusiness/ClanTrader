@@ -1,3 +1,8 @@
+> **Status:** HISTORICAL
+> **Last reviewed:** 2026-03-10
+> **Authority:** SOURCE_OF_TRUTH.md
+> **Notes:** Describes the original single-key price system. Superseded by the implemented 5-layer source-aware price pool in price-pool.service.ts. Useful as historical context only.
+
 # ClanTrader — Price Data System Report
 
 ## 1. How Prices Enter the System

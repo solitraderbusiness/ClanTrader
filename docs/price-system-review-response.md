@@ -1,3 +1,8 @@
+> **Status:** HISTORICAL
+> **Last reviewed:** 2026-03-10
+> **Authority:** SOURCE_OF_TRUTH.md
+> **Notes:** Improvement proposals from this doc are now implemented in code (5-layer Redis cache, source groups, getVerifiedPrice vs getDisplayPrice, PriceStatus enum). Historical reference only.
+
 # Response to Price System Review
 
 ## My Honest Assessment

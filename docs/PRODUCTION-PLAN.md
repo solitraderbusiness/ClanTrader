@@ -1,3 +1,8 @@
+> **Status:** HISTORICAL
+> **Last reviewed:** 2026-03-10
+> **Authority:** SOURCE_OF_TRUTH.md
+> **Notes:** Created 2026-02-21. Many claims are outdated: PM2/Sentry/rate-limiting/deploy scripts now exist. References Iranian VPS paths that need updating. Useful as a future ops checklist but not current truth.
+
 # ClanTrader Production Operating Plan
 
 > **Status:** NOT STARTED — saved for pre-launch implementation

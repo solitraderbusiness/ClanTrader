@@ -1,3 +1,9 @@
+> **ARCHIVED** — Post-MVP roadmap (P9–P16). These phases are deferred and not part of current launch.
+> See [docs/MVP.md](../MVP.md) for active launch scope.
+> Last Verified: 2026-03-10 | Status: Archived (Post-MVP)
+
+---
+
 # ClanTrader Product Roadmap
 
 > Last updated: 2026-03-04

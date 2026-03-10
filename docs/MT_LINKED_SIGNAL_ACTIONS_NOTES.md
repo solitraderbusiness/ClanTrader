@@ -1,3 +1,8 @@
+> **Status:** ACTIVE
+> **Last reviewed:** 2026-03-10
+> **Authority:** SOURCE_OF_TRUTH.md
+> **Notes:** Accurate technical reference for MT-linked trade action routing.
+
 # MT-Linked Signal Card Actions (Mode A)
 
 ## What Changed

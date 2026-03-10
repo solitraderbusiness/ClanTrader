@@ -1,3 +1,8 @@
+> **Status:** ACTIVE
+> **Last reviewed:** 2026-03-10
+> **Authority:** SOURCE_OF_TRUTH.md
+> **Notes:** Launch scope and timeline reference. Closest to current reality among planning docs. For product truth, defer to SOURCE_OF_TRUTH.md.
+
 # ClanTrader MVP Roadmap
 
 > Last updated: March 8, 2026

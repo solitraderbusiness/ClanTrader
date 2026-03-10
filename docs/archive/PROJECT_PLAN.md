@@ -1,3 +1,9 @@
+> **ARCHIVED** — Comprehensive development plan (Feb 2026). Some details (model counts, infra plan) are outdated.
+> Single-statement architecture is now defined in [docs/E2E-INTEGRITY-TEST.md](../E2E-INTEGRITY-TEST.md).
+> See [docs/MVP.md](../MVP.md) and CLAUDE.md for current project direction.
+> Last Verified: 2026-03-10 | Status: Archived
+
+---
 
 # CLANTRADER
 

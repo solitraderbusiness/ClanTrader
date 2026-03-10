@@ -1,3 +1,8 @@
+> **Status:** ACTIVE
+> **Last reviewed:** 2026-03-10
+> **Authority:** SOURCE_OF_TRUTH.md
+> **Notes:** 41 E2E test scenarios. Authoritative for test definitions. Introduces single-statement architecture concepts (20s qualification, effective rank, tracking status).
+
 # ClanTrader E2E Integrity Test Plan
 
 > Date: March 9, 2026 (updated March 9, 2026 — single-statement architecture scenarios added)

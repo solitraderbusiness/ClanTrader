@@ -1,3 +1,8 @@
+> **Status:** ACTIVE
+> **Last reviewed:** 2026-03-10
+> **Authority:** SOURCE_OF_TRUTH.md
+> **Notes:** Badge system spec. Missing context on effective rank formula and ranking status (RANKED/PROVISIONAL/UNRANKED) — see SOURCE_OF_TRUTH.md Section 2.
+
 # Badges & Ranking System
 
 ClanTrader's anime guild-style badges system with three categories: **Rank badges**, **Performance titles**, and **Competition trophies**.

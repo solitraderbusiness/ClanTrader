@@ -1,3 +1,8 @@
+> **ARCHIVED** — Platform features overview. Superseded by CLAUDE.md and docs/MVP.md for current scope.
+> Last Verified: 2026-03-10 | Status: Archived
+
+---
+
 # ClanTrader — Platform Report
 
 ## What Is ClanTrader?

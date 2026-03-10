@@ -1,3 +1,8 @@
+> **Status:** ACTIVE
+> **Last reviewed:** 2026-03-10
+> **Authority:** SOURCE_OF_TRUTH.md
+> **Notes:** Accurate technical reference for analysis vs signal card system.
+
 # Analysis Card System — Technical Report
 
 > Date: March 9, 2026

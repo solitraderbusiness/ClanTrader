@@ -1,3 +1,9 @@
+> **ARCHIVED** — Trade integrity v1 specification. Superseded by the full integrity contract.
+> See [docs/INTEGRITY-CONTRACT-CHECKLIST.md](../INTEGRITY-CONTRACT-CHECKLIST.md) and [docs/E2E-INTEGRITY-TEST.md](../E2E-INTEGRITY-TEST.md).
+> Last Verified: 2026-03-10 | Status: Archived
+
+---
+
 # Trade Integrity System v1
 
 ## Problem

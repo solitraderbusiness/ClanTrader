@@ -1,3 +1,9 @@
+> **ARCHIVED** — Iranian VPS deployment rules. This infrastructure plan was canceled.
+> ClanTrader dev runs on clantrader.com (31.97.211.86). Prod/Stage will be Germany VPS (TBD).
+> Last Verified: 2026-03-10 | Status: Deprecated
+
+---
+
 # ClanTrader Iran VPS — Claude Code Rules
 
 ## Environment

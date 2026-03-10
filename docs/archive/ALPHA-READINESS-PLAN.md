@@ -1,3 +1,9 @@
+> **ARCHIVED** — Sprint plan snapshot (March 2026). Work described here has been completed or superseded.
+> See [docs/MVP.md](../MVP.md) for current launch scope.
+> Last Verified: 2026-03-10 | Status: Archived
+
+---
+
 # Alpha Readiness Plan — ClanTrader
 
 > **Generated**: 2026-03-04

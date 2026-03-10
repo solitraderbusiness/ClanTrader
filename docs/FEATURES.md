@@ -1,3 +1,8 @@
+> **Status:** ACTIVE
+> **Last reviewed:** 2026-03-10
+> **Authority:** SOURCE_OF_TRUTH.md
+> **Notes:** QA feature test checklist. Not product truth — describes what to test, not what exists.
+
 # ClanTrader QA Checklist
 
 Two testers (Tester A & Tester B) should go through this list independently. Mark each item with:

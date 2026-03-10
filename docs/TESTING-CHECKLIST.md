@@ -1,3 +1,8 @@
+> **Status:** ACTIVE
+> **Last reviewed:** 2026-03-10
+> **Authority:** SOURCE_OF_TRUTH.md
+> **Notes:** QA testing reference. Not product truth — describes what to test, not what exists.
+
 # ClanTrader — Manual Testing Checklist
 
 > **Purpose**: Step-by-step guide to manually test every feature of the platform.
