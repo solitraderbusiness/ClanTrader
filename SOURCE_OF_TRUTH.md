@@ -6,10 +6,11 @@
 - If any other `.md` file conflicts with this one, **this one wins** unless explicitly superseded by a dated entry in the Change Log below.
 - Every material product, infrastructure, rule, or scope change **must update this file in the same work session**.
 - Historical docs are references, not authority, unless explicitly marked ACTIVE in the Document Registry.
-- Sections use these status labels:
+- Sections use these status labels (no others allowed):
   - `LIVE` — implemented, verified in code, deployed to dev
   - `PARTIAL` — some code exists but incomplete or not fully wired
   - `STUB` — route/folder exists but empty or non-functional
+  - `NOT IMPLEMENTED` — no code, no stub, no route exists
   - `PLANNED` — decided, not yet started
   - `DEFERRED` — explicitly pushed to post-MVP or later
   - `NEEDS VERIFICATION` — claim exists but not confirmed against code
@@ -26,7 +27,7 @@
 | **Stack** | Next.js 16.1, React 19, Prisma 7, PostgreSQL 16, Socket.io 4.8, Redis 7, TypeScript strict |
 | **Dev server** | 31.97.211.86 (clantrader.com), root user |
 | **Prod/Stage** | Germany VPS — TBD, staging port 3001, prod port 3000 |
-| **Board status** | ~88 DONE, ~61 TODO, ~11 BACKLOG (as of 2026-03-10) |
+| **Board status** | Approximate PM-board snapshot (2026-03-10): ~88 DONE, ~61 TODO, ~11 BACKLOG |
 
 ### What Is Shipped (verified in code)
 
@@ -56,7 +57,7 @@
 
 ### What Is Blocking Launch
 
-See Section 5.
+See Section 6.
 
 ### What Is Intentionally Deferred
 
@@ -101,17 +102,17 @@ See Section 5.
 
 ### Clan Membership Model
 **Status: LIVE**
-- **Switch flow**: Leave current → join target (transactional)
-- Public clans: automatic join on switch
-- Private clans: user submits join request, stays in current clan until approved
-- Leader restrictions: must transfer leadership before leaving if clan has other members
-- No "leave before join" — it's a single transactional operation
+- **Switch flow**: single `$transaction` in all cases
+  - Public target: leave + join atomically (user never clanless)
+  - Private target: leave + create pending join request (user is **clanless** until approved)
+- Leader with members: must transfer leadership before leaving/switching
+- Solo leader switching: current clan auto-dissolved (hard delete), then join or pending request
 
 ### Chat
 **Status: LIVE**
 - Socket.io 4.8 with real-time messaging
 - Topics per clan (default topic auto-created)
-- Features: send/receive/edit/delete, pinning, emoji reactions, presence tracking, image upload (JPEG/PNG/WebP, 5MB limit, 10 images max)
+- Features: send/receive/edit/delete, pinning, emoji reactions, presence tracking, image upload (JPEG/PNG/WebP, 5MB limit, 4 images max per message)
 - Rate limiting: 5 messages per 10 seconds per user
 - Message types: TEXT, TRADE_CARD, IMAGE
 
@@ -137,7 +138,7 @@ See Section 5.
 - Heartbeat: every 30s with full open-trade snapshot
 - Trade events: immediate on open/close/modify (MT5 via OnTradeTransaction, MT4 via OnTick detection)
 - Pending actions: 5-min expiry, piggybacked on heartbeat response
-- Bearer token auth (32-byte hex API key per account)
+- Bearer token auth (64-char hex API key per account)
 - Multiple MT accounts per user supported
 - Rate limit: 1 heartbeat per 10s per account
 - Trade sync: up to 5000 closed trades per batch (every 5 min)
@@ -187,7 +188,7 @@ See Section 5.
 
 ### Badges
 **Status: LIVE**
-- 3 categories: rank (trade count ladder), performance (metrics-based), trophy (season leaderboard placement)
+- 4 categories: rank (trade count ladder), performance (metrics-based), trophy (season leaderboard placement), other
 - Signal validity rules: resolved trades with unedited entry/SL count (SET_BE and MOVE_SL don't invalidate)
 - Admin recompute with dry-run and audit trail
 
@@ -241,19 +242,19 @@ See Section 5.
 | Production | Germany VPS (TBD) | 3000 | PLANNED |
 
 ### Process Management
-**Status: LIVE**
+**Status: LIVE** (last verified: 2026-03-10 — `ecosystem.config.cjs` inspected)
 - PM2 with `ecosystem.config.cjs`
 - Single fork instance, 1GB memory limit, auto-restart (10 max, 5s delay)
 - Logs: `/root/projects/clantrader/logs/pm2-{error,out}.log`
 
 ### Deployment
-**Status: PARTIAL**
+**Status: PARTIAL** (last verified: 2026-03-10 — scripts inspected, paths outdated)
 - Scripts exist: `deploy-pack.sh`, `deploy-staging.sh`, `deploy-unpack.sh`, `promote-to-prod.sh`
 - **Known issue**: deploy scripts reference `/home/ubuntu/` paths (old Iran VPS). Must be updated for Germany VPS before staging/prod deployment.
 - Dev deployment: manual build + PM2 restart on 31.97.211.86
 
 ### Error Tracking
-**Status: LIVE**
+**Status: LIVE** (last verified: 2026-03-10 — `@sentry/nextjs` in `package.json`, configs inspected)
 - **Sentry** (`@sentry/nextjs@^10.42.0`) — NOT GlitchTip as CLAUDE.md previously stated
 - Config: `sentry.server.config.ts`, `sentry.client.config.ts`, `src/instrumentation.ts`
 - Telegram error notifications via Sentry `beforeSend` hook (`src/lib/telegram.ts`)
@@ -267,18 +268,18 @@ See Section 5.
 - Returns 429 with Retry-After header
 
 ### Health Endpoint
-**Status: MISSING**
+**Status: NOT IMPLEMENTED**
 - No dedicated `/api/health` route
 - Deploy scripts do inline HTTP checks (curl to port, check 200/302)
 
 ### Backups
-**Status: PARTIAL**
+**Status: PARTIAL** (last verified: 2026-03-10 — no backup scripts in repo)
 - `promote-to-prod.sh` creates file-level backup before deployment
 - No automated database backup scripts
 - `pg-backup.log` exists (suggests manual/external backup runs)
 
 ### Monitoring
-**Status: BASIC**
+**Status: PARTIAL** (last verified: 2026-03-10 — Sentry + PM2 confirmed, no APM)
 - Sentry for errors + Telegram notifications
 - PM2 auto-restart + memory limits
 - No Prometheus, DataDog, or APM
@@ -290,12 +291,12 @@ See Section 5.
 - Usage: rate limits, EA login tokens, price cache (5 layers), live-risk cache, signal dedup locks, heartbeat rate limits, event reminder dedup
 
 ### Background Workers
-**Status: PARTIAL**
+**Status: PARTIAL** (last verified: 2026-03-10 — `server.ts` inspected, cron status unknown)
 - In-process intervals in `server.ts`:
   - Trade evaluator: 60s (feature-flagged)
   - Event reminder: 30s
-- Cron-intended endpoint: `/api/admin/stale-check` (every 60s) — **must be configured externally**
-- Manual scripts with cron suggestions: `scripts/daily-digest.ts` (8 AM Iran), `scripts/evening-digest.ts` (10 PM Iran) — **not auto-scheduled in repo**
+- Cron-intended endpoint: `/api/admin/stale-check` (every 60s) — **must be configured externally** (NEEDS VERIFICATION: check `crontab -l`)
+- Manual scripts with cron suggestions: `scripts/daily-digest.ts` (8 AM Iran), `scripts/evening-digest.ts` (10 PM Iran) — **not auto-scheduled in repo** (NEEDS VERIFICATION: check `crontab -l`)
 
 ### Testing
 **Status: LIVE**
@@ -333,7 +334,7 @@ See Section 5.
 - Kavenegar (SMS) and ZarinPal (payments) are API-based services that work from any server
 
 ### Phone OTP / Kavenegar
-- **Status: IMPLEMENTED but NOT required for MVP launch**
+- **Status: LIVE** (optional — not required for MVP launch)
 - Routes exist: `send-otp`, `verify-otp`, `phone-signup`
 - Kavenegar SDK integrated with fallback to console.log when API key missing
 - This is an optional auth path, not a blocker
@@ -444,6 +445,23 @@ Enforced rules verified from code. For full evidence, see `SITE_RULES_AUDIT_REPO
 - No HTML sanitization (relies on React JSX escaping)
 - No content moderation or input filtering beyond length limits
 
+### Critical Verified Rules
+
+Most decision-sensitive rules in one place. All verified in code (2026-03-10).
+
+1. **One clan per user** — DB unique index + service check (CLAN-01)
+2. **Private clan switch: user becomes clanless** — leave + pending request, NOT "stay in current clan" (CLAN-11)
+3. **Leader with members cannot leave/switch** — must transfer leadership first (CLAN-12)
+4. **SIGNAL cards: LEADER/CO_LEADER only** — enforced in socket handler, NOT in service layer (TRADE-01)
+5. **Pending orders not tracked** — EA filters them out, only market orders synced (EA-14)
+6. **20-second signal qualification window** — missed = analysis-origin forever (TRADE-08)
+7. **7-condition integrity contract** — all must pass, deny-by-default (TRADE-07)
+8. **Leaderboard is per-season, not per-clan** — cross-clan competition (LDR-05)
+9. **PaywallRule model exists but is NOT enforced** — admin can create rules that have zero runtime effect (MON-02)
+10. **Admin impersonation has NO audit trail** — creates JWT, no logging (ADM-04)
+11. **No moderation exists** — no blocking, muting, reporting, or content filtering (ADM-07)
+12. **API keys stored plaintext** — 64-char hex, direct DB lookup, not hashed (EA-09)
+
 ---
 
 ## 6. Launch Blockers (last verified: 2026-03-10)
@@ -483,7 +501,7 @@ Enforced rules verified from code. For full evidence, see `SITE_RULES_AUDIT_REPO
 | CLAUDE.md: error tracking is "GlitchTip" | Error tracking is **Sentry** (`@sentry/nextjs`) + Telegram notifications | Code inspection: `sentry.server.config.ts`, `sentry.client.config.ts`, `@sentry/nextjs` in package.json. No GlitchTip dependency exists. |
 | PRODUCTION-PLAN.md: ops are "NOT STARTED" | PM2, Sentry, deploy scripts, and rate limiting **all exist** | `ecosystem.config.cjs`, `src/lib/rate-limit.ts`, `sentry.*.config.ts` all present and functional. Doc was written 2026-02-21 before these were implemented. |
 | PM-ROADMAP.md: Phone OTP is MVP blocker | Phone OTP is **implemented but optional** — not a launch blocker | Routes exist (`send-otp`, `verify-otp`, `phone-signup`), Kavenegar SDK integrated. Falls back to console.log without API key. Users can sign up via email/password. |
-| PLATFORM_REPORT.md: "leave before join" clan model | Clan switch is a **single transactional operation** (leave + join atomically) | `clan.service.ts` `switchClan()` performs both in a transaction. No intermediate "unclanned" state. |
+| PLATFORM_REPORT.md: "leave before join" clan model | Clan switch is a **single `$transaction`**. Public target: leave + join atomically. Private target: leave + pending request (user clanless until approved). | `clan.service.ts` `switchClan()` lines 391-474. Both paths wrapped in `$transaction`. |
 | Deploy scripts reference Iran VPS paths | Dev is on Iranian VPS, but **prod/staging will be Germany VPS** | Decision made post-Feb 2026. Deploy scripts need path updates before Germany deployment. |
 | CLAUDE.md: `clan-digest.service.ts` listed as service file | Digest runs from **manual scripts** (`scripts/daily-digest.ts`, `scripts/evening-digest.ts`), not an auto-running service | Scripts exist with suggested cron schedules but are not auto-scheduled. |
 | price-system-report.md: single Redis key per symbol | Price pool now uses **5-layer source-aware Redis cache** | `price-pool.service.ts` implements trade, account, group, display, and active-groups layers with source-group isolation. |
@@ -568,6 +586,7 @@ Newest first. Append-only.
 
 | Date | Change | Reason | Affected Files |
 |------|--------|--------|----------------|
+| 2026-03-10 | Consistency hardening pass | Fixed: private clan switch contradiction (clanless, not stay-in-current), chat image limit (4 not 10), standardized status vocabulary (added NOT IMPLEMENTED, removed BASIC/MISSING/IMPLEMENTED), labeled board counts as approximate, added last-verified dates to ops items, added Critical Verified Rules section, tightened clan switch contradiction resolution. Verified in code. | SOURCE_OF_TRUTH.md |
 | 2026-03-10 | Added Core Platform Rules, Open Verification Queue, and SITE_RULES_AUDIT_REPORT.md | Deep code audit of 13 rule domains found 15 rules missing from SOT, 4 new contradictions, 8 open verification items | SOURCE_OF_TRUTH.md, SITE_RULES_AUDIT_REPORT.md |
 | 2026-03-10 | Added `/project-update` skill for doc maintenance | Durable mechanism to keep SOURCE_OF_TRUTH.md current after every material task | .claude/skills/project-update/SKILL.md, CLAUDE.md |
 | 2026-03-10 | Created SOURCE_OF_TRUTH.md | Reconcile all docs into single authority after audit found 8+ contradictions across CLAUDE.md, PRODUCTION-PLAN.md, PM-ROADMAP.md, PLATFORM_REPORT.md, and MVP.md | SOURCE_OF_TRUTH.md, CLAUDE.md, all docs/ files |
