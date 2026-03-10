@@ -130,8 +130,32 @@ export async function loginEaUser(data: EaLoginInput) {
         platform: data.platform,
         serverName: data.serverName,
         apiKey,
+        // Extended account info from EA
+        ...(data.accountName && { accountName: data.accountName }),
+        ...(data.currency && { currency: data.currency }),
+        ...(data.leverage != null && { leverage: data.leverage }),
+        ...(data.isDemo != null && { accountType: data.isDemo ? "DEMO" : "LIVE" }),
+        ...(data.stopoutLevel != null && { stopoutLevel: data.stopoutLevel }),
+        ...(data.stopoutMode != null && { stopoutMode: data.stopoutMode }),
       },
     });
+  } else {
+    // Update extended info on re-login (may have changed broker-side)
+    const updates: Record<string, unknown> = {};
+    if (data.accountName) updates.accountName = data.accountName;
+    if (data.currency) updates.currency = data.currency;
+    if (data.leverage != null) updates.leverage = data.leverage;
+    if (data.isDemo != null) updates.accountType = data.isDemo ? "DEMO" : "LIVE";
+    if (data.stopoutLevel != null) updates.stopoutLevel = data.stopoutLevel;
+    if (data.stopoutMode != null) updates.stopoutMode = data.stopoutMode;
+    if (data.serverName) updates.serverName = data.serverName;
+
+    if (Object.keys(updates).length > 0) {
+      await db.mtAccount.update({
+        where: { id: mtAccount.id },
+        data: updates,
+      });
+    }
   }
 
   // Auto-upgrade SPECTATOR → TRADER on EA login
@@ -208,6 +232,8 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
       freeMargin: data.freeMargin,
       lastHeartbeat: new Date(),
       trackingStatus: "ACTIVE",
+      ...(data.floatingProfit != null && { floatingProfit: data.floatingProfit }),
+      ...(data.tradeAllowed != null && { tradeAllowed: data.tradeAllowed }),
     },
   });
 

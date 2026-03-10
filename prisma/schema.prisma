@@ -943,8 +943,15 @@ model MtAccount {
   connectedAt   DateTime      @default(now())
   apiKey        String        @unique
 
+  // Account identity (set at login)
+  accountName       String?   // Broker account holder name
+  stopoutLevel      Float?    // Margin call / stopout level %
+  stopoutMode       Int?      // 0 = percent, 1 = money
+
   // Tracking health (heartbeat-based)
   trackingStatus    String    @default("ACTIVE") // ACTIVE | STALE | TRACKING_LOST
+  tradeAllowed      Boolean   @default(true)     // From MT: is trading enabled on this account?
+  floatingProfit    Float?    // Total floating P&L across all open positions
 
   // Equity drawdown tracking (updated on heartbeat)
   peakEquity        Float?

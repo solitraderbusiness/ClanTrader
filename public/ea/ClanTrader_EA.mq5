@@ -1,386 +1,27 @@
 //+------------------------------------------------------------------+
 //| ClanTrader_EA.mq5 — MetaTrader 5 Expert Advisor                |
 //| Connects MT5 to ClanTrader platform                             |
-//| Single-file build: no external includes needed                  |
 //+------------------------------------------------------------------+
 #property copyright "ClanTrader"
 #property link      "https://clantrader.com"
 #property version   "1.00"
 
-//====================================================================
-//  JSON HELPERS
-//====================================================================
+#include <ClanTrader_JSON.mqh>
+#include <ClanTrader_HTTP.mqh>
+#include <ClanTrader_Panel.mqh>
 
-string JsonStart() { return "{"; }
-string JsonEnd(string &json) {
-   if (StringGetCharacter(json, StringLen(json)-1) == ',')
-      json = StringSubstr(json, 0, StringLen(json)-1);
-   json += "}";
-   return json;
-}
-
-string JsonArrayStart() { return "["; }
-string JsonArrayEnd(string &json) {
-   if (StringLen(json) > 1 && StringGetCharacter(json, StringLen(json)-1) == ',')
-      json = StringSubstr(json, 0, StringLen(json)-1);
-   json += "]";
-   return json;
-}
-
-string EscapeJson(string s) {
-   string result = s;
-   StringReplace(result, "\\", "\\\\");
-   StringReplace(result, "\"", "\\\"");
-   StringReplace(result, "\n", "\\n");
-   StringReplace(result, "\r", "\\r");
-   StringReplace(result, "\t", "\\t");
-   return result;
-}
-
-string JsonAddString(string key, string value) {
-   return "\"" + key + "\":\"" + EscapeJson(value) + "\",";
-}
-
-string JsonAddInt(string key, long value) {
-   return "\"" + key + "\":" + IntegerToString(value) + ",";
-}
-
-string JsonAddDouble(string key, double value) {
-   return "\"" + key + "\":" + DoubleToString(value, 5) + ",";
-}
-
-string JsonAddBool(string key, bool value) {
-   return "\"" + key + "\":" + (value ? "true" : "false") + ",";
-}
-
-string JsonAddRaw(string key, string rawJson) {
-   return "\"" + key + "\":" + rawJson + ",";
-}
-
-string JsonGetString(string json, string key) {
-   string search = "\"" + key + "\":\"";
-   int pos = StringFind(json, search);
-   if (pos < 0) return "";
-   int start = pos + StringLen(search);
-   int end = StringFind(json, "\"", start);
-   if (end < 0) return "";
-   return StringSubstr(json, start, end - start);
-}
-
-string JsonGetValue(string json, string key) {
-   string search = "\"" + key + "\":";
-   int pos = StringFind(json, search);
-   if (pos < 0) return "";
-   int start = pos + StringLen(search);
-   int end = start;
-   int len = StringLen(json);
-   int depth = 0;
-   while (end < len) {
-      ushort ch = StringGetCharacter(json, end);
-      if (ch == '{' || ch == '[') depth++;
-      else if (ch == '}' || ch == ']') {
-         if (depth == 0) break;
-         depth--;
-      }
-      else if (ch == ',' && depth == 0) break;
-      end++;
-   }
-   return StringSubstr(json, start, end - start);
-}
-
-int SplitJsonArray(string jsonArray, string &items[], int maxItems = 20) {
-   ArrayResize(items, 0);
-   int len = StringLen(jsonArray);
-   if (len < 2) return 0;
-
-   if (StringGetCharacter(jsonArray, 0) == '[')
-      jsonArray = StringSubstr(jsonArray, 1, len - 2);
-
-   len = StringLen(jsonArray);
-   int count = 0;
-   int depth = 0;
-   int start = 0;
-
-   for (int i = 0; i < len && count < maxItems; i++) {
-      ushort ch = StringGetCharacter(jsonArray, i);
-      if (ch == '{' || ch == '[') depth++;
-      else if (ch == '}' || ch == ']') depth--;
-      else if (ch == ',' && depth == 0) {
-         string item = StringSubstr(jsonArray, start, i - start);
-         StringTrimLeft(item);
-         StringTrimRight(item);
-         if (StringLen(item) > 0) {
-            int sz = ArraySize(items);
-            ArrayResize(items, sz + 1);
-            items[sz] = item;
-            count++;
-         }
-         start = i + 1;
-      }
-   }
-
-   if (start < len && count < maxItems) {
-      string last = StringSubstr(jsonArray, start, len - start);
-      StringTrimLeft(last);
-      StringTrimRight(last);
-      if (StringLen(last) > 0) {
-         int sz = ArraySize(items);
-         ArrayResize(items, sz + 1);
-         items[sz] = last;
-         count++;
-      }
-   }
-
-   return count;
-}
-
-string DateTimeToISO(datetime dt) {
-   MqlDateTime mdt;
-   TimeToStruct(dt, mdt);
-   return StringFormat("%04d-%02d-%02dT%02d:%02d:%02dZ",
-      mdt.year, mdt.mon, mdt.day, mdt.hour, mdt.min, mdt.sec);
-}
-
-//====================================================================
-//  HTTP HELPERS
-//====================================================================
-
-string g_BaseUrl = "https://clantrader.com";
-string g_ApiKey = "";
-string g_ActionError = "";
-int    g_HttpTimeout = 10000;
-
-void SetBaseUrl(string url)   { g_BaseUrl = url; }
-void SetApiKey(string key)    { g_ApiKey = key; }
-
-int HttpPost(string endpoint, string jsonBody, string &response) {
-   string url = g_BaseUrl + endpoint;
-   string headers = "Content-Type: application/json\r\n";
-   if (g_ApiKey != "")
-      headers += "Authorization: Bearer " + g_ApiKey + "\r\n";
-
-   char post[];
-   char result[];
-   string resultHeaders;
-
-   StringToCharArray(jsonBody, post, 0, WHOLE_ARRAY, CP_UTF8);
-   ArrayResize(post, ArraySize(post) - 1);
-
-   int httpCode = WebRequest(
-      "POST", url, headers, g_HttpTimeout, post, result, resultHeaders);
-
-   if (httpCode == -1) {
-      int err = GetLastError();
-      response = "{\"error\":\"WebRequest failed, code " + IntegerToString(err)
-               + ". Add " + g_BaseUrl + " to allowed URLs.\"}";
-      return -1;
-   }
-
-   response = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
-   return httpCode;
-}
-
-int HttpGet(string endpoint, string &response) {
-   string url = g_BaseUrl + endpoint;
-   string headers = "";
-   if (g_ApiKey != "")
-      headers = "Authorization: Bearer " + g_ApiKey + "\r\n";
-
-   char post[];
-   char result[];
-   string resultHeaders;
-
-   int httpCode = WebRequest(
-      "GET", url, headers, g_HttpTimeout, post, result, resultHeaders);
-
-   if (httpCode == -1) {
-      int err = GetLastError();
-      response = "{\"error\":\"WebRequest failed, code " + IntegerToString(err) + "\"}";
-      return -1;
-   }
-
-   response = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
-   return httpCode;
-}
-
-//====================================================================
-//  PANEL UI
-//====================================================================
-
-#define PANEL_BG         "CT_PanelBG"
-#define PANEL_TITLE      "CT_Title"
-#define PANEL_USER_LABEL "CT_UserLabel"
-#define PANEL_USER_INPUT "CT_UserInput"
-#define PANEL_PASS_LABEL "CT_PassLabel"
-#define PANEL_PASS_INPUT "CT_PassInput"
-#define PANEL_BTN_EYE    "CT_BtnEye"
-#define PANEL_BTN_LOGIN  "CT_BtnLogin"
-#define PANEL_BTN_REG    "CT_BtnRegister"
-#define PANEL_STATUS     "CT_Status"
-#define PANEL_ACCT_INFO  "CT_AcctInfo"
-
-string g_RealPassword = "";
-bool   g_PasswordVisible = false;
-
-string MakeDotMask(int len) {
-   string mask = "";
-   for (int i = 0; i < len; i++)
-      mask += "*";
-   return mask;
-}
-
-#define PANEL_X     20
-#define PANEL_Y     30
-#define PANEL_W     260
-#define PANEL_H     280
-
-#define CLR_BG      C'30,30,40'
-#define CLR_BORDER  C'60,60,80'
-#define CLR_TEXT    clrWhite
-#define CLR_LABEL  clrLightGray
-#define CLR_INPUT  C'50,50,65'
-#define CLR_BTN    C'45,120,220'
-#define CLR_BTN2   C'80,80,100'
-#define CLR_OK     clrLime
-#define CLR_ERR    clrRed
-
-void CreateLabel(string name, int x, int y, string text, color clr, int fontSize) {
-   ObjectCreate(0, name, OBJ_LABEL, 0, 0, 0);
-   ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
-   ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
-   ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-   ObjectSetString(0, name, OBJPROP_TEXT, text);
-   ObjectSetInteger(0, name, OBJPROP_COLOR, clr);
-   ObjectSetInteger(0, name, OBJPROP_FONTSIZE, fontSize);
-}
-
-void CreateEdit(string name, int x, int y, int w, int h, string text) {
-   ObjectCreate(0, name, OBJ_EDIT, 0, 0, 0);
-   ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
-   ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
-   ObjectSetInteger(0, name, OBJPROP_XSIZE, w);
-   ObjectSetInteger(0, name, OBJPROP_YSIZE, h);
-   ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-   ObjectSetString(0, name, OBJPROP_TEXT, text);
-   ObjectSetInteger(0, name, OBJPROP_BGCOLOR, CLR_INPUT);
-   ObjectSetInteger(0, name, OBJPROP_COLOR, CLR_TEXT);
-   ObjectSetInteger(0, name, OBJPROP_BORDER_COLOR, CLR_BORDER);
-   ObjectSetInteger(0, name, OBJPROP_FONTSIZE, 10);
-}
-
-void CreateButton(string name, int x, int y, int w, int h, string text, color bgClr) {
-   ObjectCreate(0, name, OBJ_BUTTON, 0, 0, 0);
-   ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
-   ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
-   ObjectSetInteger(0, name, OBJPROP_XSIZE, w);
-   ObjectSetInteger(0, name, OBJPROP_YSIZE, h);
-   ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-   ObjectSetString(0, name, OBJPROP_TEXT, text);
-   ObjectSetInteger(0, name, OBJPROP_BGCOLOR, bgClr);
-   ObjectSetInteger(0, name, OBJPROP_COLOR, CLR_TEXT);
-   ObjectSetInteger(0, name, OBJPROP_FONTSIZE, 10);
-}
-
-void PanelCreate() {
-   ObjectCreate(0, PANEL_BG, OBJ_RECTANGLE_LABEL, 0, 0, 0);
-   ObjectSetInteger(0, PANEL_BG, OBJPROP_XDISTANCE, PANEL_X);
-   ObjectSetInteger(0, PANEL_BG, OBJPROP_YDISTANCE, PANEL_Y);
-   ObjectSetInteger(0, PANEL_BG, OBJPROP_XSIZE, PANEL_W);
-   ObjectSetInteger(0, PANEL_BG, OBJPROP_YSIZE, PANEL_H);
-   ObjectSetInteger(0, PANEL_BG, OBJPROP_BGCOLOR, CLR_BG);
-   ObjectSetInteger(0, PANEL_BG, OBJPROP_BORDER_COLOR, CLR_BORDER);
-   ObjectSetInteger(0, PANEL_BG, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-
-   CreateLabel(PANEL_TITLE, PANEL_X + 10, PANEL_Y + 10, "ClanTrader EA", CLR_TEXT, 12);
-   CreateLabel(PANEL_USER_LABEL, PANEL_X + 10, PANEL_Y + 40, "Username / Email:", CLR_LABEL, 9);
-   CreateEdit(PANEL_USER_INPUT, PANEL_X + 10, PANEL_Y + 58, 240, 22, "");
-   CreateLabel(PANEL_PASS_LABEL, PANEL_X + 10, PANEL_Y + 90, "Password:", CLR_LABEL, 9);
-   CreateEdit(PANEL_PASS_INPUT, PANEL_X + 10, PANEL_Y + 108, 212, 22, "");
-   CreateButton(PANEL_BTN_EYE, PANEL_X + 222, PANEL_Y + 108, 28, 22, "O", CLR_INPUT);
-   ObjectSetInteger(0, PANEL_BTN_EYE, OBJPROP_BORDER_COLOR, CLR_BORDER);
-   CreateButton(PANEL_BTN_LOGIN, PANEL_X + 10, PANEL_Y + 145, 115, 30, "Login", CLR_BTN);
-   CreateButton(PANEL_BTN_REG, PANEL_X + 135, PANEL_Y + 145, 115, 30, "Sign Up", CLR_BTN2);
-   CreateLabel(PANEL_STATUS, PANEL_X + 10, PANEL_Y + 185, "Disconnected", CLR_LABEL, 9);
-   CreateLabel(PANEL_ACCT_INFO, PANEL_X + 10, PANEL_Y + 210, " ", CLR_LABEL, 8);
-   ChartRedraw();
-}
-
-void PanelDestroy() {
-   ObjectDelete(0, PANEL_BG);
-   ObjectDelete(0, PANEL_TITLE);
-   ObjectDelete(0, PANEL_USER_LABEL);
-   ObjectDelete(0, PANEL_USER_INPUT);
-   ObjectDelete(0, PANEL_PASS_LABEL);
-   ObjectDelete(0, PANEL_PASS_INPUT);
-   ObjectDelete(0, PANEL_BTN_EYE);
-   ObjectDelete(0, PANEL_BTN_LOGIN);
-   ObjectDelete(0, PANEL_BTN_REG);
-   ObjectDelete(0, PANEL_STATUS);
-   ObjectDelete(0, PANEL_ACCT_INFO);
-   ChartRedraw();
-}
-
-string PanelGetUsername() {
-   return ObjectGetString(0, PANEL_USER_INPUT, OBJPROP_TEXT);
-}
-
-string PanelGetPassword() {
-   return g_RealPassword;
-}
-
-void PanelOnPasswordEndEdit() {
-   string fieldText = ObjectGetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT);
-   if (fieldText == MakeDotMask(StringLen(g_RealPassword)) && g_RealPassword != "")
-      return;
-   g_RealPassword = fieldText;
-   if (!g_PasswordVisible && g_RealPassword != "") {
-      ObjectSetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT, MakeDotMask(StringLen(g_RealPassword)));
-      ChartRedraw();
-   }
-}
-
-void PanelTogglePasswordVisibility() {
-   g_PasswordVisible = !g_PasswordVisible;
-   if (g_PasswordVisible) {
-      ObjectSetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT, g_RealPassword);
-      ObjectSetString(0, PANEL_BTN_EYE, OBJPROP_TEXT, "#");
-   } else {
-      if (g_RealPassword != "")
-         ObjectSetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT, MakeDotMask(StringLen(g_RealPassword)));
-      ObjectSetString(0, PANEL_BTN_EYE, OBJPROP_TEXT, "O");
-   }
-   ChartRedraw();
-}
-
-void PanelSetStatus(string text, color clr = CLR_LABEL) {
-   ObjectSetString(0, PANEL_STATUS, OBJPROP_TEXT, text);
-   ObjectSetInteger(0, PANEL_STATUS, OBJPROP_COLOR, clr);
-   ChartRedraw();
-}
-
-void PanelSetAccountInfo(string text) {
-   ObjectSetString(0, PANEL_ACCT_INFO, OBJPROP_TEXT, text);
-   ChartRedraw();
-}
-
-void PanelShowConnected(string broker, long acctNum, double balance, string currency) {
-   PanelSetStatus("Connected", CLR_OK);
-   string info = broker + " #" + IntegerToString(acctNum)
-               + " | " + DoubleToString(balance, 2) + " " + currency;
-   PanelSetAccountInfo(info);
-}
-
-//====================================================================
-//  EA MAIN
-//====================================================================
-
+//--- Input parameters ---
 input string InpBaseUrl = "https://clantrader.com"; // Server URL
 
+//--- Global state ---
 bool     g_Connected = false;
 ulong    g_KnownPositions[];
 datetime g_LastHistorySync = 0;
 int      g_TimerTick = 0;
 
+//+------------------------------------------------------------------+
+//| Expert initialization                                             |
+//+------------------------------------------------------------------+
 int OnInit() {
    SetBaseUrl(InpBaseUrl);
    PanelCreate();
@@ -388,11 +29,17 @@ int OnInit() {
    return INIT_SUCCEEDED;
 }
 
+//+------------------------------------------------------------------+
+//| Expert deinitialization                                           |
+//+------------------------------------------------------------------+
 void OnDeinit(const int reason) {
    EventKillTimer();
    PanelDestroy();
 }
 
+//+------------------------------------------------------------------+
+//| Timer handler — fast poll + heartbeat                              |
+//+------------------------------------------------------------------+
 void OnTimer() {
    if (!g_Connected) return;
    g_TimerTick++;
@@ -423,37 +70,52 @@ void PollPendingActions() {
    }
 }
 
+//+------------------------------------------------------------------+
+//| Tick handler — not used in MT5 (OnTradeTransaction handles it)    |
+//+------------------------------------------------------------------+
 void OnTick() {
    // Trade events handled via OnTradeTransaction
 }
 
+//+------------------------------------------------------------------+
+//| Trade transaction handler — real-time trade events                |
+//+------------------------------------------------------------------+
 void OnTradeTransaction(const MqlTradeTransaction &trans,
                         const MqlTradeRequest &request,
                         const MqlTradeResult &result) {
    if (!g_Connected) return;
 
    if (trans.type == TRADE_TRANSACTION_DEAL_ADD) {
+      // Get deal entry type
       if (!HistoryDealSelect(trans.deal)) return;
       long entry = HistoryDealGetInteger(trans.deal, DEAL_ENTRY);
 
       if (entry == DEAL_ENTRY_IN) {
+         // New position opened
          ulong posId = (ulong)HistoryDealGetInteger(trans.deal, DEAL_POSITION_ID);
-         if (PositionSelectByTicket(posId))
+         if (PositionSelectByTicket(posId)) {
             SendPositionEvent("open", posId);
+         }
       }
       else if (entry == DEAL_ENTRY_OUT) {
+         // Position closed — reconstruct from history
          ulong posId = (ulong)HistoryDealGetInteger(trans.deal, DEAL_POSITION_ID);
          SendClosedTradeFromHistory(posId);
       }
    }
    else if (trans.type == TRADE_TRANSACTION_REQUEST) {
+      // SL/TP modification
       if (request.action == TRADE_ACTION_SLTP && request.position > 0) {
-         if (PositionSelectByTicket(request.position))
+         if (PositionSelectByTicket(request.position)) {
             SendPositionEvent("modify", request.position);
+         }
       }
    }
 }
 
+//+------------------------------------------------------------------+
+//| Chart event handler — button clicks                               |
+//+------------------------------------------------------------------+
 void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam) {
    if (id == CHARTEVENT_OBJECT_ENDEDIT && sparam == PANEL_PASS_INPUT) {
       PanelOnPasswordEndEdit();
@@ -477,7 +139,7 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
 }
 
 //+------------------------------------------------------------------+
-//| Login                                                              |
+//| Login to ClanTrader                                               |
 //+------------------------------------------------------------------+
 void DoLogin() {
    string usernameOrEmail = PanelGetUsername();
@@ -501,6 +163,13 @@ void DoLogin() {
    json += JsonAddString("broker", broker);
    json += JsonAddString("platform", "MT5");
    json += JsonAddString("serverName", server);
+   // Extended account info
+   json += JsonAddString("accountName", AccountInfoString(ACCOUNT_NAME));
+   json += JsonAddString("currency", AccountInfoString(ACCOUNT_CURRENCY));
+   json += JsonAddInt("leverage", AccountInfoInteger(ACCOUNT_LEVERAGE));
+   json += JsonAddBool("isDemo", (AccountInfoInteger(ACCOUNT_TRADE_MODE) == ACCOUNT_TRADE_MODE_DEMO));
+   json += JsonAddDouble("stopoutLevel", AccountInfoDouble(ACCOUNT_MARGIN_SO_SO));
+   json += JsonAddInt("stopoutMode", (int)AccountInfoInteger(ACCOUNT_MARGIN_SO_MODE));
    JsonEnd(json);
 
    string response;
@@ -552,7 +221,7 @@ void DoOpenSignup() {
 }
 
 //+------------------------------------------------------------------+
-//| Heartbeat                                                          |
+//| Send heartbeat with balance + open positions                      |
 //+------------------------------------------------------------------+
 void SendHeartbeat() {
    string json = JsonStart();
@@ -560,12 +229,15 @@ void SendHeartbeat() {
    json += JsonAddDouble("equity", AccountInfoDouble(ACCOUNT_EQUITY));
    json += JsonAddDouble("margin", AccountInfoDouble(ACCOUNT_MARGIN));
    json += JsonAddDouble("freeMargin", AccountInfoDouble(ACCOUNT_MARGIN_FREE));
+   json += JsonAddDouble("floatingProfit", AccountInfoDouble(ACCOUNT_PROFIT));
+   json += JsonAddBool("tradeAllowed", AccountInfoInteger(ACCOUNT_TRADE_ALLOWED) != 0);
 
    string tradesArr = JsonArrayStart();
    int total = PositionsTotal();
    for (int i = 0; i < total; i++) {
       ulong ticket = PositionGetTicket(i);
       if (ticket == 0) continue;
+
       long posType = PositionGetInteger(POSITION_TYPE);
 
       string t = JsonStart();
@@ -594,6 +266,7 @@ void SendHeartbeat() {
 
    string response;
    int code = HttpPost("/api/ea/heartbeat", json, response);
+
    if (code == 200) {
       PanelShowConnected(
          AccountInfoString(ACCOUNT_COMPANY),
@@ -617,6 +290,8 @@ ENUM_ORDER_TYPE_FILLING GetFillMode(string symbol) {
    return ORDER_FILLING_RETURN;
 }
 
+string g_ActionError = ""; // Captures the actual error from ExecuteMtAction
+
 //+------------------------------------------------------------------+
 //| Process pending actions from heartbeat response                    |
 //+------------------------------------------------------------------+
@@ -636,9 +311,10 @@ void ProcessPendingActions(string response) {
       if (actionId == "" || ticketStr == "") continue;
 
       Print("[EA Action] Processing: ", actionType, " ticket=", ticketStr, " id=", actionId);
+      g_ActionError = "";
       ulong ticket = (ulong)StringToInteger(ticketStr);
       bool success = ExecuteMtAction(ticket, actionType, newValue);
-      Print("[EA Action] Result: ", success ? "OK" : "FAILED");
+      Print("[EA Action] Result: ", success ? "OK" : ("FAILED: " + g_ActionError));
       ReportActionResult(actionId, success);
    }
 }
@@ -647,10 +323,8 @@ void ProcessPendingActions(string response) {
 //| Execute a trade action in MetaTrader 5                             |
 //+------------------------------------------------------------------+
 bool ExecuteMtAction(ulong ticket, string actionType, string newValue) {
-   g_ActionError = "";
-
    if (!PositionSelectByTicket(ticket)) {
-      g_ActionError = "Failed to select position #" + IntegerToString(ticket);
+      g_ActionError = "Position #" + IntegerToString(ticket) + " not found (err " + IntegerToString(GetLastError()) + ")";
       Print("[EA Action] ", g_ActionError);
       return false;
    }
@@ -765,26 +439,33 @@ void ReportActionResult(string actionId, bool success) {
 }
 
 //+------------------------------------------------------------------+
-//| Sync trade history (MT5: reconstruct from deals)                  |
+//| Sync full trade history (MT5: reconstruct from deals)             |
 //+------------------------------------------------------------------+
 void SyncTradeHistory() {
+   // Select history for last 90 days
    datetime from = TimeCurrent() - 90 * 86400;
    datetime to = TimeCurrent();
    HistorySelect(from, to);
 
+   // Group deals by position ID to reconstruct trades
    int totalDeals = HistoryDealsTotal();
+
+   // Track processed position IDs
    ulong processedPositions[];
+
    string tradesArr = JsonArrayStart();
    int count = 0;
 
    for (int i = 0; i < totalDeals && count < 5000; i++) {
       ulong dealTicket = HistoryDealGetTicket(i);
       if (dealTicket == 0) continue;
+
       long dealEntry = HistoryDealGetInteger(dealTicket, DEAL_ENTRY);
-      if (dealEntry != DEAL_ENTRY_OUT) continue;
+      if (dealEntry != DEAL_ENTRY_OUT) continue; // Only process closing deals
 
       ulong posId = (ulong)HistoryDealGetInteger(dealTicket, DEAL_POSITION_ID);
 
+      // Check if already processed
       bool processed = false;
       for (int j = 0; j < ArraySize(processedPositions); j++) {
          if (processedPositions[j] == posId) { processed = true; break; }
@@ -795,6 +476,7 @@ void SyncTradeHistory() {
       ArrayResize(processedPositions, sz + 1);
       processedPositions[sz] = posId;
 
+      // Find the opening deal for this position
       double openPrice = 0;
       datetime openTime = 0;
       long dealType = 0;
@@ -861,6 +543,7 @@ void SyncTradeHistory() {
 //+------------------------------------------------------------------+
 void SendPositionEvent(string eventType, ulong posTicket) {
    if (!PositionSelectByTicket(posTicket)) return;
+
    long posType = PositionGetInteger(POSITION_TYPE);
 
    string t = JsonStart();
@@ -890,10 +573,10 @@ void SendPositionEvent(string eventType, ulong posTicket) {
 }
 
 //+------------------------------------------------------------------+
-//| Send closed trade from history                                    |
+//| Send closed trade from history deals                              |
 //+------------------------------------------------------------------+
 void SendClosedTradeFromHistory(ulong posId) {
-   datetime from = TimeCurrent() - 86400;
+   datetime from = TimeCurrent() - 86400; // Last 24h
    HistorySelect(from, TimeCurrent());
 
    double openPrice = 0, closePrice = 0, lots = 0, profit = 0, commission = 0, swap = 0;
@@ -955,7 +638,7 @@ void SendClosedTradeFromHistory(ulong posId) {
 }
 
 //+------------------------------------------------------------------+
-//| Cache open positions                                               |
+//| Cache current open position tickets                               |
 //+------------------------------------------------------------------+
 void CacheOpenPositions() {
    ArrayResize(g_KnownPositions, 0);

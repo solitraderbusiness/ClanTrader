@@ -81,6 +81,13 @@ export const eaLoginSchema = z.object({
   broker: z.string().min(1, "Broker is required").max(100),
   platform: z.enum(["MT4", "MT5"]),
   serverName: z.string().max(100).optional(),
+  // Extended account info (optional — backward compatible with older EAs)
+  accountName: z.string().max(200).optional(),
+  currency: z.string().max(10).optional(),
+  leverage: z.number().int().positive().optional(),
+  isDemo: z.boolean().optional(),
+  stopoutLevel: z.number().optional(),
+  stopoutMode: z.number().int().min(0).max(1).optional(),
 });
 
 export type EaLoginInput = z.infer<typeof eaLoginSchema>;
@@ -112,6 +119,8 @@ export const eaHeartbeatSchema = z.object({
   equity: z.number(),
   margin: z.number().optional(),
   freeMargin: z.number().optional(),
+  floatingProfit: z.number().optional(),
+  tradeAllowed: z.boolean().optional(),
   openTrades: z.array(mtTradeInputSchema).max(200).default([]),
 });
 

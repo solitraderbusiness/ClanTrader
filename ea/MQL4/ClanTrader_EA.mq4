@@ -128,6 +128,13 @@ void DoLogin() {
    json += JsonAddString("broker", AccountCompany());
    json += JsonAddString("platform", "MT4");
    json += JsonAddString("serverName", AccountServer());
+   // Extended account info
+   json += JsonAddString("accountName", AccountName());
+   json += JsonAddString("currency", AccountCurrency());
+   json += JsonAddInt("leverage", AccountLeverage());
+   json += JsonAddBool("isDemo", IsDemo());
+   json += JsonAddDouble("stopoutLevel", AccountStopoutLevel());
+   json += JsonAddInt("stopoutMode", AccountStopoutMode());
    JsonEnd(json);
 
    string response;
@@ -187,6 +194,8 @@ void SendHeartbeat() {
    json += JsonAddDouble("equity", AccountEquity());
    json += JsonAddDouble("margin", AccountMargin());
    json += JsonAddDouble("freeMargin", AccountFreeMargin());
+   json += JsonAddDouble("floatingProfit", AccountProfit());
+   json += JsonAddBool("tradeAllowed", IsTradeAllowed());
 
    // Open trades array
    string tradesArr = JsonArrayStart();

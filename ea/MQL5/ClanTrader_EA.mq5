@@ -163,6 +163,13 @@ void DoLogin() {
    json += JsonAddString("broker", broker);
    json += JsonAddString("platform", "MT5");
    json += JsonAddString("serverName", server);
+   // Extended account info
+   json += JsonAddString("accountName", AccountInfoString(ACCOUNT_NAME));
+   json += JsonAddString("currency", AccountInfoString(ACCOUNT_CURRENCY));
+   json += JsonAddInt("leverage", AccountInfoInteger(ACCOUNT_LEVERAGE));
+   json += JsonAddBool("isDemo", (AccountInfoInteger(ACCOUNT_TRADE_MODE) == ACCOUNT_TRADE_MODE_DEMO));
+   json += JsonAddDouble("stopoutLevel", AccountInfoDouble(ACCOUNT_MARGIN_SO_SO));
+   json += JsonAddInt("stopoutMode", (int)AccountInfoInteger(ACCOUNT_MARGIN_SO_MODE));
    JsonEnd(json);
 
    string response;
@@ -222,6 +229,8 @@ void SendHeartbeat() {
    json += JsonAddDouble("equity", AccountInfoDouble(ACCOUNT_EQUITY));
    json += JsonAddDouble("margin", AccountInfoDouble(ACCOUNT_MARGIN));
    json += JsonAddDouble("freeMargin", AccountInfoDouble(ACCOUNT_MARGIN_FREE));
+   json += JsonAddDouble("floatingProfit", AccountInfoDouble(ACCOUNT_PROFIT));
+   json += JsonAddBool("tradeAllowed", AccountInfoInteger(ACCOUNT_TRADE_ALLOWED) != 0);
 
    string tradesArr = JsonArrayStart();
    int total = PositionsTotal();
