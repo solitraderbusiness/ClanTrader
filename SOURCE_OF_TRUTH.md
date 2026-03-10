@@ -7,7 +7,7 @@
 - Every material product, infrastructure, rule, or scope change **must update this file in the same work session**.
 - Historical docs are references, not authority, unless explicitly marked ACTIVE in the Document Registry.
 - Sections use these status labels (no others allowed):
-  - `LIVE` — implemented, verified in code, deployed to dev
+  - `LIVE` — implemented, verified in code, running on dev server (not yet in production unless stated)
   - `PARTIAL` — some code exists but incomplete or not fully wired
   - `STUB` — route/folder exists but empty or non-functional
   - `NOT IMPLEMENTED` — no code, no stub, no route exists
@@ -23,13 +23,13 @@
 |-------|-------|
 | **Phase** | MVP QA (Phase A: Mar 9–13, 2026) |
 | **MVP timeline** | Mar 9 – Apr 8, 2026 (5 phases: QA → Harden → Infra → Beta → Launch) |
-| **Target users** | Iranian forex/gold traders in competitive clans |
+| **Target users** | Farsi-speaking forex/gold traders (Iran-first), competing in clans |
 | **Stack** | Next.js 16.1, React 19, Prisma 7, PostgreSQL 16, Socket.io 4.8, Redis 7, TypeScript strict |
 | **Dev server** | 31.97.211.86 (clantrader.com), root user |
 | **Prod/Stage** | Germany VPS — TBD, staging port 3001, prod port 3000 |
 | **Board status** | Approximate PM-board snapshot (2026-03-10): ~88 DONE, ~61 TODO, ~11 BACKLOG |
 
-### What Is Shipped (verified in code)
+### What Is Built (verified in code, running on dev)
 
 - Auth (credentials + phone OTP + EA token)
 - Clans (create, join, leave, switch, delete, roles, tiers)
@@ -313,6 +313,7 @@ See Section 6.
 - Password hashing: bcryptjs
 - CORS: scoped to app URL
 - Socket.io: JWT auth via cookie
+- **EA API keys stored plaintext** (64-char hex, direct DB lookup — not hashed)
 
 ### Known Ops Gaps
 1. No `/api/health` endpoint
@@ -550,7 +551,7 @@ Update this file whenever any of the following changes:
 - EA bridge behavior or endpoints
 - Infrastructure or deployment setup
 - Blocker status (added, removed, resolved)
-- Feature shipped or deferred
+- Feature completed or deferred
 - Major UX behavior change
 - Environment or server changes
 - Document authority rules
@@ -586,6 +587,7 @@ Newest first. Append-only.
 
 | Date | Change | Reason | Affected Files |
 |------|--------|--------|----------------|
+| 2026-03-10 | Final precision pass | Clarified LIVE status (dev, not production), renamed "Shipped" → "Built", tightened target-user wording, added plaintext API key to Security section, replaced "shipped" with "completed" in triggers. No structural changes. | SOURCE_OF_TRUTH.md |
 | 2026-03-10 | Consistency hardening pass | Fixed: private clan switch contradiction (clanless, not stay-in-current), chat image limit (4 not 10), standardized status vocabulary (added NOT IMPLEMENTED, removed BASIC/MISSING/IMPLEMENTED), labeled board counts as approximate, added last-verified dates to ops items, added Critical Verified Rules section, tightened clan switch contradiction resolution. Verified in code. | SOURCE_OF_TRUTH.md |
 | 2026-03-10 | Added Core Platform Rules, Open Verification Queue, and SITE_RULES_AUDIT_REPORT.md | Deep code audit of 13 rule domains found 15 rules missing from SOT, 4 new contradictions, 8 open verification items | SOURCE_OF_TRUTH.md, SITE_RULES_AUDIT_REPORT.md |
 | 2026-03-10 | Added `/project-update` skill for doc maintenance | Durable mechanism to keep SOURCE_OF_TRUTH.md current after every material task | .claude/skills/project-update/SKILL.md, CLAUDE.md |
