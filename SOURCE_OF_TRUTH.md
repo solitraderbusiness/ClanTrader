@@ -360,7 +360,93 @@ The product prioritizes:
 
 ---
 
-## 5. Launch Blockers
+## 5. Core Platform Rules
+
+Enforced rules verified from code. For full evidence, see `SITE_RULES_AUDIT_REPORT.md`.
+
+### Auth
+- Signup requires name (2-50), username (3-30, lowercase, letter-start), email, password (min 8 chars)
+- 42 reserved usernames blocked (admin, support, system, clantrader, etc.)
+- Email verification required for email login (auto-verified in dev if no SMTP_HOST)
+- Phone OTP: 6-digit, 5-min TTL, max 5 failed attempts, Iranian mobile format (`09xxxxxxxxx`)
+- Roles: SPECTATOR (default) → TRADER (on EA login) → ADMIN (manual only)
+- Rate limit: 5 auth requests / 60s per IP
+
+### Clans
+- One clan per user (DB enforced)
+- Member limits: FREE tier = 3, PRO tier = 6
+- Public clans: direct join. Private clans: join request → LEADER/CO_LEADER approval
+- Clan switch: atomic transaction (leave + join). Private target = leave + pending request (user clanless until approved)
+- Leader with members: must transfer leadership before leaving/switching
+- Solo leader leaving: clan auto-dissolved (hard delete, all data cascaded)
+- Only LEADER can delete clan, change roles, or transfer leadership
+- LEADER/CO_LEADER can: edit settings, manage topics, approve requests, remove members (CO_LEADER cannot remove CO_LEADER)
+
+### Chat & DMs
+- Messages: 2000 char max, rate limit 5 msg / 10s per user, max 4 images per message
+- Only clan members can post in clan chat
+- Message edit: author only, no time limit. Deletion: author or LEADER/CO_LEADER (hard delete)
+- Pinning: LEADER/CO_LEADER only, max 10 per topic
+- Reactions: 6 fixed emojis only
+- Topics: max 20 per clan, LEADER/CO_LEADER create, default "General" cannot be archived/renamed
+- DMs: any user → any user (no clan/mutual requirement). No blocking or muting exists.
+- No content filtering, moderation, or reporting system exists.
+
+### Trade Cards & Statements
+- SIGNAL cards: LEADER/CO_LEADER only (enforced in socket handler)
+- ANALYSIS cards: any clan member
+- Cards can be edited after trade closes (frozen snapshots protect statement integrity)
+- Statement eligibility: 7 integrity conditions (deny-by-default)
+- Statements are per-user-per-clan (not global). Each clan sees only its own trades.
+- MT statement auto-generation: requires min 5 closed trades
+- Journal: separate tabs for official (verified signal) and analysis trades
+
+### EA Bridge
+- Heartbeat: full snapshot every 30s, rate limited to 1/10s per account
+- Close detection: DB open trades missing from heartbeat = closed
+- Close price: same-source fallback only (never cross-broker)
+- Signal qualification: 20s window, frozen risk snapshot
+- Pending orders: NOT tracked (filtered out in EA)
+- No reconnect handshake — implicit via heartbeat comparison
+- No gap audit logging
+- API keys: 64-char hex, stored plaintext for fast DB lookup
+
+### Leaderboard & Badges
+- 6 lenses: composite (weighted), profit, low_risk, consistency, risk_adjusted, activity
+- Composite weights: profit 0.3, consistency 0.25, risk_adjusted 0.2, low_risk 0.15, activity 0.1
+- Min 10 trades for ranking (admin-configurable)
+- Leaderboard is per-season (not per-clan)
+- Badges: 4 categories (RANK, PERFORMANCE, TROPHY, OTHER), revocable, publicly visible
+- Entry/SL edits invalidate badge eligibility (SET_BE/MOVE_SL do not)
+
+### Admin
+- All admin routes: `role === "ADMIN"` required
+- Impersonation: creates JWT for target user. **No audit log recorded.**
+- Feature flags: CRUD, cached, invalidated on change
+- Audit log: tracks action, entity, actor, level, category
+- Badge admin changes tracked separately
+
+### Notifications
+- Calendar event reminders: socket-based (1-hour + 1-minute before)
+- Project digests: Telegram delivery, manual/cron scripts
+- No in-app notification system. No push notifications. No email notifications (beyond auth).
+
+### Monetization
+- `isPro` flag exists but no active way to set it (no payment flow)
+- PaywallRule model exists but rules are NOT enforced in any route
+- SubscriptionPlan admin CRUD exists, no checkout flow
+- Referral event tracking active (signup conversions)
+
+### Security
+- Passwords: bcrypt 10 rounds, min 8 chars
+- File uploads: JPEG/PNG/WebP, 5MB max, resized to 256x256 WebP
+- CORS: scoped to app URL
+- No HTML sanitization (relies on React JSX escaping)
+- No content moderation or input filtering beyond length limits
+
+---
+
+## 6. Launch Blockers (last verified: 2026-03-10)
 
 ### Hard Launch Blockers
 1. **Germany VPS provisioning** — staging + prod environments not yet set up
@@ -373,6 +459,8 @@ The product prioritizes:
 2. **Automated database backups** — critical for production but can be set up during infra phase (Mar 17-21)
 3. **Digest script scheduling** — cron needs to be configured for daily/evening digests
 4. **Trade card staleness indicator in chat** — cards don't show stale warning, only statement page does
+5. **No user moderation tools** — no blocking, muting, reporting, or content filtering exists
+6. **Admin impersonation audit logging** — impersonation creates JWT but does not log to audit trail
 
 ### Deferred by Decision
 1. AI features — post-MVP
@@ -383,10 +471,12 @@ The product prioritizes:
 6. CI/CD pipeline — post-MVP (manual deploy acceptable for beta)
 7. Multi-step onboarding — post-MVP
 8. Pending order tracking — not planned for MVP
+9. In-app notifications / push notifications — not implemented
+10. Email notifications (beyond auth) — not implemented
 
 ---
 
-## 6. Known Contradictions Resolved
+## 7. Known Contradictions Resolved
 
 | Old Statement | New Truth | Reason |
 |---------------|-----------|--------|
@@ -398,10 +488,14 @@ The product prioritizes:
 | CLAUDE.md: `clan-digest.service.ts` listed as service file | Digest runs from **manual scripts** (`scripts/daily-digest.ts`, `scripts/evening-digest.ts`), not an auto-running service | Scripts exist with suggested cron schedules but are not auto-scheduled. |
 | price-system-report.md: single Redis key per symbol | Price pool now uses **5-layer source-aware Redis cache** | `price-pool.service.ts` implements trade, account, group, display, and active-groups layers with source-group isolation. |
 | PRODUCTION-PLAN.md: single VPS, no staging | **Staging planned on Germany VPS** port 3001, prod port 3000 | MVP.md (Mar 8) reflects current plan. PRODUCTION-PLAN.md (Feb 21) is outdated. |
+| No mention of clan member limits in docs | FREE tier = **3 members**, PRO tier = **6 members** | `clan-constants.ts` lines 1-4, enforced in `clan.service.ts` addMember() |
+| SOT implied moderation features exist | **No moderation exists**: no blocking, muting, reporting, or content filtering | Full codebase search for block/mute/report/moderate returned no user-facing implementations |
+| Admin impersonation assumed to be audited | **Impersonation does NOT log to audit trail** | `impersonate/route.ts` has no audit call |
+| PaywallRule assumed to gate features | **PaywallRule model exists but is NOT enforced** in any route or middleware | Rules can be created in admin but have zero runtime effect |
 
 ---
 
-## 7. Document Registry
+## 8. Document Registry
 
 | File | Status | Purpose | Trust Level | Notes |
 |------|--------|---------|-------------|-------|
@@ -419,11 +513,12 @@ The product prioritizes:
 | `docs/price-system-report.md` | **HISTORICAL** | Original price data flow | Low | Superseded by implemented 5-layer system |
 | `docs/price-system-review-response.md` | **HISTORICAL** | Price system improvements proposal | Low | Proposals are now implemented in code |
 | `docs/README.md` | **ACTIVE** | Docs index and navigation | Medium | Accurate index |
+| `SITE_RULES_AUDIT_REPORT.md` | **ACTIVE** | Detailed code-verified rules audit | High | Evidence source for Core Platform Rules section |
 | `docs/archive/*` | **ARCHIVED** | 12 archived docs with deprecation banners | None | Historical reference only |
 
 ---
 
-## 8. Maintenance Policy
+## 9. Maintenance Policy
 
 ### Update Triggers
 
@@ -452,12 +547,28 @@ For each material change:
 
 ---
 
-## 9. Change Log
+## 10. Open Verification Queue
+
+Items not fully provable from code inspection alone (as of 2026-03-10):
+
+1. **Is the stale-check cron configured on dev server?** — Check `crontab -l` on 31.97.211.86
+2. **Are daily/evening digest scripts auto-scheduled?** — No crontab entry in repo
+3. **Is auto-post feature flag enabled for any clan?** — Feature-flag dependent
+4. **Is there a REST API path for trade card creation (bypassing socket role check)?** — Socket enforces SIGNAL role check, service does not
+5. **Is admin impersonation ever audited anywhere outside the route itself?** — No audit call found
+6. **Are PaywallRule checks enforced anywhere at runtime?** — Model exists, no enforcement found
+7. **What happens to TraderStatement records when user leaves a clan?** — ClanMember cascade doesn't affect TraderStatement
+8. **Is the statement route publicly accessible without auth?** — Needs route-level verification
+
+---
+
+## 11. Change Log
 
 Newest first. Append-only.
 
 | Date | Change | Reason | Affected Files |
 |------|--------|--------|----------------|
+| 2026-03-10 | Added Core Platform Rules, Open Verification Queue, and SITE_RULES_AUDIT_REPORT.md | Deep code audit of 13 rule domains found 15 rules missing from SOT, 4 new contradictions, 8 open verification items | SOURCE_OF_TRUTH.md, SITE_RULES_AUDIT_REPORT.md |
 | 2026-03-10 | Added `/project-update` skill for doc maintenance | Durable mechanism to keep SOURCE_OF_TRUTH.md current after every material task | .claude/skills/project-update/SKILL.md, CLAUDE.md |
 | 2026-03-10 | Created SOURCE_OF_TRUTH.md | Reconcile all docs into single authority after audit found 8+ contradictions across CLAUDE.md, PRODUCTION-PLAN.md, PM-ROADMAP.md, PLATFORM_REPORT.md, and MVP.md | SOURCE_OF_TRUTH.md, CLAUDE.md, all docs/ files |
 | 2026-03-10 | Corrected error tracking: GlitchTip → Sentry | Code inspection found @sentry/nextjs, no GlitchTip dependency | CLAUDE.md, SOURCE_OF_TRUTH.md |
