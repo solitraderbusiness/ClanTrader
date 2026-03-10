@@ -22,7 +22,7 @@ import { LatestTradesSheet } from "./LatestTradesSheet";
 import { WatchlistSheet } from "./WatchlistSheet";
 import { EventsSheet } from "./EventsSheet";
 import { SummarySheet } from "./SummarySheet";
-import { DigestSheet } from "./DigestSheet";
+import { DigestSheetV2 } from "./DigestSheetV2";
 import { toast } from "sonner";
 import { useNavStore } from "@/stores/nav-store";
 import { useTranslation } from "@/lib/i18n";
@@ -566,7 +566,7 @@ export function ChatPanel({
         topicId={store.currentTopicId}
       />
 
-      <DigestSheet
+      <DigestSheetV2
         open={store.openPanel === "digest"}
         onOpenChange={(open) => {
           if (!open) store.setOpenPanel(null);

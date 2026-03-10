@@ -52,6 +52,7 @@
 - PM2 process management
 - Deploy scripts (pack, staging, promote-to-prod)
 - Price pool (5-layer Redis cache, source-aware, verification-grade)
+- Activity Digest v2 (health-first open trade analysis, attention queue, live health summary — feature-flagged behind `digest_v2`)
 - Channel posts (backend API — no UI yet)
 - Onboarding (minimal modal)
 
@@ -135,7 +136,8 @@ See Section 6.
 **Status: LIVE**
 - 12 API endpoints (register, login, heartbeat, trade-event, trades/sync, poll-actions, action result, accounts CRUD, calendar-events, mt-status)
 - MQL4 + MQL5 EA source files in `ea/` directory
-- Heartbeat: every 30s with full open-trade snapshot
+- Heartbeat: every 30s with full open-trade snapshot + floatingProfit, tradeAllowed
+- Login sends extended data: accountName, currency, leverage, stopoutLevel, stopoutMode, isDemo
 - Trade events: immediate on open/close/modify (MT5 via OnTradeTransaction, MT4 via OnTick detection)
 - Pending actions: 5-min expiry, piggybacked on heartbeat response
 - Bearer token auth (64-char hex API key per account)
@@ -404,7 +406,8 @@ Enforced rules verified from code. For full evidence, see `SITE_RULES_AUDIT_REPO
 - Journal: separate tabs for official (verified signal) and analysis trades
 
 ### EA Bridge
-- Heartbeat: full snapshot every 30s, rate limited to 1/10s per account
+- Heartbeat: full snapshot every 30s, rate limited to 1/10s per account, includes floatingProfit + tradeAllowed
+- Login: sends extended account data (accountName, currency, leverage, stopoutLevel, stopoutMode, isDemo)
 - Close detection: DB open trades missing from heartbeat = closed
 - Close price: same-source fallback only (never cross-broker)
 - Signal qualification: 20s window, frozen risk snapshot
@@ -412,6 +415,7 @@ Enforced rules verified from code. For full evidence, see `SITE_RULES_AUDIT_REPO
 - No reconnect handshake — implicit via heartbeat comparison
 - No gap audit logging
 - API keys: 64-char hex, stored plaintext for fast DB lookup
+- All new fields backward-compatible (optional — older EAs still work)
 
 ### Leaderboard & Badges
 - 6 lenses: composite (weighted), profit, low_risk, consistency, risk_adjusted, activity
@@ -427,6 +431,20 @@ Enforced rules verified from code. For full evidence, see `SITE_RULES_AUDIT_REPO
 - Feature flags: CRUD, cached, invalidated on change
 - Audit log: tracks action, entity, actor, level, category
 - Badge admin changes tracked separately
+
+### Activity Digest
+**Status: LIVE** (feature-flagged: `digest_v2` for health layer)
+- v1 (default): Per-member aggregates (signals, analysis, TP/SL/BE/open counts, win rate, total/avg R, trade list)
+- v2 (behind `digest_v2` flag): Health-first open trade analysis layer on top of v1 closed-trade metrics
+  - 6 health dimensions per open trade: dataConfidence, entryQuality, protectionStatus, setupStatus, managementStatus, profitProtection
+  - Overall health: HEALTHY / NEEDS_REVIEW / AT_RISK / BROKEN_PLAN / LOW_CONFIDENCE (strict precedence)
+  - Attention queue: max 5 items, max 2 per member, priority-ordered (CRITICAL > WARNING > INFO)
+  - Live health summary: aggregate counters across all open positions
+  - Closed trades remain R-centric (unchanged from v1)
+- API: `GET /api/clans/[clanId]/digest?period=today|week|month&tz=N&v=2`
+- Redis cached: 90s TTL per clan/period/timezone
+- UI: DigestSheetV2 in chat toolbar (replaces DigestSheet, backward-compatible with v1 responses)
+- 139 unit tests for health computation functions
 
 ### Notifications
 - Calendar event reminders: socket-based (1-hour + 1-minute before)
@@ -587,6 +605,8 @@ Newest first. Append-only.
 
 | Date | Change | Reason | Affected Files |
 |------|--------|--------|----------------|
+| 2026-03-10 | Activity Digest v2.1 — Open Trade Health Layer | New health-first analysis for open trades in clan digest. 6 health dimensions, attention queue, live health summary. Feature-flagged behind `digest_v2`. 139 unit tests. Backward-compatible with v1. Verified in code. | src/lib/open-trade-health.ts, src/lib/digest-constants.ts, src/lib/digest-v2-schema.ts, src/services/digest-v2.service.ts, src/components/chat/DigestSheetV2.tsx, src/app/api/clans/[clanId]/digest/route.ts, src/locales/en.json, src/locales/fa.json |
+| 2026-03-10 | EA extended account data fields | EA login now sends accountName, currency, leverage, stopoutLevel, stopoutMode, isDemo. Heartbeat now sends floatingProfit, tradeAllowed. 5 new nullable columns + 1 boolean on MtAccount. Backward-compatible. Verified in code. | ea/MQL4/*.mq4, ea/MQL5/*.mq5, prisma/schema.prisma, src/services/ea.service.ts, src/lib/validators.ts |
 | 2026-03-10 | Final precision pass | Clarified LIVE status (dev, not production), renamed "Shipped" → "Built", tightened target-user wording, added plaintext API key to Security section, replaced "shipped" with "completed" in triggers. No structural changes. | SOURCE_OF_TRUTH.md |
 | 2026-03-10 | Consistency hardening pass | Fixed: private clan switch contradiction (clanless, not stay-in-current), chat image limit (4 not 10), standardized status vocabulary (added NOT IMPLEMENTED, removed BASIC/MISSING/IMPLEMENTED), labeled board counts as approximate, added last-verified dates to ops items, added Critical Verified Rules section, tightened clan switch contradiction resolution. Verified in code. | SOURCE_OF_TRUTH.md |
 | 2026-03-10 | Added Core Platform Rules, Open Verification Queue, and SITE_RULES_AUDIT_REPORT.md | Deep code audit of 13 rule domains found 15 rules missing from SOT, 4 new contradictions, 8 open verification items | SOURCE_OF_TRUTH.md, SITE_RULES_AUDIT_REPORT.md |

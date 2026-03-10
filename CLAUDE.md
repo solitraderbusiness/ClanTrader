@@ -107,7 +107,7 @@ All 7 conditions must pass for `statementEligible = true`:
 | Ranking | `ranking.service.ts` (6 lenses + composite) |
 | Live Risk | `live-risk.service.ts` (floating PnL, drawdown, effective rank) |
 | Journal | `journal.service.ts` (equity curve, calendar, streaks, breakdowns) |
-| Digest | `clan-digest.service.ts` (per-member clan aggregates) |
+| Digest | `clan-digest.service.ts` (v1), `digest-v2.service.ts` (v2 health layer), `open-trade-health.ts` |
 | Trade Evaluation | `trade-evaluator.service.ts` (candle-based auto-evaluation) |
 | Badges | `badge-engine.service.ts` (rank/perf/trophy badges) |
 | Price Data | `price-pool.service.ts` (Redis-cached from EA heartbeat) |
