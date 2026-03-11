@@ -1,8 +1,8 @@
 // ────────────────────────────────────────────
-// Activity Digest v2 — Open Trade Health Layer
+// Activity Digest v2 — Trading Cockpit Layer
 // ────────────────────────────────────────────
-// Extends v1 digest with health-first open trade analysis.
-// Closed trades remain R-centric. Open trades become health/risk-centric.
+// Cockpit-first digest: live P/L, floating R, open risk, actions needed.
+// Health model supports the cockpit as secondary information.
 
 import { db } from "@/lib/db";
 import { redis } from "@/lib/redis";
@@ -23,6 +23,7 @@ import type {
   OpenPositionV2,
   ClosedTradeV2,
   TrackingSummary,
+  CockpitSummary,
 } from "@/lib/digest-v2-schema";
 
 function getPeriodStart(period: DigestPeriod, tzOffset: number = 0): Date {
@@ -71,7 +72,7 @@ export async function getClanDigestV2(
 
   const periodStart = getPeriodStart(period, tzOffset);
 
-  // Fetch trades with extended data for health computation
+  // Fetch trades with extended data for health + cockpit computation
   const trades = await db.trade.findMany({
     where: {
       clanId,
@@ -171,7 +172,7 @@ export async function getClanDigestV2(
   }
 
   // ─── Build tracking summary from unique MT accounts across all trades ───
-  const seenAccounts = new Map<string, string>(); // accountId → trackingStatus
+  const seenAccounts = new Map<string, string>();
   for (const t of trades) {
     const mt = t.mtTradeMatches[0];
     if (mt?.mtAccount) {
@@ -192,7 +193,7 @@ export async function getClanDigestV2(
     else trackingSummary.lostAccounts++;
   }
 
-  // ─── Compute open trade health ───
+  // ─── Compute open trade health + cockpit metrics ───
   const openHealthResults: Array<{
     trade: TradeWithMeta;
     health: ReturnType<typeof computeOpenTradeHealth>;
@@ -200,6 +201,7 @@ export async function getClanDigestV2(
     floatingR: number | null;
     floatingPnl: number | null;
     trackingStatus: string;
+    riskToSLR: number | null;
   }> = [];
 
   for (const t of openTrades) {
@@ -226,19 +228,28 @@ export async function getClanDigestV2(
     // Compute floating PnL and R
     let floatingPnl: number | null = null;
     let floatingR: number | null = null;
+    const riskAbs = t.officialInitialRiskAbs ?? t.initialRiskAbs;
+    const entry = t.officialEntryPrice ?? t.initialEntry ?? t.tradeCard?.entry ?? 0;
+    const dir = direction === "LONG" ? 1 : -1;
+
     if (mt) {
       floatingPnl = (mt.profit ?? 0) + (mt.commission ?? 0) + (mt.swap ?? 0);
       const riskMoney = t.officialInitialRiskMoney;
-      const riskAbs = t.officialInitialRiskAbs ?? t.initialRiskAbs;
       if (riskMoney && riskMoney > 0) {
         floatingR = Math.round((floatingPnl / riskMoney) * 100) / 100;
       } else if (riskAbs && riskAbs > 0 && currentPrice !== null) {
-        const entry = t.officialEntryPrice ?? t.initialEntry ?? t.tradeCard?.entry ?? 0;
         if (entry > 0) {
-          const dir = direction === "LONG" ? 1 : -1;
           floatingR = Math.round((dir * (currentPrice - entry) / riskAbs) * 100) / 100;
         }
       }
+    }
+
+    // Compute risk to SL: R position if current SL hits
+    // e.g. original SL → -1R, BE lock → 0R, profit lock → +0.5R
+    let riskToSLR: number | null = null;
+    const currentSL = mt?.stopLoss ?? null;
+    if (currentSL && currentSL > 0 && riskAbs && riskAbs > 0 && entry > 0) {
+      riskToSLR = Math.round(dir * (currentSL - entry) / riskAbs * 100) / 100;
     }
 
     const input: OpenTradeInput = {
@@ -248,7 +259,7 @@ export async function getClanDigestV2(
       instrument,
       direction,
       currentPrice,
-      currentSL: mt?.stopLoss ?? null,
+      currentSL,
       currentTP: mt?.takeProfit ?? null,
       floatingPnl,
       floatingR,
@@ -276,8 +287,108 @@ export async function getClanDigestV2(
       floatingR,
       floatingPnl,
       trackingStatus,
+      riskToSLR,
     });
   }
+
+  // ─── Cockpit aggregates from open trades ───
+  let cockpitFloatingPnl = 0;
+  let cockpitFloatingR = 0;
+  let computableRCount = 0;
+  let nonComputableRCount = 0;
+  let cockpitOpenRiskR = 0;
+  let unknownRiskCount = 0;
+  let tradesNeedingAction = 0;
+  let hasAnyPnl = false;
+  let hasAnyR = false;
+  let hasAnyRisk = false;
+
+  for (const ot of openHealthResults) {
+    if (ot.floatingPnl !== null) {
+      cockpitFloatingPnl += ot.floatingPnl;
+      hasAnyPnl = true;
+    }
+    if (ot.rComputable && ot.floatingR !== null) {
+      cockpitFloatingR += ot.floatingR;
+      computableRCount++;
+      hasAnyR = true;
+    } else {
+      nonComputableRCount++;
+    }
+    if (ot.riskToSLR !== null) {
+      cockpitOpenRiskR += ot.riskToSLR;
+      hasAnyRisk = true;
+    } else {
+      unknownRiskCount++;
+    }
+    const h = ot.health.overall;
+    if (h === "AT_RISK" || h === "BROKEN_PLAN") {
+      tradesNeedingAction++;
+    }
+  }
+
+  // Live confidence: aggregate from individual trade data confidence
+  const totalOpen = openHealthResults.length;
+  const lowConfCount = openHealthResults.filter(r => r.health.dataConfidence === "LOW").length;
+  const partialConfCount = openHealthResults.filter(r => r.health.dataConfidence === "PARTIAL").length;
+  const liveConfidence: "HIGH" | "PARTIAL" | "LOW" =
+    totalOpen === 0 ? "HIGH" :
+    lowConfCount > totalOpen / 2 ? "LOW" :
+    (lowConfCount + partialConfCount) > 0 ? "PARTIAL" : "HIGH";
+
+  // ─── Cockpit realized metrics from closed trades ───
+  let realizedPnlTotal = 0;
+  let hasRealizedPnl = false;
+  let realizedRTotal = 0;
+  let officialWins = 0;
+  let officialLosses = 0;
+  let officialClosedCount = 0;
+  let unofficialClosedCount = 0;
+
+  for (const ct of closedTrades) {
+    // P/L from MT match (preferred) or Trade.netProfit fallback
+    const mt = ct.mtTradeMatches[0];
+    if (mt && mt.profit !== null) {
+      realizedPnlTotal += (mt.profit ?? 0) + (mt.commission ?? 0) + (mt.swap ?? 0);
+      hasRealizedPnl = true;
+    } else if (ct.netProfit !== null) {
+      realizedPnlTotal += ct.netProfit;
+      hasRealizedPnl = true;
+    }
+
+    if (ct.r !== null) {
+      realizedRTotal += ct.r;
+    }
+
+    const isOfficial = ct.officialSignalQualified === true && ct.cardType === "SIGNAL";
+    if (isOfficial) {
+      officialClosedCount++;
+      if (ct.r !== null) {
+        if (ct.r > 0) officialWins++;
+        else if (ct.r < 0) officialLosses++;
+      }
+    } else {
+      unofficialClosedCount++;
+    }
+  }
+
+  const officialDecided = officialWins + officialLosses;
+  const cockpit: CockpitSummary = {
+    totalFloatingPnl: hasAnyPnl ? Math.round(cockpitFloatingPnl * 100) / 100 : null,
+    totalFloatingR: hasAnyR ? Math.round(cockpitFloatingR * 100) / 100 : null,
+    computableRCount,
+    nonComputableRCount,
+    currentOpenRiskR: hasAnyRisk ? Math.round(cockpitOpenRiskR * 100) / 100 : null,
+    unknownRiskCount,
+    tradesNeedingAction,
+    liveConfidence,
+    realizedPnl: hasRealizedPnl ? Math.round(realizedPnlTotal * 100) / 100 : null,
+    realizedR: closedTrades.length > 0 ? Math.round(realizedRTotal * 100) / 100 : null,
+    closedCount: closedTrades.length,
+    officialWinRate: officialDecided > 0 ? Math.round((officialWins / officialDecided) * 1000) / 10 : null,
+    officialCount: officialClosedCount,
+    unofficialCount: unofficialClosedCount,
+  };
 
   // ─── Build attention queue ───
   const attentionQueue = buildAttentionQueue(
@@ -317,6 +428,15 @@ export async function getClanDigestV2(
     losses: number;
     totalR: number;
     countWithR: number;
+    // Member cockpit accumulators
+    mFloatingPnl: number;
+    mFloatingR: number;
+    mRiskToSLR: number;
+    mActionsNeeded: number;
+    mUnknownRiskCount: number;
+    mHasPnl: boolean;
+    mHasR: boolean;
+    mHasRisk: boolean;
     closedTrades: ClosedTradeV2[];
     openPositions: OpenPositionV2[];
   }>();
@@ -329,6 +449,9 @@ export async function getClanDigestV2(
         signalCount: 0, analysisCount: 0,
         tpHit: 0, slHit: 0, be: 0, openCount: 0,
         wins: 0, losses: 0, totalR: 0, countWithR: 0,
+        mFloatingPnl: 0, mFloatingR: 0, mRiskToSLR: 0,
+        mActionsNeeded: 0, mUnknownRiskCount: 0,
+        mHasPnl: false, mHasR: false, mHasRisk: false,
         closedTrades: [], openPositions: [],
       };
       memberMap.set(userId, entry);
@@ -374,7 +497,7 @@ export async function getClanDigestV2(
     }
   }
 
-  // Process open trades
+  // Process open trades — accumulate member cockpit metrics
   for (const ot of openHealthResults) {
     const t = ot.trade;
     const m = getOrCreateMember(
@@ -388,6 +511,25 @@ export async function getClanDigestV2(
     else m.analysisCount++;
     m.openCount++;
 
+    // Member cockpit accumulation
+    if (ot.floatingPnl !== null) {
+      m.mFloatingPnl += ot.floatingPnl;
+      m.mHasPnl = true;
+    }
+    if (ot.rComputable && ot.floatingR !== null) {
+      m.mFloatingR += ot.floatingR;
+      m.mHasR = true;
+    }
+    if (ot.riskToSLR !== null) {
+      m.mRiskToSLR += ot.riskToSLR;
+      m.mHasRisk = true;
+    } else {
+      m.mUnknownRiskCount++;
+    }
+    if (ot.health.overall === "AT_RISK" || ot.health.overall === "BROKEN_PLAN") {
+      m.mActionsNeeded++;
+    }
+
     if (m.openPositions.length < 20) {
       m.openPositions.push({
         tradeId: t.id,
@@ -396,6 +538,7 @@ export async function getClanDigestV2(
         floatingR: ot.floatingR,
         floatingPnl: ot.floatingPnl,
         rComputable: ot.rComputable,
+        riskToSLR: ot.riskToSLR,
         health: ot.health,
         trackingStatus: ot.trackingStatus,
         cardType: t.cardType ?? "SIGNAL",
@@ -440,6 +583,11 @@ export async function getClanDigestV2(
         winRate: d > 0 ? Math.round((e.wins / d) * 1000) / 10 : 0,
         totalR: Math.round(e.totalR * 100) / 100,
         avgR: e.countWithR > 0 ? Math.round((e.totalR / e.countWithR) * 100) / 100 : 0,
+        memberFloatingPnl: e.mHasPnl ? Math.round(e.mFloatingPnl * 100) / 100 : null,
+        memberFloatingR: e.mHasR ? Math.round(e.mFloatingR * 100) / 100 : null,
+        memberRiskToSLR: e.mHasRisk ? Math.round(e.mRiskToSLR * 100) / 100 : null,
+        memberActionsNeeded: e.mActionsNeeded,
+        memberUnknownRiskCount: e.mUnknownRiskCount,
         closedTrades: e.closedTrades,
         openPositions: e.openPositions,
       };
@@ -462,6 +610,7 @@ export async function getClanDigestV2(
       avgR: countWithR > 0 ? Math.round((totalR / countWithR) * 100) / 100 : 0,
       activeMemberCount: members.length,
     },
+    cockpit,
     trackingSummary,
     members,
     liveHealthSummary,

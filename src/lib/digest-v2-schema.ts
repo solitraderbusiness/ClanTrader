@@ -88,6 +88,28 @@ export const trackingSummarySchema = z.object({
   lostAccounts: z.number(),
 });
 
+// ─── Cockpit Summary ───
+
+export const cockpitSummarySchema = z.object({
+  // RIGHT NOW — live open trade metrics
+  totalFloatingPnl: z.number().nullable(),
+  totalFloatingR: z.number().nullable(),
+  computableRCount: z.number(),
+  nonComputableRCount: z.number(),
+  currentOpenRiskR: z.number().nullable(),
+  unknownRiskCount: z.number(),
+  tradesNeedingAction: z.number(),
+  liveConfidence: z.enum(["HIGH", "PARTIAL", "LOW"]),
+
+  // PERIOD — realized metrics from closed trades
+  realizedPnl: z.number().nullable(),
+  realizedR: z.number().nullable(),
+  closedCount: z.number(),
+  officialWinRate: z.number().nullable(),
+  officialCount: z.number(),
+  unofficialCount: z.number(),
+});
+
 // ─── Extended Open Position ───
 
 export const openPositionV2Schema = z.object({
@@ -97,6 +119,7 @@ export const openPositionV2Schema = z.object({
   floatingR: z.number().nullable(),
   floatingPnl: z.number().nullable(),
   rComputable: z.boolean(),
+  riskToSLR: z.number().nullable(),
   health: openTradeHealthSchema,
   trackingStatus: z.string(),
   cardType: z.string(),
@@ -132,6 +155,12 @@ export const memberStatsV2Schema = z.object({
   winRate: z.number(),
   totalR: z.number(),
   avgR: z.number(),
+  // Member cockpit aggregates
+  memberFloatingPnl: z.number().nullable(),
+  memberFloatingR: z.number().nullable(),
+  memberRiskToSLR: z.number().nullable(),
+  memberActionsNeeded: z.number(),
+  memberUnknownRiskCount: z.number(),
   closedTrades: z.array(closedTradeV2Schema),
   openPositions: z.array(openPositionV2Schema),
 });
@@ -155,6 +184,7 @@ export const digestV2ResponseSchema = z.object({
     avgR: z.number(),
     activeMemberCount: z.number(),
   }),
+  cockpit: cockpitSummarySchema,
   trackingSummary: trackingSummarySchema,
   members: z.array(memberStatsV2Schema),
   liveHealthSummary: liveHealthSummarySchema,
@@ -166,3 +196,4 @@ export type MemberStatsV2 = z.infer<typeof memberStatsV2Schema>;
 export type OpenPositionV2 = z.infer<typeof openPositionV2Schema>;
 export type ClosedTradeV2 = z.infer<typeof closedTradeV2Schema>;
 export type TrackingSummary = z.infer<typeof trackingSummarySchema>;
+export type CockpitSummary = z.infer<typeof cockpitSummarySchema>;
