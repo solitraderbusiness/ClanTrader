@@ -42,6 +42,13 @@ Every doc has a status banner at the top:
 | [FEATURES.md](FEATURES.md) | Feature-by-feature QA test checklist | QA |
 | [TESTING-CHECKLIST.md](TESTING-CHECKLIST.md) | Full QA test matrix (light/dark, mobile/desktop) | QA |
 
+### Workflow & Task Management
+| Doc | Purpose | Owner |
+|-----|---------|-------|
+| [DECISION_LOG.md](DECISION_LOG.md) | Running log of in-progress decisions captured during task work | PM |
+| `tasks/*.md` | Per-task briefs (goal, decisions, edge cases, done definition) | PM |
+| `testing/*-test-plan.md` | Per-task test plans with scenarios and expected results | QA |
+
 ### Ops & Deployment
 | Doc | Purpose | Owner |
 |-----|---------|-------|
@@ -74,9 +81,12 @@ For authoritative project truth (feature status, infrastructure state, launch bl
 
 ## Keeping Docs Current
 
-Run `/update-project` in Claude Code to:
-- Audit all docs against codebase reality
-- Reconcile contradictions
-- Update canonical docs
-- Archive stale docs
-- Refresh CLAUDE.md and this index
+**Founder workflow commands** (see `.claude/FOUNDER_LOOP.md`):
+- `/task-start <name>` — rebuild context, create task brief + test plan
+- `/task-update [name]` — mid-task: capture decisions, update brief/test plan
+- `/project-update [context]` — task finished: update SOURCE_OF_TRUTH.md and docs
+- `/weekly-pm` — weekly PM cleanup pass
+- `/my-rules` — workflow guidance
+
+**Full doc reconciliation**:
+Run `/update-project` in Claude Code to audit all docs against codebase reality, reconcile contradictions, and refresh this index.

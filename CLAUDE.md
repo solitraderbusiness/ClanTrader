@@ -107,7 +107,7 @@ All 7 conditions must pass for `statementEligible = true`:
 | Ranking | `ranking.service.ts` (6 lenses + composite) |
 | Live Risk | `live-risk.service.ts` (floating PnL, drawdown, effective rank) |
 | Journal | `journal.service.ts` (equity curve, calendar, streaks, breakdowns) |
-| Digest | `clan-digest.service.ts` (v1), `digest-v2.service.ts` (v2 health layer), `open-trade-health.ts` |
+| Digest | `clan-digest.service.ts` (v1), `digest-v2.service.ts` (v2 cockpit), `open-trade-health.ts` |
 | Trade Evaluation | `trade-evaluator.service.ts` (candle-based auto-evaluation) |
 | Badges | `badge-engine.service.ts` (rank/perf/trophy badges) |
 | Price Data | `price-pool.service.ts` (Redis-cached from EA heartbeat) |
@@ -176,7 +176,8 @@ The project board (`/admin/kanban`) tracks all work. Column flow: **BACKLOG → 
 ## Agentic Workflow
 
 - **Subagents** (`.claude/agents/`): `security-reviewer`, `test-writer`, `ea-debugger` — use these for isolated review, testing, and EA debugging without filling main context
-- **Skills** (`.claude/skills/`): `api`, `component`, `i18n`, `test`, `deploy`, `ea-debug`, `fix-issue`, `review`, `migrate`, `board`, `project-update` — invoke with `/skill-name`
+- **Skills** (`.claude/skills/`): `api`, `component`, `i18n`, `test`, `deploy`, `ea-debug`, `fix-issue`, `review`, `migrate`, `board`, `project-update`, `my-rules`, `task-start`, `task-update`, `weekly-pm` — invoke with `/skill-name`
+- **Founder workflow** (`.claude/FOUNDER_LOOP.md`): personal workflow memory; task briefs in `docs/tasks/`, test plans in `docs/testing/`, decisions in `docs/DECISION_LOG.md`
 - **Hooks**: pre-commit runs eslint via lint-staged; Claude Code runs eslint after every Edit/Write
 - Run `/project-update` after any material task to update `SOURCE_OF_TRUTH.md` and reconcile docs
 - When compacting, always preserve the full list of modified files and any test commands that were run
