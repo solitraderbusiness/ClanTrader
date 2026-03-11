@@ -7,8 +7,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { DirectionBadge } from "@/components/shared/DirectionBadge";
@@ -65,6 +63,8 @@ const PERIODS: { value: DigestPeriod; labelKey: string }[] = [
   { value: "month", labelKey: "digest.thisMonth" },
 ];
 
+// ─── Style Maps ───
+
 const HEALTH_COLORS: Record<OverallHealth, { bg: string; text: string; border: string }> = {
   HEALTHY: { bg: "bg-green-500/10", text: "text-green-600 dark:text-green-400", border: "border-green-500/30" },
   NEEDS_REVIEW: { bg: "bg-yellow-500/10", text: "text-yellow-600 dark:text-yellow-400", border: "border-yellow-500/30" },
@@ -73,13 +73,34 @@ const HEALTH_COLORS: Record<OverallHealth, { bg: string; text: string; border: s
   LOW_CONFIDENCE: { bg: "bg-gray-500/10", text: "text-gray-500 dark:text-gray-400", border: "border-gray-500/30" },
 };
 
-const SEVERITY_COLORS: Record<AttentionSeverity, { bg: string; text: string; border: string }> = {
-  CRITICAL: { bg: "bg-red-500/10", text: "text-red-600 dark:text-red-400", border: "border-red-500/30" },
-  WARNING: { bg: "bg-yellow-500/10", text: "text-yellow-600 dark:text-yellow-400", border: "border-yellow-500/30" },
-  INFO: { bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400", border: "border-blue-500/30" },
+const SEVERITY_ACCENT: Record<AttentionSeverity, string> = {
+  CRITICAL: "border-s-red-500",
+  WARNING: "border-s-yellow-500",
+  INFO: "border-s-blue-500",
 };
 
-// ─── Formatting helpers ───
+const SAFETY_STYLES: Record<SafetyBand, { text: string; border: string; bar: string; heroBg: string }> = {
+  SAFE: { text: "text-green-600 dark:text-green-400", border: "border-green-500/30", bar: "bg-green-500", heroBg: "bg-green-500/15 dark:bg-green-500/10" },
+  WATCH: { text: "text-yellow-600 dark:text-yellow-400", border: "border-yellow-500/30", bar: "bg-yellow-500", heroBg: "bg-yellow-500/15 dark:bg-yellow-500/10" },
+  AT_RISK: { text: "text-orange-600 dark:text-orange-400", border: "border-orange-500/30", bar: "bg-orange-500", heroBg: "bg-orange-500/15 dark:bg-orange-500/10" },
+  CRITICAL: { text: "text-red-600 dark:text-red-400", border: "border-red-500/30", bar: "bg-red-500", heroBg: "bg-red-500/15 dark:bg-red-500/10" },
+};
+
+const CONFIDENCE_STYLES: Record<ConfidenceBand, { text: string }> = {
+  HIGH: { text: "text-green-600 dark:text-green-400" },
+  MODERATE: { text: "text-yellow-600 dark:text-yellow-400" },
+  LOW: { text: "text-orange-600 dark:text-orange-400" },
+  DEGRADED: { text: "text-red-600 dark:text-red-400" },
+};
+
+const RISK_BUDGET_STYLES: Record<RiskBudgetBand, { bar: string; text: string }> = {
+  LOW: { bar: "bg-green-500", text: "text-green-600 dark:text-green-400" },
+  MODERATE: { bar: "bg-yellow-500", text: "text-yellow-600 dark:text-yellow-400" },
+  HIGH: { bar: "bg-orange-500", text: "text-orange-600 dark:text-orange-400" },
+  CRITICAL: { bar: "bg-red-500", text: "text-red-600 dark:text-red-400" },
+};
+
+// ─── Formatting Helpers ───
 
 function fmtPnl(v: number | null): string {
   if (v === null) return "—";
@@ -98,8 +119,6 @@ function pnlColor(v: number | null): string {
   return v >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400";
 }
 
-// ─── Recommended action from health reasons ───
-
 function getAction(
   reasons: string[],
   overall: string,
@@ -116,20 +135,18 @@ function getAction(
   return null;
 }
 
-// ─── Group attention items: collapse tracking-lost by member ───
+// ─── Group attention items ───
 
 interface GroupedItem {
   type: "single" | "trackingGroup";
   severity: AttentionSeverity;
   userId: string;
   username: string;
-  // single
   tradeId?: string;
   instrument?: string;
   messageKey?: string;
   messageParams?: Record<string, string | number>;
   kind?: string;
-  // trackingGroup
   count?: number;
   instruments?: string[];
 }
@@ -258,41 +275,45 @@ export function DigestSheetV2({ open, onOpenChange, clanId }: DigestSheetV2Props
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-lg">
-        <SheetHeader>
+      <SheetContent side="right" className="flex w-full flex-col overflow-hidden sm:max-w-lg">
+        <SheetHeader className="shrink-0">
           <div className="flex items-center justify-between">
-            <SheetTitle>{t("digest.title")}</SheetTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0"
+            <SheetTitle className="text-lg font-bold">{t("digest.title")}</SheetTitle>
+            <button
+              type="button"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               onClick={() => fetchDigest(period)}
               disabled={loading}
             >
-              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-            </Button>
+              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            </button>
           </div>
         </SheetHeader>
 
-        {/* Period Selector */}
-        <div className="mt-4 flex gap-2">
+        {/* Modern pill tab selector */}
+        <div className="mt-3 flex shrink-0 rounded-lg bg-muted/50 p-1">
           {PERIODS.map((p) => (
-            <Button
+            <button
               key={p.value}
-              variant={period === p.value ? "default" : "outline"}
-              size="sm"
+              type="button"
+              className={cn(
+                "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                period === p.value
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
               onClick={() => setPeriod(p.value)}
               disabled={loading}
             >
               {t(p.labelKey)}
-            </Button>
+            </button>
           ))}
         </div>
 
-        <div className="mt-4 overflow-y-auto" style={{ maxHeight: "calc(100vh - 200px)" }}>
+        <div className="mt-4 flex-1 overflow-y-auto pb-4">
           {loading && (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin" />
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           )}
 
@@ -329,7 +350,7 @@ export function DigestSheetV2({ open, onOpenChange, clanId }: DigestSheetV2Props
   );
 }
 
-// ─── V2 Cockpit Content ───
+// ─── V2 Content — Modern Dashboard Layout ───
 
 function V2Content({
   data,
@@ -351,235 +372,199 @@ function V2Content({
   const hasTrackingIssue = ts.staleAccounts > 0 || ts.lostAccounts > 0;
   const grouped = groupAttentionItems(data.attentionQueue);
   const sa = data.stateAssessment;
+  const hasOpenPositions = data.summary.openCount > 0;
+  const hasClosedResults = c.closedCount > 0 || data.summary.totalCards > 0;
 
   return (
-    <div className="space-y-3">
-      {/* ─── STATE STATUS BAR — safety + confidence ─── */}
-      <StateStatusBar assessment={sa} t={t} />
+    <div className="space-y-6">
+      {/* ═══ ZONE 1: State Overview ═══ */}
+      <div className="space-y-3">
+        <HeroStatusCard assessment={sa} t={t} />
+        <DeltaStrip deltas={data.deltas} t={t} />
+      </div>
 
-      {/* ─── DELTA STRIP — what changed since last check ─── */}
-      <DeltaStrip deltas={data.deltas} t={t} />
-
-      {/* ─── TOP ACTIONS NOW ─── */}
-      {data.actions.length > 0 && (
-        <TopActionsBlock actions={data.actions} t={t} />
-      )}
-
-      {/* ─── PREDICTIVE HINTS (Phase 3) ─── */}
-      {data.hints && data.hints.length > 0 && (
-        <HintsBlock hints={data.hints} t={t} />
-      )}
-
-      {/* ─── RISK BUDGET (Phase 2+3) ─── */}
-      {data.riskBudget && (
-        <RiskBudgetBar budget={data.riskBudget} t={t} />
-      )}
-
-      {/* ─── CONCENTRATION CLUSTERS (Phase 2) ─── */}
-      {data.concentration && data.concentration.length > 0 && (
-        <ConcentrationBlock clusters={data.concentration} t={t} />
-      )}
-
-      {/* ─── Tracking bar (compact, only if issues or accounts exist) ─── */}
-      {(ts.activeAccounts + ts.staleAccounts + ts.lostAccounts) > 0 && (
-        <div className={cn(
-          "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs",
-          hasTrackingIssue
-            ? "border-yellow-500/30 bg-yellow-500/5"
-            : "border-green-500/30 bg-green-500/5"
-        )}>
-          {hasTrackingIssue ? (
-            <WifiOff className="h-3.5 w-3.5 shrink-0 text-yellow-500" />
-          ) : (
-            <Wifi className="h-3.5 w-3.5 shrink-0 text-green-500" />
+      {/* ═══ ZONE 2: Actions & Warnings ═══ */}
+      {(data.actions.length > 0 || (data.hints && data.hints.length > 0)) && (
+        <div className="space-y-3">
+          {data.actions.length > 0 && (
+            <TopActionsBlock actions={data.actions} t={t} />
           )}
-          <div className="flex flex-wrap gap-2">
-            {ts.activeAccounts > 0 && (
-              <span className="text-green-600 dark:text-green-400">
-                {ts.activeAccounts} {t("digest.tracking.active")}
-              </span>
-            )}
-            {ts.staleAccounts > 0 && (
-              <span className="text-yellow-600 dark:text-yellow-400">
-                {ts.staleAccounts} {t("digest.tracking.stale")}
-              </span>
-            )}
-            {ts.lostAccounts > 0 && (
-              <span className="text-red-600 dark:text-red-400">
-                {ts.lostAccounts} {t("digest.tracking.lost")}
-              </span>
-            )}
-          </div>
-          <span className="ms-auto text-[10px] text-muted-foreground">
-            <Clock className="me-0.5 inline h-2.5 w-2.5" />
-            {new Date(data.generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-          </span>
+          {data.hints && data.hints.length > 0 && (
+            <HintsBlock hints={data.hints} t={t} />
+          )}
         </div>
       )}
 
-      {/* ─── RIGHT NOW — live open trade cockpit ─── */}
-      {data.summary.openCount > 0 && (
-        <div>
-          <h4 className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase text-muted-foreground">
-            <TrendingUp className="h-3.5 w-3.5" />
-            {t("digest.cockpit.rightNow")}
-          </h4>
-          <div className="grid grid-cols-3 gap-1.5">
-            <CockpitCard
-              label={t("digest.cockpit.openPnl")}
-              value={fmtPnl(c.totalFloatingPnl)}
-              color={pnlColor(c.totalFloatingPnl)}
-            />
-            <CockpitCard
-              label={t("digest.cockpit.openR")}
-              value={fmtR(c.totalFloatingR)}
-              color={pnlColor(c.totalFloatingR)}
-            />
-            <CockpitCard
-              label={t("digest.cockpit.slRisk")}
-              value={fmtR(c.currentOpenRiskR)}
-              color="text-orange-600 dark:text-orange-400"
-            />
-          </div>
-          <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px]">
-            {c.tradesNeedingAction > 0 && (
-              <span className="rounded border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-red-600 dark:text-red-400">
-                {c.tradesNeedingAction} {t("digest.cockpit.needAction")}
-              </span>
-            )}
-            <span className={cn(
-              "rounded border px-1.5 py-0.5",
-              c.liveConfidence === "HIGH"
-                ? "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400"
-                : c.liveConfidence === "PARTIAL"
-                ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
-                : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"
+      {/* ═══ ZONE 3: Key Metrics ═══ */}
+      {(hasOpenPositions || hasClosedResults) && (
+        <div className="space-y-3">
+          {hasOpenPositions && (
+            <div>
+              <SectionHeader
+                icon={<TrendingUp className="h-3.5 w-3.5" />}
+                label={t("digest.cockpit.rightNow")}
+              />
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <MetricCard
+                  label={t("digest.cockpit.openPnl")}
+                  value={fmtPnl(c.totalFloatingPnl)}
+                  color={pnlColor(c.totalFloatingPnl)}
+                />
+                <MetricCard
+                  label={t("digest.cockpit.openR")}
+                  value={fmtR(c.totalFloatingR)}
+                  color={pnlColor(c.totalFloatingR)}
+                />
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span>
+                  {t("digest.cockpit.slRisk")}:{" "}
+                  <span className="font-mono text-orange-600 dark:text-orange-400">{fmtR(c.currentOpenRiskR)}</span>
+                </span>
+                {c.tradesNeedingAction > 0 && (
+                  <span className="text-red-600 dark:text-red-400">
+                    {c.tradesNeedingAction} {t("digest.cockpit.needAction")}
+                  </span>
+                )}
+                {c.unknownRiskCount > 0 && (
+                  <span>{c.unknownRiskCount} {t("digest.cockpit.unknownRisk")}</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {hasClosedResults && (
+            <div>
+              <SectionHeader
+                icon={<TrendingDown className="h-3.5 w-3.5" />}
+                label={t("digest.cockpit.periodResults")}
+              />
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <MetricCard
+                  label={t("digest.cockpit.realizedPnl")}
+                  value={fmtPnl(c.realizedPnl)}
+                  color={pnlColor(c.realizedPnl)}
+                />
+                <MetricCard
+                  label={t("digest.cockpit.realizedR")}
+                  value={fmtR(c.realizedR)}
+                  color={pnlColor(c.realizedR)}
+                />
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span>{c.closedCount} {t("digest.cockpit.closed")}</span>
+                {c.officialWinRate !== null && (
+                  <span>WR: <span className="font-mono text-green-600 dark:text-green-400">{c.officialWinRate}%</span></span>
+                )}
+                <span className="flex gap-1.5">
+                  <span className="text-green-600 dark:text-green-400">TP:{data.summary.tpHit}</span>
+                  <span className="text-red-600 dark:text-red-400">SL:{data.summary.slHit}</span>
+                  {data.summary.be > 0 && (
+                    <span className="text-yellow-600 dark:text-yellow-400">BE:{data.summary.be}</span>
+                  )}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {data.riskBudget && (
+            <RiskBudgetBar budget={data.riskBudget} t={t} />
+          )}
+        </div>
+      )}
+
+      {/* ═══ ZONE 4: Position Overview ═══ */}
+      {(data.concentration.length > 0 || (ts.activeAccounts + ts.staleAccounts + ts.lostAccounts) > 0) && (
+        <div className="space-y-3">
+          {data.concentration.length > 0 && (
+            <ConcentrationBlock clusters={data.concentration} t={t} />
+          )}
+
+          {(ts.activeAccounts + ts.staleAccounts + ts.lostAccounts) > 0 && (
+            <div className={cn(
+              "flex items-center gap-2 rounded-lg px-3 py-2 text-xs",
+              hasTrackingIssue ? "bg-yellow-500/5" : "bg-green-500/5"
             )}>
-              {t(`digest.cockpit.conf.${c.liveConfidence.toLowerCase()}`)}
-            </span>
-            {c.unknownRiskCount > 0 && (
-              <span className="rounded border border-gray-500/30 bg-gray-500/10 px-1.5 py-0.5 text-muted-foreground">
-                {c.unknownRiskCount} {t("digest.cockpit.unknownRisk")}
+              {hasTrackingIssue ? (
+                <WifiOff className="h-3.5 w-3.5 shrink-0 text-yellow-500" />
+              ) : (
+                <Wifi className="h-3.5 w-3.5 shrink-0 text-green-500" />
+              )}
+              <div className="flex flex-wrap gap-x-2 gap-y-0.5">
+                {ts.activeAccounts > 0 && (
+                  <span className="text-green-600 dark:text-green-400">
+                    {ts.activeAccounts} {t("digest.tracking.active")}
+                  </span>
+                )}
+                {ts.staleAccounts > 0 && (
+                  <span className="text-yellow-600 dark:text-yellow-400">
+                    {ts.staleAccounts} {t("digest.tracking.stale")}
+                  </span>
+                )}
+                {ts.lostAccounts > 0 && (
+                  <span className="text-red-600 dark:text-red-400">
+                    {ts.lostAccounts} {t("digest.tracking.lost")}
+                  </span>
+                )}
+              </div>
+              <span className="ms-auto text-[10px] text-muted-foreground">
+                <Clock className="me-0.5 inline h-2.5 w-2.5" />
+                {new Date(data.generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </span>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* ─── PERIOD RESULTS — realized closed metrics ─── */}
-      {(c.closedCount > 0 || data.summary.totalCards > 0) && (
-        <div>
-          <h4 className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase text-muted-foreground">
-            <TrendingDown className="h-3.5 w-3.5" />
-            {t("digest.cockpit.periodResults")}
-          </h4>
-          <div className="grid grid-cols-3 gap-1.5">
-            <CockpitCard
-              label={t("digest.cockpit.realizedPnl")}
-              value={fmtPnl(c.realizedPnl)}
-              color={pnlColor(c.realizedPnl)}
-            />
-            <CockpitCard
-              label={t("digest.cockpit.realizedR")}
-              value={fmtR(c.realizedR)}
-              color={pnlColor(c.realizedR)}
-            />
-            <CockpitCard
-              label={t("digest.cockpit.closed")}
-              value={String(c.closedCount)}
-              color=""
-            />
-          </div>
-          <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px]">
-            {c.officialWinRate !== null && (
-              <span className="rounded border border-green-500/30 bg-green-500/10 px-1.5 py-0.5 text-green-600 dark:text-green-400">
-                WR: {c.officialWinRate}%
-              </span>
-            )}
-            {c.officialCount > 0 && (
-              <span className="rounded border px-1.5 py-0.5 text-muted-foreground">
-                {c.officialCount} {t("digest.official")} / {c.unofficialCount} {t("digest.cockpit.unofficial")}
-              </span>
-            )}
-            {/* Status breakdown */}
-            <span className="rounded border border-green-500/30 bg-green-500/10 px-1.5 py-0.5 text-green-600 dark:text-green-400">
-              TP: {data.summary.tpHit}
-            </span>
-            <span className="rounded border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-red-600 dark:text-red-400">
-              SL: {data.summary.slHit}
-            </span>
-            {data.summary.be > 0 && (
-              <span className="rounded border border-yellow-500/30 bg-yellow-500/10 px-1.5 py-0.5 text-yellow-600 dark:text-yellow-400">
-                BE: {data.summary.be}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ─── NEEDS ATTENTION — grouped, deduplicated ─── */}
+      {/* ═══ ZONE 5: Attention Queue ═══ */}
       {grouped.length > 0 && (
         <div>
-          <h4 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase text-muted-foreground">
-            <AlertTriangle className="h-3.5 w-3.5 text-orange-500" />
-            {t("digest.attention.title")} ({grouped.length})
-          </h4>
-          <div className="space-y-1">
-            {grouped.map((item, i) => {
-              const colors = SEVERITY_COLORS[item.severity];
-              return (
-                <div
-                  key={`${item.userId}-${i}`}
-                  className={cn(
-                    "rounded-lg border px-2.5 py-1.5 text-xs",
-                    colors.bg,
-                    colors.border
-                  )}
-                >
-                  {item.type === "trackingGroup" ? (
-                    <div className="flex items-center gap-1.5">
-                      <WifiOff className="h-3 w-3 shrink-0 text-red-400" />
-                      <span className={cn("font-medium", colors.text)}>
-                        {item.username}
-                      </span>
+          <SectionHeader
+            icon={<AlertTriangle className="h-3.5 w-3.5 text-orange-500" />}
+            label={`${t("digest.attention.title")} (${grouped.length})`}
+          />
+          <div className="mt-2 space-y-1.5">
+            {grouped.map((item, i) => (
+              <div
+                key={`${item.userId}-${i}`}
+                className={cn(
+                  "rounded-lg border-s-2 bg-muted/30 px-3 py-2 text-xs",
+                  SEVERITY_ACCENT[item.severity]
+                )}
+              >
+                {item.type === "trackingGroup" ? (
+                  <div className="flex items-center gap-2">
+                    <WifiOff className="h-3 w-3 shrink-0 text-red-400" />
+                    <span className="font-semibold">{item.username}</span>
+                    <span className="text-muted-foreground">
+                      {t("digest.cockpit.trackingLostGroup", { count: item.count ?? 0 })}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">{item.username}</span>
+                    {item.instrument && (
+                      <span className="font-mono text-muted-foreground">{item.instrument}</span>
+                    )}
+                    {item.messageKey && (
                       <span className="text-muted-foreground">
-                        — {t("digest.cockpit.trackingLostGroup", {
-                          count: item.count ?? 0,
-                        })}
+                        — {t(item.messageKey, item.messageParams)}
                       </span>
-                    </div>
-                  ) : (
-                    <div>
-                      <span className={cn("font-medium", colors.text)}>
-                        {item.username}
-                      </span>
-                      {item.instrument && (
-                        <span className="ms-1 font-mono text-muted-foreground">
-                          {item.instrument}
-                        </span>
-                      )}
-                      {item.messageKey && (
-                        <span className="ms-1 text-[11px] text-muted-foreground">
-                          — {t(item.messageKey, item.messageParams)}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* ─── MEMBERS ─── */}
+      {/* ═══ ZONE 6: Member Breakdown ═══ */}
       <div>
-        <h4 className="mb-1.5 text-xs font-semibold uppercase text-muted-foreground">
-          {t("digest.memberBreakdown")}
-        </h4>
-        <div className="space-y-1">
+        <SectionHeader label={t("digest.memberBreakdown")} />
+        <div className="mt-2 space-y-2">
           {data.members.map((member) => (
-            <MemberCockpitRow
+            <MemberCard
               key={member.userId}
               member={member}
               expanded={expandedMembers.has(member.userId)}
@@ -595,9 +580,297 @@ function V2Content({
   );
 }
 
-// ─── Member Row — numbers-first ───
+// ─── Hero Status Card ───
 
-function MemberCockpitRow({
+function HeroStatusCard({
+  assessment,
+  t,
+}: {
+  assessment: DigestV2Response["stateAssessment"];
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  const m = assessment.metrics;
+  if (m.openTradeCount === 0) return null;
+
+  const safety = SAFETY_STYLES[assessment.safetyBand as SafetyBand];
+  const conf = CONFIDENCE_STYLES[assessment.confidenceBand as ConfidenceBand];
+
+  const reasons: string[] = [];
+  if (m.unprotectedCount > 0) reasons.push(t("digest.state.reason.unprotected", { count: m.unprotectedCount }));
+  if (m.unknownRiskCount > 0) reasons.push(t("digest.state.reason.unknownRisk", { count: m.unknownRiskCount }));
+  if (m.trackingLostTradeCount > 0) reasons.push(t("digest.confidence.reason.trackingLost", { count: m.trackingLostTradeCount }));
+  if (m.needActionCount > 0) reasons.push(t("digest.state.reason.needAction", { count: m.needActionCount }));
+
+  return (
+    <div className={cn(
+      "relative overflow-hidden rounded-xl border p-4",
+      safety.heroBg, safety.border
+    )}>
+      <div className="flex items-start justify-between">
+        <div className="min-w-0 flex-1">
+          <p className={cn("text-xl font-black tracking-tight sm:text-2xl", safety.text)}>
+            {t(`digest.state.${assessment.safetyBand.toLowerCase()}`)}
+          </p>
+          {reasons.length > 0 && assessment.safetyBand !== "SAFE" && (
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              {reasons.slice(0, 3).join(" · ")}
+            </p>
+          )}
+        </div>
+        <div className="shrink-0 text-end ps-4">
+          <p className={cn("text-3xl font-black tabular-nums leading-none", safety.text)}>
+            {assessment.safetyScore}
+          </p>
+          <p className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+            {t("digest.state.title")}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center gap-3">
+        <div className="h-1.5 flex-1 rounded-full bg-black/10 dark:bg-white/10">
+          <div
+            className={cn("h-full rounded-full transition-all", safety.bar)}
+            style={{ width: `${Math.min(assessment.safetyScore, 100)}%` }}
+          />
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span className={cn("text-sm font-bold tabular-nums", conf.text)}>
+            {assessment.confidenceScore}
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            {t(`digest.confidence.${assessment.confidenceBand.toLowerCase()}`)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Delta Strip ───
+
+function DeltaStrip({
+  deltas,
+  t,
+}: {
+  deltas: DigestDelta[] | null;
+  t: (key: string) => string;
+}) {
+  if (deltas === null) {
+    return (
+      <div className="rounded-lg bg-muted/30 px-3 py-2 text-center text-xs text-muted-foreground">
+        {t("digest.delta.baseline")}
+      </div>
+    );
+  }
+
+  if (deltas.length === 0) return null;
+
+  const sorted = [...deltas].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 5);
+
+  return (
+    <div>
+      <SectionHeader label={t("digest.delta.title")} />
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        {sorted.map((d) => {
+          const isGood = d.direction === "good";
+          const isBad = d.direction === "bad";
+          const sign = d.delta > 0 ? "+" : "";
+          const label = t(`digest.delta.${d.metric}`);
+          const val = Number.isInteger(d.delta) ? String(d.delta) : d.delta.toFixed(2);
+
+          return (
+            <span
+              key={d.metric}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px]",
+                isGood && "bg-green-500/10 text-green-600 dark:text-green-400",
+                isBad && "bg-red-500/10 text-red-600 dark:text-red-400",
+                !isGood && !isBad && "bg-muted/50 text-muted-foreground"
+              )}
+            >
+              <span className="text-muted-foreground">{label}</span>
+              <span className="font-mono font-semibold">{sign}{val}</span>
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Top Actions Block ───
+
+function TopActionsBlock({
+  actions,
+  t,
+}: {
+  actions: ActionItem[];
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  return (
+    <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-orange-600 dark:text-orange-400">
+        {t("digest.actions.title")}
+      </p>
+      <div className="mt-2 space-y-2">
+        {actions.map((action, i) => {
+          const alertKey = `digest.actions.${action.alertType}`;
+          const params: Record<string, string | number> = { count: action.issueCount };
+          if (action.affectedMember) params.member = action.affectedMember;
+
+          return (
+            <div key={`${action.alertId}-${i}`} className="flex items-start gap-2.5">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500/20 text-[10px] font-bold text-orange-600 dark:text-orange-400">
+                {i + 1}
+              </span>
+              <span className="text-xs leading-relaxed text-foreground/90">
+                {t(alertKey, params)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Metric Card ───
+
+function MetricCard({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="rounded-xl bg-muted/30 p-3">
+      <p className={cn("text-lg font-bold tabular-nums", color)}>{value}</p>
+      <p className="mt-0.5 text-[10px] text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+// ─── Risk Budget Bar ───
+
+function RiskBudgetBar({
+  budget,
+  t,
+}: {
+  budget: RiskBudget;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  const style = RISK_BUDGET_STYLES[budget.riskBudgetBand];
+  const barWidth = Math.min(Math.abs(budget.totalOpenRiskR) * 10, 100);
+
+  return (
+    <div className="rounded-xl bg-muted/30 px-3 py-2.5">
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-medium text-muted-foreground">{t("digest.riskBudget.title")}</span>
+        <span className={cn("font-mono font-bold", style.text)}>
+          {fmtR(budget.totalOpenRiskR)}
+        </span>
+      </div>
+      <div className="mt-1.5 h-1.5 rounded-full bg-black/10 dark:bg-white/10">
+        <div
+          className={cn("h-full rounded-full transition-all", style.bar)}
+          style={{ width: `${barWidth}%` }}
+        />
+      </div>
+      <div className="mt-1 flex justify-between text-[9px] text-muted-foreground">
+        <span>{t(`digest.riskBudget.${budget.riskBudgetBand.toLowerCase()}`)}</span>
+        {budget.riskPctOfEquity !== null && (
+          <span>{t("digest.riskBudget.equityImpact", { pct: budget.riskPctOfEquity })}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Concentration Block ───
+
+function ConcentrationBlock({
+  clusters,
+  t,
+}: {
+  clusters: ConcentrationCluster[];
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  const maxTrades = Math.max(...clusters.map((c) => c.tradeCount), 1);
+
+  return (
+    <div>
+      <SectionHeader label={t("digest.concentration.title")} />
+      <div className="mt-2 space-y-1.5">
+        {clusters.slice(0, 5).map((c) => (
+          <div
+            key={`${c.instrument}:${c.direction}`}
+            className="flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-2"
+          >
+            <span className="w-16 shrink-0 font-mono text-sm font-semibold">{c.instrument}</span>
+            <DirectionBadge direction={c.direction as "LONG" | "SHORT"} />
+            <div className="flex-1 px-1">
+              <div className="h-1 rounded-full bg-orange-500/15">
+                <div
+                  className="h-full rounded-full bg-orange-500/60"
+                  style={{ width: `${(c.tradeCount / maxTrades) * 100}%` }}
+                />
+              </div>
+            </div>
+            <span className="shrink-0 text-[11px] text-muted-foreground">
+              {t("digest.concentration.trades", { count: c.tradeCount })}
+              {c.memberCount > 1 && ` · ${t("digest.concentration.members", { count: c.memberCount })}`}
+            </span>
+            {c.totalRiskToSLR !== null && (
+              <span className="shrink-0 font-mono text-xs text-orange-600 dark:text-orange-400">
+                {fmtR(c.totalRiskToSLR)}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Hints Block ───
+
+function HintsBlock({
+  hints,
+  t,
+}: {
+  hints: PredictiveHint[];
+  t: (key: string) => string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      {hints.slice(0, 3).map((h) => (
+        <div
+          key={h.metric}
+          className={cn(
+            "flex items-center gap-2 rounded-lg px-3 py-2 text-xs",
+            h.severity === "warning"
+              ? "bg-orange-500/5 text-orange-600 dark:text-orange-400"
+              : "bg-blue-500/5 text-blue-600 dark:text-blue-400"
+          )}
+        >
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span>{t(h.hintKey)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Section Header ───
+
+function SectionHeader({ icon, label }: { icon?: React.ReactNode; label: string }) {
+  return (
+    <h4 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      {icon}
+      {label}
+    </h4>
+  );
+}
+
+// ─── Member Card ───
+
+function MemberCard({
   member,
   expanded,
   expandedTrades,
@@ -613,28 +886,26 @@ function MemberCockpitRow({
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
   return (
-    <div className="rounded-lg border">
+    <div className={cn(
+      "rounded-xl transition-colors",
+      expanded ? "bg-muted/30" : "bg-muted/20"
+    )}>
       <button
         type="button"
-        className="flex w-full items-center gap-2 px-3 py-2 text-start"
+        className="flex w-full items-center gap-3 p-3 text-start"
         onClick={onToggle}
       >
-        <Avatar className="h-7 w-7 shrink-0">
+        <Avatar className="h-9 w-9 shrink-0">
           {member.avatar && <AvatarImage src={member.avatar} />}
-          <AvatarFallback className="text-xs">
+          <AvatarFallback className="text-sm font-medium">
             {member.name.charAt(0).toUpperCase()}
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-medium truncate">{member.name}</span>
-            {member.openCount > 0 && (
-              <span className="text-[10px] text-muted-foreground">
-                {member.openCount} {t("digest.open")}
-              </span>
-            )}
+            <span className="truncate text-sm font-semibold">{member.name}</span>
             {member.memberImpactLabel && (
-              <span className="rounded bg-orange-500/10 px-1 text-[9px] font-medium text-orange-600 dark:text-orange-400">
+              <span className="rounded-full bg-orange-500/15 px-2 py-0.5 text-[9px] font-medium text-orange-600 dark:text-orange-400">
                 {t(`digest.${member.memberImpactLabel.replace("digest.", "")}`)}
               </span>
             )}
@@ -642,44 +913,32 @@ function MemberCockpitRow({
               <MemberTrendBadge trend={member.memberTrend} t={t} />
             )}
           </div>
-          {/* Primary cockpit row: numbers */}
-          {member.openCount > 0 && (
-            <div className="flex flex-wrap gap-1.5 text-[10px] font-mono mt-0.5">
-              {member.memberFloatingPnl !== null && (
-                <span className={pnlColor(member.memberFloatingPnl)}>
-                  {fmtPnl(member.memberFloatingPnl)}
-                </span>
-              )}
-              {member.memberFloatingR !== null && (
-                <span className={pnlColor(member.memberFloatingR)}>
-                  {fmtR(member.memberFloatingR)}
-                </span>
-              )}
-              {member.memberRiskToSLR !== null && (
-                <span className="text-orange-600 dark:text-orange-400">
-                  SL: {fmtR(member.memberRiskToSLR)}
-                </span>
-              )}
-              {member.memberActionsNeeded > 0 && (
-                <span className="rounded bg-red-500/10 px-1 text-red-600 dark:text-red-400">
-                  {member.memberActionsNeeded} ⚠
-                </span>
-              )}
-            </div>
-          )}
+          <div className="mt-0.5 flex items-center gap-2.5 text-xs text-muted-foreground">
+            {member.openCount > 0 && (
+              <span>{member.openCount} {t("digest.open")}</span>
+            )}
+            {member.openCount > 0 && member.memberFloatingR !== null && (
+              <span className={cn("font-mono", pnlColor(member.memberFloatingR))}>
+                {fmtR(member.memberFloatingR)}
+              </span>
+            )}
+            {member.memberActionsNeeded > 0 && (
+              <span className="text-red-600 dark:text-red-400">
+                {member.memberActionsNeeded} {t("digest.cockpit.needAction")}
+              </span>
+            )}
+          </div>
         </div>
-        {/* Period R badge */}
-        <Badge
-          variant="outline"
-          className={cn(
-            "shrink-0 text-xs",
+        <div className="shrink-0 text-end">
+          <p className={cn(
+            "text-base font-bold tabular-nums",
             member.totalR >= 0
-              ? "border-green-500/50 text-green-600 dark:text-green-400"
-              : "border-red-500/50 text-red-600 dark:text-red-400"
-          )}
-        >
-          {member.totalR >= 0 ? "+" : ""}{member.totalR}R
-        </Badge>
+              ? "text-green-600 dark:text-green-400"
+              : "text-red-600 dark:text-red-400"
+          )}>
+            {member.totalR >= 0 ? "+" : ""}{member.totalR}R
+          </p>
+        </div>
         {expanded ? (
           <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
         ) : (
@@ -688,25 +947,38 @@ function MemberCockpitRow({
       </button>
 
       {expanded && (
-        <div className="border-t px-3 pb-3 pt-2 space-y-2">
-          {/* Period stats */}
-          <div className="flex flex-wrap gap-1 text-xs">
-            <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-green-600 dark:text-green-400">TP: {member.tpHit}</span>
-            <span className="rounded bg-red-500/10 px-1.5 py-0.5 text-red-600 dark:text-red-400">SL: {member.slHit}</span>
-            <span className="rounded bg-yellow-500/10 px-1.5 py-0.5 text-yellow-600 dark:text-yellow-400">BE: {member.be}</span>
-            <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">WR: {member.winRate}%</span>
-            <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">{t("digest.avgR")}: {member.avgR}</span>
+        <div className="space-y-3 border-t border-border/50 px-3 pb-3 pt-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span className="text-green-600 dark:text-green-400">TP:{member.tpHit}</span>
+            <span className="text-red-600 dark:text-red-400">SL:{member.slHit}</span>
+            <span className="text-yellow-600 dark:text-yellow-400">BE:{member.be}</span>
+            <span>WR: {member.winRate}%</span>
+            <span>{t("digest.avgR")}: {member.avgR}</span>
           </div>
 
-          {/* Open Positions */}
+          {member.openCount > 0 && (member.memberFloatingPnl !== null || member.memberRiskToSLR !== null) && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-muted/30 px-2.5 py-1.5 text-xs font-mono">
+              {member.memberFloatingPnl !== null && (
+                <span className={pnlColor(member.memberFloatingPnl)}>
+                  P/L: {fmtPnl(member.memberFloatingPnl)}
+                </span>
+              )}
+              {member.memberRiskToSLR !== null && (
+                <span className="text-orange-600 dark:text-orange-400">
+                  SL: {fmtR(member.memberRiskToSLR)}
+                </span>
+              )}
+            </div>
+          )}
+
           {member.openPositions.length > 0 && (
             <div>
-              <p className="mb-1 text-[10px] font-semibold uppercase text-muted-foreground">
+              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("digest.openPositions")} ({member.openPositions.length})
               </p>
               <div className="space-y-1">
                 {member.openPositions.map((pos) => (
-                  <OpenTradeCockpitRow
+                  <OpenTradeRow
                     key={pos.tradeId}
                     position={pos}
                     expanded={expandedTrades.has(pos.tradeId)}
@@ -718,10 +990,9 @@ function MemberCockpitRow({
             </div>
           )}
 
-          {/* Closed Trades */}
           {member.closedTrades.length > 0 && (
             <div>
-              <p className="mb-1 text-[10px] font-semibold uppercase text-muted-foreground">
+              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("digest.closedTrades")} ({member.closedTrades.length})
               </p>
               <div className="space-y-1">
@@ -737,9 +1008,9 @@ function MemberCockpitRow({
   );
 }
 
-// ─── Open Trade Row — P/L first, health secondary ───
+// ─── Open Trade Row ───
 
-function OpenTradeCockpitRow({
+function OpenTradeRow({
   position,
   expanded,
   onToggle,
@@ -751,29 +1022,19 @@ function OpenTradeCockpitRow({
   t: (key: string) => string;
 }) {
   const healthColors = HEALTH_COLORS[position.health.overall as OverallHealth];
-  const action = getAction(
-    position.health.reasons as string[],
-    position.health.overall,
-    t
-  );
+  const action = getAction(position.health.reasons as string[], position.health.overall, t);
+  const isBad = position.health.overall === "BROKEN_PLAN" || position.health.overall === "AT_RISK";
 
   return (
-    <div className={cn(
-      "rounded border",
-      position.health.overall === "BROKEN_PLAN" && "border-red-500/30",
-      position.health.overall === "AT_RISK" && "border-orange-500/30",
-    )}>
-      {/* Main row */}
+    <div className={cn("rounded-lg", isBad ? "bg-red-500/5" : "bg-muted/20")}>
       <button
         type="button"
-        className="flex w-full items-center gap-1.5 px-2 py-1.5 text-xs text-start"
+        className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-xs text-start"
         onClick={onToggle}
       >
         <DirectionBadge direction={position.direction as "LONG" | "SHORT"} />
         <span className="font-mono font-medium">{position.instrument}</span>
-
-        {/* Primary: P/L and R */}
-        <span className="ms-auto flex items-center gap-1.5 font-mono">
+        <span className="ms-auto flex items-center gap-2 font-mono">
           {position.floatingPnl !== null && (
             <span className={cn("font-medium", pnlColor(position.floatingPnl))}>
               {fmtPnl(position.floatingPnl)}
@@ -784,10 +1045,9 @@ function OpenTradeCockpitRow({
               {fmtR(position.floatingR)}
             </span>
           ) : (
-            <span className="text-muted-foreground text-[10px]">R?</span>
+            <span className="text-[10px] text-muted-foreground">R?</span>
           )}
         </span>
-
         {expanded ? (
           <ChevronUp className="h-3 w-3 shrink-0 text-muted-foreground" />
         ) : (
@@ -795,24 +1055,20 @@ function OpenTradeCockpitRow({
         )}
       </button>
 
-      {/* Expanded detail */}
       {expanded && (
-        <div className="border-t bg-muted/30 px-2 py-1.5 space-y-1">
-          {/* Risk to SL */}
-          <div className="flex flex-wrap gap-2 text-[10px]">
+        <div className="space-y-1 border-t border-border/30 px-2.5 py-1.5">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px]">
             {position.riskToSLR !== null && (
               <span className="text-orange-600 dark:text-orange-400">
                 {t("digest.cockpit.slRisk")}: {fmtR(position.riskToSLR)}
               </span>
             )}
-            {/* Health badge — secondary */}
             <span className={cn(
-              "rounded border px-1 py-0.5 text-[9px] font-semibold",
-              healthColors.bg, healthColors.text, healthColors.border
+              "rounded-full px-1.5 py-0.5 text-[9px] font-semibold",
+              healthColors.bg, healthColors.text
             )}>
               {t(`digest.health.${position.health.overall.toLowerCase()}`)}
             </span>
-            {/* Protection — secondary */}
             {position.health.protectionStatus === "UNPROTECTED" && (
               <span className="flex items-center gap-0.5 text-red-600 dark:text-red-400">
                 <ShieldOff className="h-2.5 w-2.5" />
@@ -832,11 +1088,10 @@ function OpenTradeCockpitRow({
               </span>
             )}
             {position.health.protectionStatus === "UNKNOWN_RISK" && (
-              <span className="flex items-center gap-0.5 text-muted-foreground">
+              <span className="text-muted-foreground">
                 {t("digest.protection.unknownRisk")}
               </span>
             )}
-            {/* Tracking */}
             {position.trackingStatus === "TRACKING_LOST" && (
               <span className="flex items-center gap-0.5 text-red-400">
                 <WifiOff className="h-2.5 w-2.5" />
@@ -850,7 +1105,6 @@ function OpenTradeCockpitRow({
               </span>
             )}
           </div>
-          {/* Recommended action */}
           {action && (
             <div className="flex items-center gap-1 text-[10px] text-orange-600 dark:text-orange-400">
               <AlertTriangle className="h-2.5 w-2.5" />
@@ -867,7 +1121,7 @@ function OpenTradeCockpitRow({
 
 function ClosedTradeRow({ trade, t }: { trade: ClosedTradeV2; t: (key: string) => string }) {
   return (
-    <div className="flex items-center gap-1.5 rounded bg-muted/50 px-2 py-1.5 text-xs">
+    <div className="flex items-center gap-1.5 rounded-lg bg-muted/20 px-2.5 py-1.5 text-xs">
       <DirectionBadge direction={trade.direction as "LONG" | "SHORT"} />
       <span className="font-mono font-medium">{trade.instrument}</span>
       <StatusBadge status={trade.status} />
@@ -877,10 +1131,7 @@ function ClosedTradeRow({ trade, t }: { trade: ClosedTradeV2; t: (key: string) =
         </span>
       )}
       {trade.r !== null ? (
-        <span className={cn(
-          "ms-auto font-mono font-medium",
-          pnlColor(trade.r)
-        )}>
+        <span className={cn("ms-auto font-mono font-medium", pnlColor(trade.r))}>
           {trade.r >= 0 ? "+" : ""}{trade.r}R
         </span>
       ) : (
@@ -888,6 +1139,26 @@ function ClosedTradeRow({ trade, t }: { trade: ClosedTradeV2; t: (key: string) =
       )}
     </div>
   );
+}
+
+// ─── Member Trend Badge ───
+
+function MemberTrendBadge({ trend, t }: { trend: MemberTrend; t: (key: string) => string }) {
+  if (trend === "improving") {
+    return (
+      <span className="rounded-full bg-green-500/10 px-1.5 text-[9px] font-medium text-green-600 dark:text-green-400">
+        {t("digest.trend.improving")}
+      </span>
+    );
+  }
+  if (trend === "declining") {
+    return (
+      <span className="rounded-full bg-red-500/10 px-1.5 text-[9px] font-medium text-red-600 dark:text-red-400">
+        {t("digest.trend.declining")}
+      </span>
+    );
+  }
+  return null;
 }
 
 // ─── V1 Fallback Content ───
@@ -933,7 +1204,7 @@ function V1Content({
         <h4 className="mb-2 text-sm font-medium">{t("digest.memberBreakdown")}</h4>
         <div className="space-y-1">
           {data.members.map((member) => {
-            const expanded = expandedMembers.has(member.userId);
+            const isExpanded = expandedMembers.has(member.userId);
             return (
               <div key={member.userId} className="rounded-lg border">
                 <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-start" onClick={() => toggleMember(member.userId)}>
@@ -945,12 +1216,12 @@ function V1Content({
                     <span className="text-sm font-medium">{member.name}</span>
                     <span className="ms-2 text-xs text-muted-foreground">{member.signalCount}S / {member.analysisCount}A · {member.winRate}% WR</span>
                   </div>
-                  <Badge variant="outline" className={cn("text-xs", member.totalR >= 0 ? "border-green-500/50 text-green-600 dark:text-green-400" : "border-red-500/50 text-red-600 dark:text-red-400")}>
+                  <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium", member.totalR >= 0 ? "border-green-500/50 text-green-600 dark:text-green-400" : "border-red-500/50 text-red-600 dark:text-red-400")}>
                     {member.totalR >= 0 ? "+" : ""}{member.totalR}R
-                  </Badge>
-                  {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                  </span>
+                  {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                 </button>
-                {expanded && (
+                {isExpanded && (
                   <div className="border-t px-3 pb-3 pt-2">
                     <div className="mb-2 flex flex-wrap gap-1.5 text-xs">
                       <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-green-600 dark:text-green-400">TP: {member.tpHit}</span>
@@ -988,317 +1259,7 @@ function V1Content({
   );
 }
 
-// ─── State Status Bar ───
-
-const SAFETY_STYLES: Record<SafetyBand, { bg: string; text: string; border: string }> = {
-  SAFE: { bg: "bg-green-500/10", text: "text-green-600 dark:text-green-400", border: "border-green-500/30" },
-  WATCH: { bg: "bg-yellow-500/10", text: "text-yellow-600 dark:text-yellow-400", border: "border-yellow-500/30" },
-  AT_RISK: { bg: "bg-orange-500/10", text: "text-orange-600 dark:text-orange-400", border: "border-orange-500/30" },
-  CRITICAL: { bg: "bg-red-500/10", text: "text-red-600 dark:text-red-400", border: "border-red-500/30" },
-};
-
-const CONFIDENCE_STYLES: Record<ConfidenceBand, { text: string }> = {
-  HIGH: { text: "text-green-600 dark:text-green-400" },
-  MODERATE: { text: "text-yellow-600 dark:text-yellow-400" },
-  LOW: { text: "text-orange-600 dark:text-orange-400" },
-  DEGRADED: { text: "text-red-600 dark:text-red-400" },
-};
-
-function StateStatusBar({
-  assessment,
-  t,
-}: {
-  assessment: DigestV2Response["stateAssessment"];
-  t: (key: string, params?: Record<string, string | number>) => string;
-}) {
-  const m = assessment.metrics;
-  if (m.openTradeCount === 0) return null;
-
-  const safety = SAFETY_STYLES[assessment.safetyBand as SafetyBand];
-  const conf = CONFIDENCE_STYLES[assessment.confidenceBand as ConfidenceBand];
-
-  // Build explanation reasons
-  const reasons: string[] = [];
-  if (m.unprotectedCount > 0) reasons.push(t("digest.state.reason.unprotected", { count: m.unprotectedCount }));
-  if (m.unknownRiskCount > 0) reasons.push(t("digest.state.reason.unknownRisk", { count: m.unknownRiskCount }));
-  if (m.trackingLostTradeCount > 0) reasons.push(t("digest.confidence.reason.trackingLost", { count: m.trackingLostTradeCount }));
-  if (m.needActionCount > 0) reasons.push(t("digest.state.reason.needAction", { count: m.needActionCount }));
-
-  return (
-    <div className={cn("rounded-lg border px-3 py-2", safety.bg, safety.border)}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className={cn("text-sm font-bold", safety.text)}>
-            {t(`digest.state.${assessment.safetyBand.toLowerCase()}`)}
-          </span>
-          <span className="text-[10px] text-muted-foreground">({assessment.safetyScore})</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className={cn("text-xs font-medium", conf.text)}>
-            {t(`digest.confidence.${assessment.confidenceBand.toLowerCase()}`)}
-          </span>
-          <span className="text-[10px] text-muted-foreground">({assessment.confidenceScore})</span>
-        </div>
-      </div>
-      {reasons.length > 0 && assessment.safetyBand !== "SAFE" && (
-        <p className="mt-1 text-[10px] text-muted-foreground">
-          {reasons.slice(0, 3).join(" · ")}
-        </p>
-      )}
-    </div>
-  );
-}
-
-// ─── Delta Strip ───
-
-function DeltaStrip({
-  deltas,
-  t,
-}: {
-  deltas: DigestDelta[] | null;
-  t: (key: string) => string;
-}) {
-  if (deltas === null) {
-    return (
-      <div className="rounded-lg border border-dashed px-3 py-1.5 text-center text-[10px] text-muted-foreground">
-        {t("digest.delta.baseline")}
-      </div>
-    );
-  }
-
-  if (deltas.length === 0) return null;
-
-  // Show most impactful deltas first (by absolute delta value)
-  const sorted = [...deltas].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 5);
-
-  return (
-    <div>
-      <h4 className="mb-1 text-[10px] font-semibold uppercase text-muted-foreground">
-        {t("digest.delta.title")}
-      </h4>
-      <div className="flex flex-wrap gap-1">
-        {sorted.map((d) => {
-          const isGood = d.direction === "good";
-          const isBad = d.direction === "bad";
-          const sign = d.delta > 0 ? "+" : "";
-          const label = t(`digest.delta.${d.metric}`);
-          const val = Number.isInteger(d.delta) ? String(d.delta) : d.delta.toFixed(2);
-
-          return (
-            <span
-              key={d.metric}
-              className={cn(
-                "rounded border px-1.5 py-0.5 text-[10px] font-mono",
-                isGood && "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400",
-                isBad && "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400",
-                !isGood && !isBad && "border-gray-500/30 bg-gray-500/10 text-muted-foreground"
-              )}
-            >
-              {label} {sign}{val}
-            </span>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── Top Actions Block ───
-
-function TopActionsBlock({
-  actions,
-  t,
-}: {
-  actions: ActionItem[];
-  t: (key: string, params?: Record<string, string | number>) => string;
-}) {
-  return (
-    <div>
-      <h4 className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase text-muted-foreground">
-        <AlertTriangle className="h-3 w-3 text-orange-500" />
-        {t("digest.actions.title")}
-      </h4>
-      <div className="space-y-1">
-        {actions.map((action, i) => {
-          const alertKey = `digest.actions.${action.alertType}`;
-          const params: Record<string, string | number> = { count: action.issueCount };
-          if (action.affectedMember) params.member = action.affectedMember;
-
-          return (
-            <div
-              key={`${action.alertId}-${i}`}
-              className="flex items-start gap-2 rounded-lg border px-2.5 py-1.5 text-xs"
-            >
-              <span className="shrink-0 text-sm font-bold text-muted-foreground">
-                {i + 1}.
-              </span>
-              <span>{t(alertKey, params)}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── Concentration Block (Phase 2) ───
-
-function ConcentrationBlock({
-  clusters,
-  t,
-}: {
-  clusters: ConcentrationCluster[];
-  t: (key: string, params?: Record<string, string | number>) => string;
-}) {
-  return (
-    <div>
-      <h4 className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase text-muted-foreground">
-        {t("digest.concentration.title")}
-      </h4>
-      <div className="space-y-1">
-        {clusters.slice(0, 5).map((c) => (
-          <div
-            key={`${c.instrument}:${c.direction}`}
-            className="flex items-center gap-2 rounded-lg border border-orange-500/20 bg-orange-500/5 px-2.5 py-1.5 text-xs"
-          >
-            <span className="font-mono font-medium">{c.instrument}</span>
-            <span className={cn(
-              "rounded px-1 py-0.5 text-[9px] font-semibold",
-              c.direction === "LONG"
-                ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                : "bg-red-500/10 text-red-600 dark:text-red-400"
-            )}>
-              {c.direction}
-            </span>
-            <span className="text-muted-foreground">
-              {t("digest.concentration.trades", { count: c.tradeCount })}
-            </span>
-            {c.memberCount > 1 && (
-              <span className="text-muted-foreground">
-                · {t("digest.concentration.members", { count: c.memberCount })}
-              </span>
-            )}
-            {c.totalRiskToSLR !== null && (
-              <span className="ms-auto font-mono text-orange-600 dark:text-orange-400">
-                {fmtR(c.totalRiskToSLR)}
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Risk Budget Bar (Phase 2+3) ───
-
-const RISK_BUDGET_STYLES: Record<RiskBudgetBand, { bg: string; bar: string; text: string }> = {
-  LOW: { bg: "bg-green-500/10", bar: "bg-green-500", text: "text-green-600 dark:text-green-400" },
-  MODERATE: { bg: "bg-yellow-500/10", bar: "bg-yellow-500", text: "text-yellow-600 dark:text-yellow-400" },
-  HIGH: { bg: "bg-orange-500/10", bar: "bg-orange-500", text: "text-orange-600 dark:text-orange-400" },
-  CRITICAL: { bg: "bg-red-500/10", bar: "bg-red-500", text: "text-red-600 dark:text-red-400" },
-};
-
-function RiskBudgetBar({
-  budget,
-  t,
-}: {
-  budget: RiskBudget;
-  t: (key: string, params?: Record<string, string | number>) => string;
-}) {
-  const style = RISK_BUDGET_STYLES[budget.riskBudgetBand];
-  // Normalize risk to a 0-100 bar (10R = 100%)
-  const barWidth = Math.min(Math.abs(budget.totalOpenRiskR) * 10, 100);
-
-  return (
-    <div className={cn("rounded-lg border px-3 py-2", style.bg)}>
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-medium">{t("digest.riskBudget.title")}</span>
-        <span className={cn("font-mono font-bold", style.text)}>
-          {fmtR(budget.totalOpenRiskR)}
-        </span>
-      </div>
-      <div className="mt-1 h-1.5 rounded-full bg-muted/50">
-        <div
-          className={cn("h-full rounded-full transition-all", style.bar)}
-          style={{ width: `${barWidth}%` }}
-        />
-      </div>
-      <div className="mt-0.5 flex justify-between text-[9px] text-muted-foreground">
-        <span>{t(`digest.riskBudget.${budget.riskBudgetBand.toLowerCase()}`)}</span>
-        {budget.riskPctOfEquity !== null && (
-          <span>{t("digest.riskBudget.equityImpact", { pct: budget.riskPctOfEquity })}</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Predictive Hints Block (Phase 3) ───
-
-function HintsBlock({
-  hints,
-  t,
-}: {
-  hints: PredictiveHint[];
-  t: (key: string) => string;
-}) {
-  return (
-    <div className="space-y-1">
-      {hints.slice(0, 3).map((h) => (
-        <div
-          key={h.metric}
-          className={cn(
-            "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px]",
-            h.severity === "warning"
-              ? "border-orange-500/30 bg-orange-500/5 text-orange-600 dark:text-orange-400"
-              : "border-blue-500/30 bg-blue-500/5 text-blue-600 dark:text-blue-400"
-          )}
-        >
-          <AlertTriangle className="h-3 w-3 shrink-0" />
-          <span>{t(h.hintKey)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ─── Member Trend Badge (Phase 2) ───
-
-function MemberTrendBadge({
-  trend,
-  t,
-}: {
-  trend: MemberTrend;
-  t: (key: string) => string;
-}) {
-  if (trend === "improving") {
-    return (
-      <span className="rounded bg-green-500/10 px-1 text-[9px] font-medium text-green-600 dark:text-green-400">
-        {t("digest.trend.improving")}
-      </span>
-    );
-  }
-  if (trend === "declining") {
-    return (
-      <span className="rounded bg-red-500/10 px-1 text-[9px] font-medium text-red-600 dark:text-red-400">
-        {t("digest.trend.declining")}
-      </span>
-    );
-  }
-  return null;
-}
-
 // ─── Shared Components ───
-
-function CockpitCard({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <div className="rounded-lg border p-2 text-center">
-      <p className={cn("text-base font-bold", color)}>{value}</p>
-      <p className="text-[9px] text-muted-foreground">{label}</p>
-    </div>
-  );
-}
 
 function SummaryCard({ label, value, color }: { label: string; value: string | number; color?: string }) {
   return (

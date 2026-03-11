@@ -5,6 +5,17 @@ Newest entries first.
 
 ---
 
+## 2026-03-11 — Activity Digest UI/UX modernization: premium dashboard redesign
+
+- **Task:** activity-digest
+- **Decision:** Complete visual redesign of DigestSheetV2.tsx — hero status card with gradient bg and large scores, modern pill tab selector, rounded-full delta pills, orange accent action panel with circular numbers, 2-column borderless metric cards, proportional concentration bars, left-accent attention items, modern member cards. Replaced Badge/Button shadcn deps with plain styled elements.
+- **Why:** The current layout felt crowded, badge-heavy, and old-admin-panel-like. All data and engines were already solid — the problem was pure presentation. Redesign focuses on visual hierarchy, spacing rhythm, reduced border noise, and premium dark dashboard aesthetic. Top 30% of screen now communicates 80% of value.
+- **Affected files/rules:** `DigestSheetV2.tsx` (complete V2 sub-component redesign)
+- **Needs SOURCE_OF_TRUTH update now?:** no — presentation-only, no product/scope/rule change
+- **Needs manual testing?:** yes — visual review of all 7 redesigned sections in light/dark/mobile/desktop
+
+---
+
 ## 2026-03-11 — Activity Digest Phase 2+3: concentration, risk budget, trends, hints
 
 - **Task:** activity-digest

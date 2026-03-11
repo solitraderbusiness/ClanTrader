@@ -29,6 +29,20 @@ The v2 digest (feature-flagged behind `digest_v2`) already provides cockpit metr
 
 ## 4. Scope
 
+### UI/UX Modernization (implemented)
+- [x] Hero status card: gradient-bg, 2xl safety label, 3xl score, progress bar, confidence inline
+- [x] Modern pill tab period selector (replaces Button toggle)
+- [x] Delta strip: rounded-full pills, separated label+value, no border noise
+- [x] Top Actions: orange accent card with circular number badges
+- [x] Key metrics: 2-column grid with larger MetricCard (bg-muted/30, no borders)
+- [x] Concentration: visual progress bars proportional to trade count
+- [x] Attention queue: left-accent border (border-s-2) by severity, no full borders
+- [x] Member cards: rounded-xl bg-muted/20, larger avatar, bold R metric, clean stats row
+- [x] Visual zones with space-y-6 between major groups, space-y-3 within
+- [x] Section headers: 11px uppercase tracking-wider
+- [x] Removed Badge/Button shadcn dependencies (plain styled elements)
+- [x] Flex layout for sheet (overflow-hidden flex flex-col, flex-1 scrollable)
+
 ### Phase 1 (implemented)
 - [x] State Assessment Engine (safety score, confidence score, bands)
 - [x] Delta Engine (per-user Redis snapshots, delta computation)
@@ -105,6 +119,20 @@ See `docs/testing/activity-digest-test-plan.md`
 - Persian translations need native speaker review
 
 ## 10. Change Notes
+
+### 2026-03-11 (UI/UX Modernization)
+- Complete visual redesign of DigestSheetV2.tsx
+- Hero: gradient background, large safety label (2xl/3xl), progress bar, inline confidence
+- Period selector: modern pill tabs instead of Button components
+- Delta strip: rounded-full pills with separated label/value
+- Actions: orange accent card with circular numbered badges
+- Metrics: 2-column grid with larger borderless cards (bg-muted/30)
+- Concentration: proportional progress bars instead of flat rows
+- Attention: left-accent borders (border-s-2) by severity instead of full borders
+- Members: rounded-xl cards with bg-muted tinting, larger avatars, bold R metric
+- Layout: 6 visual zones with larger gaps (space-y-6) between groups
+- Removed Badge and Button shadcn imports (simpler styled elements)
+- Sheet uses flex layout for better scroll behavior
 
 ### 2026-03-11 (Phase 2+3)
 - Phase 2+3 implemented: 4 new engines (concentration, risk budget, member trend, predictive hints)
