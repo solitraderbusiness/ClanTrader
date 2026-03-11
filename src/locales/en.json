@@ -1131,7 +1131,22 @@
     "attention.high_exposure_member": "{username} has high exposure across multiple positions",
     "liveHealth.title": "Live Health",
     "liveHealth.unprotected": "unprotected",
-    "liveHealth.fragileWinners": "fragile winners"
+    "liveHealth.fragileWinners": "fragile winners",
+    "tracking.active": "active",
+    "tracking.stale": "stale",
+    "tracking.lost": "lost",
+    "dimension.confidence": "Confidence",
+    "dimension.entry": "Entry",
+    "dimension.protection": "Protection",
+    "dimension.setup": "Setup",
+    "dimension.management": "Management",
+    "dimension.computable": "Computable",
+    "dimension.notComputable": "Not Computable",
+    "management.on_plan": "On Plan",
+    "management.drifted": "Drifted",
+    "management.broken": "Broken",
+    "management.unknown": "Unknown",
+    "official": "Official"
   },
   "landing": {
     "brandName": "ClanTrader",

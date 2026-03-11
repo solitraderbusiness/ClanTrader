@@ -1131,7 +1131,22 @@
     "attention.high_exposure_member": "{username} اکسپوژر بالا در چند پوزیشن دارد",
     "liveHealth.title": "سلامت زنده",
     "liveHealth.unprotected": "بدون محافظت",
-    "liveHealth.fragileWinners": "سودده شکننده"
+    "liveHealth.fragileWinners": "سودده شکننده",
+    "tracking.active": "فعال",
+    "tracking.stale": "کند",
+    "tracking.lost": "قطع",
+    "dimension.confidence": "اطمینان",
+    "dimension.entry": "ورود",
+    "dimension.protection": "محافظت",
+    "dimension.setup": "ستاپ",
+    "dimension.management": "مدیریت",
+    "dimension.computable": "قابل محاسبه",
+    "dimension.notComputable": "غیرقابل محاسبه",
+    "management.on_plan": "طبق پلن",
+    "management.drifted": "منحرف",
+    "management.broken": "شکسته",
+    "management.unknown": "نامشخص",
+    "official": "رسمی"
   },
   "landing": {
     "brandName": "ClanTrader",

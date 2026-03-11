@@ -80,6 +80,14 @@ export const liveHealthSummarySchema = z.object({
   fragileWinnerPositions: z.number(),
 });
 
+// ─── Tracking Summary ───
+
+export const trackingSummarySchema = z.object({
+  activeAccounts: z.number(),
+  staleAccounts: z.number(),
+  lostAccounts: z.number(),
+});
+
 // ─── Extended Open Position ───
 
 export const openPositionV2Schema = z.object({
@@ -90,11 +98,12 @@ export const openPositionV2Schema = z.object({
   floatingPnl: z.number().nullable(),
   rComputable: z.boolean(),
   health: openTradeHealthSchema,
+  trackingStatus: z.string(),
   cardType: z.string(),
   createdAt: z.string(),
 });
 
-// ─── Closed Trade (unchanged from v1 shape) ───
+// ─── Closed Trade ───
 
 export const closedTradeV2Schema = z.object({
   tradeId: z.string(),
@@ -103,6 +112,7 @@ export const closedTradeV2Schema = z.object({
   status: z.string(),
   r: z.number().nullable(),
   cardType: z.string(),
+  isOfficial: z.boolean(),
   createdAt: z.string(),
   closedAt: z.string().nullable(),
 });
@@ -131,6 +141,7 @@ export const memberStatsV2Schema = z.object({
 export const digestV2ResponseSchema = z.object({
   version: z.literal(2),
   period: z.enum(["today", "week", "month"]),
+  generatedAt: z.string(),
   summary: z.object({
     totalCards: z.number(),
     totalSignals: z.number(),
@@ -144,6 +155,7 @@ export const digestV2ResponseSchema = z.object({
     avgR: z.number(),
     activeMemberCount: z.number(),
   }),
+  trackingSummary: trackingSummarySchema,
   members: z.array(memberStatsV2Schema),
   liveHealthSummary: liveHealthSummarySchema,
   attentionQueue: z.array(attentionItemSchema),
@@ -153,3 +165,4 @@ export type DigestV2Response = z.infer<typeof digestV2ResponseSchema>;
 export type MemberStatsV2 = z.infer<typeof memberStatsV2Schema>;
 export type OpenPositionV2 = z.infer<typeof openPositionV2Schema>;
 export type ClosedTradeV2 = z.infer<typeof closedTradeV2Schema>;
+export type TrackingSummary = z.infer<typeof trackingSummarySchema>;

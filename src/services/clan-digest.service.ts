@@ -65,6 +65,7 @@ export async function getClanDigest(
       OR: [
         { createdAt: { gte: periodStart } },
         { closedAt: { gte: periodStart } },
+        { status: { in: ["PENDING", "OPEN"] } },
       ],
     },
     select: {

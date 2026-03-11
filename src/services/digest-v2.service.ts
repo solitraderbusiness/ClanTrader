@@ -22,6 +22,7 @@ import type {
   MemberStatsV2,
   OpenPositionV2,
   ClosedTradeV2,
+  TrackingSummary,
 } from "@/lib/digest-v2-schema";
 
 function getPeriodStart(period: DigestPeriod, tzOffset: number = 0): Date {
@@ -77,6 +78,7 @@ export async function getClanDigestV2(
       OR: [
         { createdAt: { gte: periodStart } },
         { closedAt: { gte: periodStart } },
+        { status: { in: ["PENDING", "OPEN"] } },
       ],
     },
     select: {
@@ -132,6 +134,7 @@ export async function getClanDigestV2(
           isOpen: true,
           mtAccount: {
             select: {
+              id: true,
               lastHeartbeat: true,
               trackingStatus: true,
               broker: true,
@@ -165,6 +168,28 @@ export async function getClanDigestV2(
     } else if (openStatuses.has(t.status)) {
       openTrades.push(t);
     }
+  }
+
+  // ─── Build tracking summary from unique MT accounts across all trades ───
+  const seenAccounts = new Map<string, string>(); // accountId → trackingStatus
+  for (const t of trades) {
+    const mt = t.mtTradeMatches[0];
+    if (mt?.mtAccount) {
+      const id = mt.mtAccount.id;
+      if (!seenAccounts.has(id)) {
+        seenAccounts.set(id, deriveTrackingStatus(mt.mtAccount.lastHeartbeat));
+      }
+    }
+  }
+  const trackingSummary: TrackingSummary = {
+    activeAccounts: 0,
+    staleAccounts: 0,
+    lostAccounts: 0,
+  };
+  for (const status of seenAccounts.values()) {
+    if (status === "ACTIVE") trackingSummary.activeAccounts++;
+    else if (status === "STALE") trackingSummary.staleAccounts++;
+    else trackingSummary.lostAccounts++;
   }
 
   // ─── Compute open trade health ───
@@ -342,6 +367,7 @@ export async function getClanDigestV2(
         status: ct.status,
         r: ct.r,
         cardType: ct.cardType ?? "SIGNAL",
+        isOfficial: ct.officialSignalQualified === true && ct.cardType === "SIGNAL",
         createdAt: ct.createdAt.toISOString(),
         closedAt: ct.closedAt?.toISOString() ?? null,
       });
@@ -371,6 +397,7 @@ export async function getClanDigestV2(
         floatingPnl: ot.floatingPnl,
         rComputable: ot.rComputable,
         health: ot.health,
+        trackingStatus: ot.trackingStatus,
         cardType: t.cardType ?? "SIGNAL",
         createdAt: t.createdAt.toISOString(),
       });
@@ -421,6 +448,7 @@ export async function getClanDigestV2(
   const result: DigestV2Response = {
     version: 2,
     period,
+    generatedAt: new Date().toISOString(),
     summary: {
       totalCards: totalSignals + totalAnalysis,
       totalSignals,
@@ -434,6 +462,7 @@ export async function getClanDigestV2(
       avgR: countWithR > 0 ? Math.round((totalR / countWithR) * 100) / 100 : 0,
       activeMemberCount: members.length,
     },
+    trackingSummary,
     members,
     liveHealthSummary,
     attentionQueue,
