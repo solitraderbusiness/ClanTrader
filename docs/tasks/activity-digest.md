@@ -76,16 +76,34 @@ The v2 digest (feature-flagged behind `digest_v2`) already provides cockpit metr
 - [ ] Advanced attribution scoring (deferred — current impact scoring is sufficient)
 - [ ] Deeper drill-down flows (deferred — needs trade detail page linking)
 
+### Phase 4: Scope-Aware Digest (implemented)
+- [x] Scope switcher (Trader / Clan) — pill tabs with User/Users icons
+- [x] Default scope: Trader
+- [x] `buildTraderView` — client-side derivation of trader-scoped DigestV2Response
+- [x] Trader-only state assessment (safety score, confidence, bands from own positions)
+- [x] Trader-only cockpit (floating PnL/R, risk, actions from own data)
+- [x] Trader-only concentration (own positions only)
+- [x] Trader-only alerts and actions (from own issues only)
+- [x] Trader-only risk budget (own SL exposure)
+- [x] Trader-only attention queue (filtered to own userId)
+- [x] Trader-only tracking summary (own account status)
+- [x] Scope-aware deltas: server computes traderDeltas with separate Redis key
+- [x] Scope-aware hints: server computes traderHints from trader snapshot
+- [x] Zone 6 scope split: Clan shows member breakdown, Trader shows "My Positions" directly
+- [x] Schema updated: `currentUserId`, `traderDeltas`, `traderHints` fields
+- [x] Route updated: trader-scoped snapshot/delta computation with `:trader` key suffix
+- [x] i18n keys: scope.trader, scope.clan, myPositions, myClosedTrades (en + fa)
+
 ## 5. Files & Systems
 
 | File | Change |
 |------|--------|
 | `src/lib/digest-engines.ts` | 9 engines: state, delta, alerts, actions, impact, concentration, risk budget, member trend, predictive hints |
 | `src/lib/digest-constants.ts` | Snapshot prefix/TTL + risk budget thresholds |
-| `src/lib/digest-v2-schema.ts` | Schemas for all engine outputs including concentration, risk budget, hints |
+| `src/lib/digest-v2-schema.ts` | Schemas for all engine outputs + scope-aware fields (currentUserId, traderDeltas, traderHints) |
 | `src/services/digest-v2.service.ts` | Wired all engines, equity data from MT accounts |
-| `src/app/api/clans/[clanId]/digest/route.ts` | Enhanced per-user snapshots with member metrics, trends, hints |
-| `src/components/chat/DigestSheetV2.tsx` | 7 new components: StateStatusBar, DeltaStrip, TopActionsBlock, ConcentrationBlock, RiskBudgetBar, HintsBlock, MemberTrendBadge |
+| `src/app/api/clans/[clanId]/digest/route.ts` | Enhanced per-user snapshots with member metrics, trends, hints + trader-scoped snapshot/delta |
+| `src/components/chat/DigestSheetV2.tsx` | Scope switcher, buildTraderView, scope-aware V2Content, My Positions zone |
 | `src/lib/__tests__/digest-engines.test.ts` | Unit tests for all 9 engines |
 | `src/locales/en.json` | ~70 digest keys |
 | `src/locales/fa.json` | ~70 Persian translations |
@@ -100,6 +118,11 @@ The v2 digest (feature-flagged behind `digest_v2`) already provides cockpit metr
 - Redis failure on snapshot → silently skip deltas, return `deltas: null`
 - Alert worsening detection → compare with previous snapshot if available
 - High trade cluster threshold = 5 trades per member
+- Scope switcher: Trader mode default, no refetch on scope change (client-side derivation)
+- Trader not in members list → traderView null → empty state in Trader mode
+- Trader with 0 trades → SAFE state, empty sections (correct behavior)
+- One-member clan → Trader and Clan views nearly identical
+- Per-member realizedPnl not available → shows "—" in trader cockpit
 
 ## 7. Test Scenarios
 
@@ -119,6 +142,19 @@ See `docs/testing/activity-digest-test-plan.md`
 - Persian translations need native speaker review
 
 ## 10. Change Notes
+
+### 2026-03-11 (Phase 4: Scope-Aware Digest)
+- Added Trader/Clan scope switcher at top of digest (pill tabs with User/Users icons)
+- Default scope: Trader — personal view of risk/performance/actions
+- `buildTraderView()` derives full trader-scoped DigestV2Response from clan data on client
+- Trader mode recomputes: state assessment, cockpit, concentration, alerts, actions, risk budget, attention queue
+- Trader deltas use separate Redis snapshot key (`:trader` suffix) — computed server-side
+- Zone 6 splits: Clan shows member breakdown, Trader shows "My Positions" directly
+- Schema updated with `currentUserId`, `traderDeltas`, `traderHints` optional fields
+- Route updated to compute trader-specific snapshots and deltas alongside clan deltas
+- Engine functions imported into UI component (they're pure — no server deps)
+- Scope switching is instant (no refetch, client-side computation)
+- i18n: 4 new keys in en.json + fa.json
 
 ### 2026-03-11 (UI/UX Modernization)
 - Complete visual redesign of DigestSheetV2.tsx

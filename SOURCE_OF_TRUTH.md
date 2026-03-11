@@ -433,20 +433,22 @@ Enforced rules verified from code. For full evidence, see `SITE_RULES_AUDIT_REPO
 - Badge admin changes tracked separately
 
 ### Activity Digest
-**Status: LIVE** (feature-flagged: `digest_v2` for cockpit layer)
-- v1 (default): Per-member aggregates (signals, analysis, TP/SL/BE/open counts, win rate, total/avg R, trade list)
-- v2 (behind `digest_v2` flag): Trading cockpit — primary metrics up front, health model as expandable detail
-  - **Cockpit-first approach**: Primary view answers "what's floating, what's at risk, what needs action"
-  - Per-trade: floating P/L, floating R, `riskToSLR` (R position if current SL hits), actions needed
-  - Per-member aggregates: floating P/L, floating R, total risk-to-SL, action count
-  - Realized section: closed P/L, closed R (unchanged from v1)
-  - Attention queue: groups tracking-lost trades by member, max 5 items, max 2 per member, priority-ordered (CRITICAL > WARNING > INFO)
-  - Health model (secondary): 6 dimensions demoted to expandable detail row, no longer the primary UX
-  - **Deferred**: Daily Snapshot Layer for day-over-day comparison (no snapshot infrastructure exists, BACKLOG)
+**Status: LIVE** (v2 default, v1 fallback with `v=1`)
+- v2 (default): Scope-aware trading dashboard with 9 decision engines
+  - **Scope switcher**: Trader (default) / Clan modes — switches entire digest meaning
+  - **Trader mode**: Personal risk/performance/actions from own positions only
+  - **Clan mode**: Clan-wide monitoring with member breakdown and attribution
+  - **9 engines** (pure functions in `digest-engines.ts`): state assessment, delta, alerts, actions, impact, concentration, risk budget, member trend, predictive hints
+  - Per-trade: floating P/L, floating R, `riskToSLR`, health dimensions, actions needed
+  - Per-member aggregates: floating P/L, floating R, total risk-to-SL, action count, impact score
+  - Scope-aware deltas: separate Redis snapshots for trader vs clan (`:trader` suffix key)
+  - Attention queue: severity-ordered, grouped tracking-lost by member
+  - Premium dashboard UX: hero status card, pill selectors, delta strip, concentration bars
+- v1 (legacy): Per-member aggregates — accessible with `v=1` query param
 - API: `GET /api/clans/[clanId]/digest?period=today|week|month&tz=N&v=2`
-- Redis cached: 90s TTL per clan/period/timezone
-- UI: DigestSheetV2 in chat toolbar (replaces DigestSheet, backward-compatible with v1 responses)
-- 139 unit tests for health computation functions
+- Redis cached: 90s TTL per clan/period/timezone; 24h TTL per-user delta snapshots
+- UI: DigestSheetV2 in chat toolbar (backward-compatible with v1 responses)
+- 43 unit tests for engine functions, 644 total tests passing
 
 ### Notifications
 - Calendar event reminders: socket-based (1-hour + 1-minute before)
@@ -607,6 +609,7 @@ Newest first. Append-only.
 
 | Date | Change | Reason | Affected Files |
 |------|--------|--------|----------------|
+| 2026-03-11 | Activity Digest Phase 4: Scope-Aware Trader/Clan split | Digest now has Trader/Clan scope switcher (default: Trader). Trader mode shows personal-only state/deltas/actions/concentration/alerts. Clan mode preserves clan-wide view with member breakdown. Server computes trader-scoped deltas with separate Redis key. Client derives trader view from clan data using pure engine functions (no refetch on scope switch). 9 decision engines, premium dashboard UX. Verified in code — 644 tests pass, build clean. | DigestSheetV2.tsx, route.ts, digest-v2-schema.ts, en.json, fa.json, DECISION_LOG.md, docs/tasks/activity-digest.md |
 | 2026-03-11 | Founder workflow system | Added 4 workflow skills (my-rules, task-start, task-update, weekly-pm), FOUNDER_LOOP.md, DECISION_LOG.md, docs/tasks/ and docs/testing/ directories. Internal tooling — no product/scope/rule change. | .claude/FOUNDER_LOOP.md, .claude/skills/*, docs/DECISION_LOG.md, docs/tasks/, docs/testing/ |
 | 2026-03-11 | Activity Digest v2 cockpit refactor | Refactored v2 from health-taxonomy to trading cockpit. Primary metrics now: floating P/L, floating R, risk-to-SL, actions needed, realized P/L/R. Health model demoted to expandable detail. Attention queue groups tracking-lost by member. Per-trade `riskToSLR`. Per-member cockpit aggregates. Daily Snapshot Layer deferred (BACKLOG). Verified in code. | src/lib/digest-v2-schema.ts, src/services/digest-v2.service.ts, src/components/chat/DigestSheetV2.tsx, src/locales/en.json, src/locales/fa.json |
 | 2026-03-10 | Activity Digest v2.1 — Open Trade Health Layer | New health-first analysis for open trades in clan digest. 6 health dimensions, attention queue, live health summary. Feature-flagged behind `digest_v2`. 139 unit tests. Backward-compatible with v1. Verified in code. | src/lib/open-trade-health.ts, src/lib/digest-constants.ts, src/lib/digest-v2-schema.ts, src/services/digest-v2.service.ts, src/components/chat/DigestSheetV2.tsx, src/app/api/clans/[clanId]/digest/route.ts, src/locales/en.json, src/locales/fa.json |

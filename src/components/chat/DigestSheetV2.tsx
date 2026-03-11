@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Sheet,
   SheetContent,
@@ -25,6 +25,8 @@ import {
   Clock,
   TrendingUp,
   TrendingDown,
+  User,
+  Users,
 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -39,16 +41,22 @@ import type {
   OverallHealth,
   AttentionSeverity,
 } from "@/lib/open-trade-health";
-import type {
-  SafetyBand,
-  ConfidenceBand,
-  DigestDelta,
-  ActionItem,
-  ConcentrationCluster,
-  RiskBudget,
-  RiskBudgetBand,
-  MemberTrend,
-  PredictiveHint,
+import {
+  computeStateAssessment,
+  computeConcentration,
+  generateAlerts,
+  generateActions,
+  computeRiskBudget,
+  type SafetyBand,
+  type ConfidenceBand,
+  type DigestDelta,
+  type ActionItem,
+  type AlertMemberInput,
+  type ConcentrationCluster,
+  type RiskBudget,
+  type RiskBudgetBand,
+  type MemberTrend,
+  type PredictiveHint,
 } from "@/lib/digest-engines";
 
 interface DigestSheetV2Props {
@@ -204,6 +212,143 @@ function groupAttentionItems(
   return result;
 }
 
+// ─── Scope Types ───
+
+type DigestScope = "trader" | "clan";
+
+function buildTraderView(data: DigestV2Response): DigestV2Response | null {
+  const myId = data.currentUserId;
+  if (!myId) return null;
+
+  const myMember = data.members.find((m) => m.userId === myId);
+  if (!myMember) return null;
+
+  // Trader state assessment from own positions only
+  const hasActive = myMember.openPositions.some((p) => p.trackingStatus === "ACTIVE");
+  const hasStale = myMember.openPositions.some((p) => p.trackingStatus === "STALE");
+  const hasLost = myMember.openPositions.some((p) => p.trackingStatus === "TRACKING_LOST");
+
+  const traderState = computeStateAssessment({
+    openHealthResults: myMember.openPositions.map((p) => ({
+      health: p.health,
+      rComputable: p.rComputable,
+      trackingStatus: p.trackingStatus,
+    })),
+    trackingSummary: {
+      activeAccounts: hasActive ? 1 : 0,
+      staleAccounts: hasStale ? 1 : 0,
+      lostAccounts: hasLost ? 1 : 0,
+    },
+  });
+
+  // Trader cockpit from member-level aggregates
+  const traderCockpit: DigestV2Response["cockpit"] = {
+    totalFloatingPnl: myMember.memberFloatingPnl,
+    totalFloatingR: myMember.memberFloatingR,
+    computableRCount: myMember.openPositions.filter((p) => p.rComputable).length,
+    nonComputableRCount: myMember.openPositions.filter((p) => !p.rComputable).length,
+    currentOpenRiskR: myMember.memberRiskToSLR,
+    unknownRiskCount: myMember.memberUnknownRiskCount,
+    tradesNeedingAction: myMember.memberActionsNeeded,
+    liveConfidence:
+      traderState.confidenceBand === "HIGH" ? "HIGH" :
+      traderState.confidenceBand === "MODERATE" ? "PARTIAL" : "LOW",
+    realizedPnl: null, // per-member realized PnL not available
+    realizedR: myMember.closedTrades.length > 0 ? myMember.totalR : null,
+    closedCount: myMember.closedTrades.length,
+    officialWinRate: myMember.winRate > 0 ? myMember.winRate : null,
+    officialCount: myMember.closedTrades.filter((t) => t.isOfficial).length,
+    unofficialCount: myMember.closedTrades.filter((t) => !t.isOfficial).length,
+  };
+
+  // Trader concentration from own positions only
+  const traderConcentration = computeConcentration(
+    myMember.openPositions.map((p) => ({
+      instrument: p.instrument,
+      direction: p.direction,
+      memberName: myMember.name,
+      floatingR: p.floatingR,
+      riskToSLR: p.riskToSLR,
+    }))
+  );
+
+  // Trader alerts from own issues only
+  const traderMemberInput: AlertMemberInput = {
+    userId: myMember.userId,
+    name: myMember.name,
+    openTradeCount: myMember.openCount,
+    needActionCount: myMember.memberActionsNeeded,
+    unknownRiskCount: myMember.memberUnknownRiskCount,
+    unprotectedCount: myMember.memberUnprotectedCount,
+    trackingLostCount: myMember.memberTrackingLostCount,
+    staleCount: myMember.memberStaleCount,
+  };
+  const traderAlerts = generateAlerts(traderState, [traderMemberInput], null, traderConcentration);
+  const traderActions = generateActions(traderAlerts);
+
+  // Trader risk budget
+  const traderRiskBudget = computeRiskBudget({
+    currentOpenRiskR: myMember.memberRiskToSLR,
+    totalEquity: null,
+    totalBalance: null,
+    openTradeCount: myMember.openCount,
+  });
+
+  // Trader attention queue (own items only)
+  const traderAttention = data.attentionQueue.filter((a) => a.userId === myId);
+
+  // Trader tracking summary
+  const traderTracking = {
+    activeAccounts: hasActive ? 1 : 0,
+    staleAccounts: hasStale ? 1 : 0,
+    lostAccounts: hasLost ? 1 : 0,
+  };
+
+  // Trader live health summary
+  const traderLiveHealth: DigestV2Response["liveHealthSummary"] = {
+    healthyPositions: myMember.openPositions.filter((p) => p.health.overall === "HEALTHY").length,
+    needsReviewPositions: myMember.openPositions.filter((p) => p.health.overall === "NEEDS_REVIEW").length,
+    atRiskPositions: myMember.openPositions.filter((p) => p.health.overall === "AT_RISK").length,
+    brokenPlanPositions: myMember.openPositions.filter((p) => p.health.overall === "BROKEN_PLAN").length,
+    lowConfidencePositions: myMember.openPositions.filter((p) => p.health.overall === "LOW_CONFIDENCE").length,
+    unknownRiskPositions: myMember.openPositions.filter((p) => p.health.protectionStatus === "UNKNOWN_RISK").length,
+    unprotectedPositions: myMember.openPositions.filter((p) => p.health.protectionStatus === "UNPROTECTED").length,
+    fragileWinnerPositions: myMember.openPositions.filter((p) => p.health.profitProtection === "FRAGILE_WINNER").length,
+  };
+
+  // Trader summary
+  const traderSummary: DigestV2Response["summary"] = {
+    totalCards: myMember.signalCount + myMember.analysisCount,
+    totalSignals: myMember.signalCount,
+    totalAnalysis: myMember.analysisCount,
+    tpHit: myMember.tpHit,
+    slHit: myMember.slHit,
+    be: myMember.be,
+    openCount: myMember.openCount,
+    winRate: myMember.winRate,
+    totalR: myMember.totalR,
+    avgR: myMember.avgR,
+    activeMemberCount: 1,
+  };
+
+  return {
+    ...data,
+    cockpit: traderCockpit,
+    stateAssessment: traderState,
+    members: [myMember],
+    attentionQueue: traderAttention,
+    alerts: traderAlerts,
+    actions: traderActions,
+    concentration: traderConcentration,
+    riskBudget: traderRiskBudget,
+    trackingSummary: traderTracking,
+    liveHealthSummary: traderLiveHealth,
+    summary: traderSummary,
+    deltas: data.traderDeltas ?? null,
+    hints: data.traderHints ?? [],
+  };
+}
+
 // ─── Main Component ───
 
 export function DigestSheetV2({ open, onOpenChange, clanId }: DigestSheetV2Props) {
@@ -215,6 +360,7 @@ export function DigestSheetV2({ open, onOpenChange, clanId }: DigestSheetV2Props
   const [loading, setLoading] = useState(false);
   const [expandedMembers, setExpandedMembers] = useState<Set<string>>(new Set());
   const [expandedTrades, setExpandedTrades] = useState<Set<string>>(new Set());
+  const [scope, setScope] = useState<DigestScope>("trader");
 
   const fetchDigest = useCallback(
     async (p: DigestPeriod) => {
@@ -269,8 +415,17 @@ export function DigestSheetV2({ open, onOpenChange, clanId }: DigestSheetV2Props
     });
   }
 
+  const traderView = useMemo(() => {
+    if (!v2Data) return null;
+    return buildTraderView(v2Data);
+  }, [v2Data]);
+
+  const effectiveV2Data = scope === "trader" ? traderView : v2Data;
+
   const hasData = isV2
-    ? v2Data && (v2Data.summary.totalCards > 0 || v2Data.summary.openCount > 0)
+    ? scope === "trader"
+      ? traderView !== null && (traderView.summary.totalCards > 0 || traderView.summary.openCount > 0)
+      : v2Data && (v2Data.summary.totalCards > 0 || v2Data.summary.openCount > 0)
     : v1Data && v1Data.summary.totalCards > 0;
 
   return (
@@ -290,8 +445,38 @@ export function DigestSheetV2({ open, onOpenChange, clanId }: DigestSheetV2Props
           </div>
         </SheetHeader>
 
-        {/* Modern pill tab selector */}
+        {/* Scope switcher */}
         <div className="mt-3 flex shrink-0 rounded-lg bg-muted/50 p-1">
+          <button
+            type="button"
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+              scope === "trader"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            onClick={() => setScope("trader")}
+          >
+            <User className="h-3.5 w-3.5" />
+            {t("digest.scope.trader")}
+          </button>
+          <button
+            type="button"
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+              scope === "clan"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            onClick={() => setScope("clan")}
+          >
+            <Users className="h-3.5 w-3.5" />
+            {t("digest.scope.clan")}
+          </button>
+        </div>
+
+        {/* Period selector */}
+        <div className="mt-2 flex shrink-0 rounded-lg bg-muted/50 p-1">
           {PERIODS.map((p) => (
             <button
               key={p.value}
@@ -325,9 +510,10 @@ export function DigestSheetV2({ open, onOpenChange, clanId }: DigestSheetV2Props
             />
           )}
 
-          {!loading && isV2 && v2Data && hasData && (
+          {!loading && isV2 && effectiveV2Data && hasData && (
             <V2Content
-              data={v2Data}
+              data={effectiveV2Data}
+              scope={scope}
               expandedMembers={expandedMembers}
               expandedTrades={expandedTrades}
               toggleMember={toggleMember}
@@ -354,6 +540,7 @@ export function DigestSheetV2({ open, onOpenChange, clanId }: DigestSheetV2Props
 
 function V2Content({
   data,
+  scope,
   expandedMembers,
   expandedTrades,
   toggleMember,
@@ -361,6 +548,7 @@ function V2Content({
   t,
 }: {
   data: DigestV2Response;
+  scope: DigestScope;
   expandedMembers: Set<string>;
   expandedTrades: Set<string>;
   toggleMember: (id: string) => void;
@@ -559,23 +747,54 @@ function V2Content({
         </div>
       )}
 
-      {/* ═══ ZONE 6: Member Breakdown ═══ */}
-      <div>
-        <SectionHeader label={t("digest.memberBreakdown")} />
-        <div className="mt-2 space-y-2">
-          {data.members.map((member) => (
-            <MemberCard
-              key={member.userId}
-              member={member}
-              expanded={expandedMembers.has(member.userId)}
-              expandedTrades={expandedTrades}
-              onToggle={() => toggleMember(member.userId)}
-              onToggleTrade={toggleTrade}
-              t={t}
-            />
-          ))}
+      {/* ═══ ZONE 6: Member Breakdown / My Positions ═══ */}
+      {scope === "clan" ? (
+        <div>
+          <SectionHeader label={t("digest.memberBreakdown")} />
+          <div className="mt-2 space-y-2">
+            {data.members.map((member) => (
+              <MemberCard
+                key={member.userId}
+                member={member}
+                expanded={expandedMembers.has(member.userId)}
+                expandedTrades={expandedTrades}
+                onToggle={() => toggleMember(member.userId)}
+                onToggleTrade={toggleTrade}
+                t={t}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      ) : data.members[0] && (data.members[0].openPositions.length > 0 || data.members[0].closedTrades.length > 0) ? (
+        <div className="space-y-3">
+          {data.members[0].openPositions.length > 0 && (
+            <div>
+              <SectionHeader label={`${t("digest.myPositions")} (${data.members[0].openPositions.length})`} />
+              <div className="mt-2 space-y-1">
+                {data.members[0].openPositions.map((pos) => (
+                  <OpenTradeRow
+                    key={pos.tradeId}
+                    position={pos}
+                    expanded={expandedTrades.has(pos.tradeId)}
+                    onToggle={() => toggleTrade(pos.tradeId)}
+                    t={t}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {data.members[0].closedTrades.length > 0 && (
+            <div>
+              <SectionHeader label={`${t("digest.myClosedTrades")} (${data.members[0].closedTrades.length})`} />
+              <div className="mt-2 space-y-1">
+                {data.members[0].closedTrades.map((trade) => (
+                  <ClosedTradeRow key={trade.tradeId} trade={trade} t={t} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

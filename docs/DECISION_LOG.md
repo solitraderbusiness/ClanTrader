@@ -5,6 +5,17 @@ Newest entries first.
 
 ---
 
+## 2026-03-11 — Activity Digest Phase 4: Scope-Aware Trader/Clan split
+
+- **Task:** activity-digest
+- **Decision:** Add Trader/Clan scope switcher to Activity Digest. Trader mode shows personal-only data (state, deltas, actions, concentration, alerts, positions). Clan mode preserves current clan-wide view. Default: Trader. Implementation: hybrid — server computes trader deltas/hints (needs Redis), client derives trader state/cockpit/alerts from member data using imported pure engine functions. No refetch on scope switch.
+- **Why:** The digest was mixing personal and clan-wide data, causing false stress (trader sees "43 unprotected trades" when they only have 4). Separating scopes makes Trader mode emotionally accurate and personally useful, while Clan mode serves monitoring/supervision.
+- **Affected files/rules:** `DigestSheetV2.tsx` (scope switcher, buildTraderView, scope-aware zones), `route.ts` (trader snapshot/delta computation), `digest-v2-schema.ts` (3 new optional fields), `en.json` + `fa.json` (4 new keys)
+- **Needs SOURCE_OF_TRUTH update now?:** yes — material UX/product change (scope-aware digest is a new product behavior)
+- **Needs manual testing?:** yes — scope switching, trader-only state accuracy, clan state isolation, edge cases (0 trades, one-member clan)
+
+---
+
 ## 2026-03-11 — Activity Digest UI/UX modernization: premium dashboard redesign
 
 - **Task:** activity-digest

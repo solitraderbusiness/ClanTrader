@@ -11,6 +11,7 @@ import {
   computeDeltas,
   computeMemberTrend,
   computePredictiveHints,
+  computeStateAssessment,
   type DigestSnapshot,
   type MemberSnapshotData,
 } from "@/lib/digest-engines";
@@ -73,6 +74,11 @@ export async function GET(
       let deltas = data.deltas;
       let hints = data.hints;
 
+      // Trader-scoped deltas (separate snapshot key)
+      const traderSnapshotKey = `${DIGEST_SNAPSHOT_PREFIX}:${clanId}:${session.user.id}:${parsed.data.period}:trader`;
+      let traderDeltas: typeof deltas = null;
+      let traderHints: typeof hints = [];
+
       try {
         // Load previous snapshot
         const prevRaw = await redis.get(snapshotKey);
@@ -102,11 +108,57 @@ export async function GET(
 
         // Save current snapshot for next comparison
         await redis.set(snapshotKey, JSON.stringify(currentSnapshot), "EX", DIGEST_SNAPSHOT_TTL);
+
+        // ─── Trader-scoped snapshot & deltas ───
+        const myMember = data.members.find(m => m.userId === session.user.id);
+        if (myMember) {
+          const hasActive = myMember.openPositions.some(p => p.trackingStatus === "ACTIVE");
+          const hasStale = myMember.openPositions.some(p => p.trackingStatus === "STALE");
+          const hasLost = myMember.openPositions.some(p => p.trackingStatus === "TRACKING_LOST");
+
+          const traderState = computeStateAssessment({
+            openHealthResults: myMember.openPositions.map(p => ({
+              health: p.health,
+              rComputable: p.rComputable,
+              trackingStatus: p.trackingStatus,
+            })),
+            trackingSummary: {
+              activeAccounts: hasActive ? 1 : 0,
+              staleAccounts: hasStale ? 1 : 0,
+              lostAccounts: hasLost ? 1 : 0,
+            },
+          });
+
+          const traderSnapshot = createDigestSnapshotV2(
+            {
+              totalFloatingPnl: myMember.memberFloatingPnl,
+              realizedPnl: null,
+              realizedR: myMember.closedTrades.length > 0 ? myMember.totalR : null,
+              closedCount: myMember.closedTrades.length,
+            },
+            traderState
+          );
+
+          const prevTraderRaw = await redis.get(traderSnapshotKey);
+          const prevTraderSnapshot: DigestSnapshot | null = prevTraderRaw ? JSON.parse(prevTraderRaw) : null;
+
+          traderDeltas = computeDeltas(traderSnapshot, prevTraderSnapshot);
+          traderHints = computePredictiveHints(traderSnapshot, prevTraderSnapshot, traderDeltas);
+
+          await redis.set(traderSnapshotKey, JSON.stringify(traderSnapshot), "EX", DIGEST_SNAPSHOT_TTL);
+        }
       } catch {
         // Delta/trend/hint computation is best-effort — don't fail the digest
       }
 
-      return NextResponse.json({ ...data, deltas, hints });
+      return NextResponse.json({
+        ...data,
+        deltas,
+        hints,
+        currentUserId: session.user.id,
+        traderDeltas,
+        traderHints,
+      });
     }
 
     const data = await getClanDigest(clanId, parsed.data.period, parsed.data.tz);

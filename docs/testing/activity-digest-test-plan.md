@@ -126,6 +126,30 @@
 | 61 | No worsening trends | No hints shown | Not tested |
 | 62 | First load (no previous) | No hints shown | Not tested |
 
+### Scope Switcher (Phase 4)
+
+| # | Scenario | Expected | Status |
+|---|----------|----------|--------|
+| 63 | Default opens in Trader mode | Scope switcher shows Trader selected, digest shows personal data | Not tested |
+| 64 | Switch to Clan mode | All sections update to clan-wide data, member breakdown appears | Not tested |
+| 65 | Switch back to Trader mode | Personal view restores, member breakdown replaced with My Positions | Not tested |
+| 66 | No stale clan state leaks into Trader mode | Trader hero shows personal safety/confidence, not clan-wide | Not tested |
+| 67 | No stale trader state leaks into Clan mode | Clan hero shows clan-wide safety/confidence | Not tested |
+| 68 | Trader with few trades but clan in bad state | Trader mode shows personal status (e.g. SAFE), not clan CRITICAL | Not tested |
+| 69 | Trader with personal issues | Trader mode shows own critical state correctly | Not tested |
+| 70 | Trader-only deltas work | Shows personal delta changes, not clan-wide | Not tested |
+| 71 | Trader-only actions are personal | Actions reference own trades (e.g. "Add SL to 2 trades") | Not tested |
+| 72 | Member breakdown hidden in Trader mode | Zone 6 shows My Positions/My Closed Trades instead | Not tested |
+| 73 | Trader concentration shows own positions only | Clusters from own trades, no other members mixed in | Not tested |
+| 74 | Trader attention queue personal | Only alerts for current user's issues | Not tested |
+| 75 | User with zero activity in period (Trader mode) | Empty state shown | Not tested |
+| 76 | User with open trades but no closed (Trader mode) | Shows open positions, no closed section | Not tested |
+| 77 | One-member clan | Trader and Clan views similar but distinct (Trader has My Positions, Clan has Member Breakdown) | Not tested |
+| 78 | Scope switching + period switching | Independent — can switch scope without refetch, can switch period in any scope | Not tested |
+| 79 | Mobile view | Scope switcher fits cleanly on small screens | Not tested |
+| 80 | RTL layout for scope switcher | Icons and text properly aligned in RTL | Not tested |
+| 81 | Persian labels | Scope switcher shows Persian translations | Not tested |
+
 ## Unit Test Coverage (Implemented)
 
 File: `src/lib/__tests__/digest-engines.test.ts`

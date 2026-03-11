@@ -300,6 +300,10 @@ export const digestV2ResponseSchema = z.object({
   concentration: z.array(concentrationClusterSchema),
   riskBudget: riskBudgetSchema.nullable(),
   hints: z.array(predictiveHintSchema),
+  // Scope-aware fields (added by route, optional for service)
+  currentUserId: z.string().optional(),
+  traderDeltas: z.array(digestDeltaSchema).nullable().optional(),
+  traderHints: z.array(predictiveHintSchema).optional(),
 });
 
 export type DigestV2Response = z.infer<typeof digestV2ResponseSchema>;
