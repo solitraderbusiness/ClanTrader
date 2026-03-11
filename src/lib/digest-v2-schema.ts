@@ -88,6 +88,74 @@ export const trackingSummarySchema = z.object({
   lostAccounts: z.number(),
 });
 
+// ─── State Assessment ───
+
+export const stateMetricsSchema = z.object({
+  openTradeCount: z.number(),
+  needActionCount: z.number(),
+  unknownRiskCount: z.number(),
+  unprotectedCount: z.number(),
+  trackingLostTradeCount: z.number(),
+  staleTradeCount: z.number(),
+  activeAccountCount: z.number(),
+  totalAccountCount: z.number(),
+  knownRiskTradeCount: z.number(),
+  trustedTrackedTradeCount: z.number(),
+});
+
+export const stateAssessmentSchema = z.object({
+  safetyScore: z.number(),
+  safetyBand: z.enum(["SAFE", "WATCH", "AT_RISK", "CRITICAL"]),
+  confidenceScore: z.number(),
+  confidenceBand: z.enum(["HIGH", "MODERATE", "LOW", "DEGRADED"]),
+  metrics: stateMetricsSchema,
+});
+
+// ─── Alert types ───
+
+const alertTypeEnum = z.enum([
+  "tracking_lost_with_exposure",
+  "stale_with_exposure",
+  "unprotected_trade",
+  "unknown_risk_trade",
+  "account_inactive_with_open_positions",
+  "confidence_degraded",
+  "missing_stop_loss_cluster",
+  "high_open_trade_cluster",
+]);
+
+// ─── Alerts ───
+
+export const digestAlertSchema = z.object({
+  id: z.string(),
+  type: alertTypeEnum,
+  affectedMember: z.string().nullable(),
+  affectedMemberId: z.string().nullable(),
+  issueCount: z.number(),
+  severityScore: z.number(),
+  severityBand: z.enum(["CRITICAL", "HIGH", "MEDIUM", "LOW"]),
+});
+
+// ─── Actions ───
+
+export const actionItemSchema = z.object({
+  alertId: z.string(),
+  alertType: alertTypeEnum,
+  priority: z.number(),
+  affectedMember: z.string().nullable(),
+  issueCount: z.number(),
+});
+
+// ─── Deltas ───
+
+export const digestDeltaSchema = z.object({
+  metric: z.string(),
+  current: z.number(),
+  previous: z.number(),
+  delta: z.number(),
+  direction: z.enum(["good", "bad", "neutral"]),
+});
+
 // ─── Cockpit Summary ───
 
 export const cockpitSummarySchema = z.object({
@@ -161,6 +229,11 @@ export const memberStatsV2Schema = z.object({
   memberRiskToSLR: z.number().nullable(),
   memberActionsNeeded: z.number(),
   memberUnknownRiskCount: z.number(),
+  memberTrackingLostCount: z.number(),
+  memberStaleCount: z.number(),
+  memberUnprotectedCount: z.number(),
+  memberImpactScore: z.number(),
+  memberImpactLabel: z.string().nullable(),
   closedTrades: z.array(closedTradeV2Schema),
   openPositions: z.array(openPositionV2Schema),
 });
@@ -189,6 +262,10 @@ export const digestV2ResponseSchema = z.object({
   members: z.array(memberStatsV2Schema),
   liveHealthSummary: liveHealthSummarySchema,
   attentionQueue: z.array(attentionItemSchema),
+  stateAssessment: stateAssessmentSchema,
+  alerts: z.array(digestAlertSchema),
+  actions: z.array(actionItemSchema),
+  deltas: z.array(digestDeltaSchema).nullable(),
 });
 
 export type DigestV2Response = z.infer<typeof digestV2ResponseSchema>;

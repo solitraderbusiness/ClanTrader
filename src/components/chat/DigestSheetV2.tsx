@@ -41,6 +41,12 @@ import type {
   OverallHealth,
   AttentionSeverity,
 } from "@/lib/open-trade-health";
+import type {
+  SafetyBand,
+  ConfidenceBand,
+  DigestDelta,
+  ActionItem,
+} from "@/lib/digest-engines";
 
 interface DigestSheetV2Props {
   open: boolean;
@@ -339,9 +345,21 @@ function V2Content({
   const ts = data.trackingSummary;
   const hasTrackingIssue = ts.staleAccounts > 0 || ts.lostAccounts > 0;
   const grouped = groupAttentionItems(data.attentionQueue);
+  const sa = data.stateAssessment;
 
   return (
     <div className="space-y-3">
+      {/* ─── STATE STATUS BAR — safety + confidence ─── */}
+      <StateStatusBar assessment={sa} t={t} />
+
+      {/* ─── DELTA STRIP — what changed since last check ─── */}
+      <DeltaStrip deltas={data.deltas} t={t} />
+
+      {/* ─── TOP ACTIONS NOW ─── */}
+      {data.actions.length > 0 && (
+        <TopActionsBlock actions={data.actions} t={t} />
+      )}
+
       {/* ─── Tracking bar (compact, only if issues or accounts exist) ─── */}
       {(ts.activeAccounts + ts.staleAccounts + ts.lostAccounts) > 0 && (
         <div className={cn(
@@ -593,6 +611,11 @@ function MemberCockpitRow({
             {member.openCount > 0 && (
               <span className="text-[10px] text-muted-foreground">
                 {member.openCount} {t("digest.open")}
+              </span>
+            )}
+            {member.memberImpactLabel && (
+              <span className="rounded bg-orange-500/10 px-1 text-[9px] font-medium text-orange-600 dark:text-orange-400">
+                {t(`digest.${member.memberImpactLabel.replace("digest.", "")}`)}
               </span>
             )}
           </div>
@@ -937,6 +960,159 @@ function V1Content({
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── State Status Bar ───
+
+const SAFETY_STYLES: Record<SafetyBand, { bg: string; text: string; border: string }> = {
+  SAFE: { bg: "bg-green-500/10", text: "text-green-600 dark:text-green-400", border: "border-green-500/30" },
+  WATCH: { bg: "bg-yellow-500/10", text: "text-yellow-600 dark:text-yellow-400", border: "border-yellow-500/30" },
+  AT_RISK: { bg: "bg-orange-500/10", text: "text-orange-600 dark:text-orange-400", border: "border-orange-500/30" },
+  CRITICAL: { bg: "bg-red-500/10", text: "text-red-600 dark:text-red-400", border: "border-red-500/30" },
+};
+
+const CONFIDENCE_STYLES: Record<ConfidenceBand, { text: string }> = {
+  HIGH: { text: "text-green-600 dark:text-green-400" },
+  MODERATE: { text: "text-yellow-600 dark:text-yellow-400" },
+  LOW: { text: "text-orange-600 dark:text-orange-400" },
+  DEGRADED: { text: "text-red-600 dark:text-red-400" },
+};
+
+function StateStatusBar({
+  assessment,
+  t,
+}: {
+  assessment: DigestV2Response["stateAssessment"];
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  const m = assessment.metrics;
+  if (m.openTradeCount === 0) return null;
+
+  const safety = SAFETY_STYLES[assessment.safetyBand as SafetyBand];
+  const conf = CONFIDENCE_STYLES[assessment.confidenceBand as ConfidenceBand];
+
+  // Build explanation reasons
+  const reasons: string[] = [];
+  if (m.unprotectedCount > 0) reasons.push(t("digest.state.reason.unprotected", { count: m.unprotectedCount }));
+  if (m.unknownRiskCount > 0) reasons.push(t("digest.state.reason.unknownRisk", { count: m.unknownRiskCount }));
+  if (m.trackingLostTradeCount > 0) reasons.push(t("digest.confidence.reason.trackingLost", { count: m.trackingLostTradeCount }));
+  if (m.needActionCount > 0) reasons.push(t("digest.state.reason.needAction", { count: m.needActionCount }));
+
+  return (
+    <div className={cn("rounded-lg border px-3 py-2", safety.bg, safety.border)}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className={cn("text-sm font-bold", safety.text)}>
+            {t(`digest.state.${assessment.safetyBand.toLowerCase()}`)}
+          </span>
+          <span className="text-[10px] text-muted-foreground">({assessment.safetyScore})</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className={cn("text-xs font-medium", conf.text)}>
+            {t(`digest.confidence.${assessment.confidenceBand.toLowerCase()}`)}
+          </span>
+          <span className="text-[10px] text-muted-foreground">({assessment.confidenceScore})</span>
+        </div>
+      </div>
+      {reasons.length > 0 && assessment.safetyBand !== "SAFE" && (
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          {reasons.slice(0, 3).join(" · ")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Delta Strip ───
+
+function DeltaStrip({
+  deltas,
+  t,
+}: {
+  deltas: DigestDelta[] | null;
+  t: (key: string) => string;
+}) {
+  if (deltas === null) {
+    return (
+      <div className="rounded-lg border border-dashed px-3 py-1.5 text-center text-[10px] text-muted-foreground">
+        {t("digest.delta.baseline")}
+      </div>
+    );
+  }
+
+  if (deltas.length === 0) return null;
+
+  // Show most impactful deltas first (by absolute delta value)
+  const sorted = [...deltas].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 5);
+
+  return (
+    <div>
+      <h4 className="mb-1 text-[10px] font-semibold uppercase text-muted-foreground">
+        {t("digest.delta.title")}
+      </h4>
+      <div className="flex flex-wrap gap-1">
+        {sorted.map((d) => {
+          const isGood = d.direction === "good";
+          const isBad = d.direction === "bad";
+          const sign = d.delta > 0 ? "+" : "";
+          const label = t(`digest.delta.${d.metric}`);
+          const val = Number.isInteger(d.delta) ? String(d.delta) : d.delta.toFixed(2);
+
+          return (
+            <span
+              key={d.metric}
+              className={cn(
+                "rounded border px-1.5 py-0.5 text-[10px] font-mono",
+                isGood && "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400",
+                isBad && "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400",
+                !isGood && !isBad && "border-gray-500/30 bg-gray-500/10 text-muted-foreground"
+              )}
+            >
+              {label} {sign}{val}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Top Actions Block ───
+
+function TopActionsBlock({
+  actions,
+  t,
+}: {
+  actions: ActionItem[];
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  return (
+    <div>
+      <h4 className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase text-muted-foreground">
+        <AlertTriangle className="h-3 w-3 text-orange-500" />
+        {t("digest.actions.title")}
+      </h4>
+      <div className="space-y-1">
+        {actions.map((action, i) => {
+          const alertKey = `digest.actions.${action.alertType}`;
+          const params: Record<string, string | number> = { count: action.issueCount };
+          if (action.affectedMember) params.member = action.affectedMember;
+
+          return (
+            <div
+              key={`${action.alertId}-${i}`}
+              className="flex items-start gap-2 rounded-lg border px-2.5 py-1.5 text-xs"
+            >
+              <span className="shrink-0 text-sm font-bold text-muted-foreground">
+                {i + 1}.
+              </span>
+              <span>{t(alertKey, params)}</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

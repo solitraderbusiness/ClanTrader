@@ -16,6 +16,14 @@ import {
   type OpenTradeInput,
 } from "@/lib/open-trade-health";
 import { DIGEST_V2_CACHE_TTL, TRACKING_STALE_SECONDS, TRACKING_LOST_SECONDS } from "@/lib/digest-constants";
+import {
+  computeStateAssessment,
+  generateAlerts,
+  generateActions,
+  computeMemberImpactScore,
+  getMemberImpactLabel,
+  type AlertMemberInput,
+} from "@/lib/digest-engines";
 import type { DigestPeriod } from "@/types/clan-digest";
 import type {
   DigestV2Response,
@@ -434,6 +442,9 @@ export async function getClanDigestV2(
     mRiskToSLR: number;
     mActionsNeeded: number;
     mUnknownRiskCount: number;
+    mTrackingLostCount: number;
+    mStaleCount: number;
+    mUnprotectedCount: number;
     mHasPnl: boolean;
     mHasR: boolean;
     mHasRisk: boolean;
@@ -451,6 +462,7 @@ export async function getClanDigestV2(
         wins: 0, losses: 0, totalR: 0, countWithR: 0,
         mFloatingPnl: 0, mFloatingR: 0, mRiskToSLR: 0,
         mActionsNeeded: 0, mUnknownRiskCount: 0,
+        mTrackingLostCount: 0, mStaleCount: 0, mUnprotectedCount: 0,
         mHasPnl: false, mHasR: false, mHasRisk: false,
         closedTrades: [], openPositions: [],
       };
@@ -529,6 +541,9 @@ export async function getClanDigestV2(
     if (ot.health.overall === "AT_RISK" || ot.health.overall === "BROKEN_PLAN") {
       m.mActionsNeeded++;
     }
+    if (ot.trackingStatus === "TRACKING_LOST") m.mTrackingLostCount++;
+    else if (ot.trackingStatus === "STALE") m.mStaleCount++;
+    if (ot.health.protectionStatus === "UNPROTECTED") m.mUnprotectedCount++;
 
     if (m.openPositions.length < 20) {
       m.openPositions.push({
@@ -566,10 +581,50 @@ export async function getClanDigestV2(
   }
 
   const decided = wins + losses;
+
+  // ─── Engine 1: State Assessment ───
+  const stateAssessment = computeStateAssessment({
+    openHealthResults: openHealthResults.map(r => ({
+      health: r.health,
+      rComputable: r.rComputable,
+      trackingStatus: r.trackingStatus,
+    })),
+    trackingSummary,
+  });
+
+  // ─── Engine 3 prep: build member summaries for alerts + impact ───
+  const alertMembers: AlertMemberInput[] = Array.from(memberMap.values())
+    .filter(e => e.openCount > 0)
+    .map(e => ({
+      userId: e.userId,
+      name: e.name,
+      openTradeCount: e.openCount,
+      needActionCount: e.mActionsNeeded,
+      unknownRiskCount: e.mUnknownRiskCount,
+      unprotectedCount: e.mUnprotectedCount,
+      trackingLostCount: e.mTrackingLostCount,
+      staleCount: e.mStaleCount,
+    }));
+
+  // ─── Engine 3: Risk Severity (Alerts) ───
+  const alerts = generateAlerts(stateAssessment, alertMembers);
+
+  // ─── Engine 4: Action Queue ───
+  const actions = generateActions(alerts);
+
+  // ─── Engine 5: Member Impact ───
+  const memberImpactMap = new Map<string, { score: number; label: string | null }>();
+  for (const am of alertMembers) {
+    const score = computeMemberImpactScore(am, stateAssessment.metrics);
+    const label = getMemberImpactLabel(score, am);
+    memberImpactMap.set(am.userId, { score, label });
+  }
+
   const members: MemberStatsV2[] = Array.from(memberMap.values())
     .sort((a, b) => b.totalR - a.totalR)
     .map((e) => {
       const d = e.wins + e.losses;
+      const impact = memberImpactMap.get(e.userId);
       return {
         userId: e.userId,
         name: e.name,
@@ -588,6 +643,11 @@ export async function getClanDigestV2(
         memberRiskToSLR: e.mHasRisk ? Math.round(e.mRiskToSLR * 100) / 100 : null,
         memberActionsNeeded: e.mActionsNeeded,
         memberUnknownRiskCount: e.mUnknownRiskCount,
+        memberTrackingLostCount: e.mTrackingLostCount,
+        memberStaleCount: e.mStaleCount,
+        memberUnprotectedCount: e.mUnprotectedCount,
+        memberImpactScore: impact?.score ?? 0,
+        memberImpactLabel: impact?.label ?? null,
         closedTrades: e.closedTrades,
         openPositions: e.openPositions,
       };
@@ -615,6 +675,10 @@ export async function getClanDigestV2(
     members,
     liveHealthSummary,
     attentionQueue,
+    stateAssessment,
+    alerts,
+    actions,
+    deltas: null,
   };
 
   try {

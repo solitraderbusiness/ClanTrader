@@ -34,3 +34,9 @@ export const ATTENTION_PER_MEMBER_MAX = 2;
 /** Tracking status thresholds (seconds since last heartbeat) */
 export const TRACKING_STALE_SECONDS = 60;
 export const TRACKING_LOST_SECONDS = 120;
+
+/** Redis key prefix for per-user digest snapshots */
+export const DIGEST_SNAPSHOT_PREFIX = "digest-snap";
+
+/** TTL for digest snapshots (24 hours in seconds) */
+export const DIGEST_SNAPSHOT_TTL = 86400;

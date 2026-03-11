@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { redis } from "@/lib/redis";
 import { z } from "zod";
 import { getClanDigest } from "@/services/clan-digest.service";
 import { getClanDigestV2 } from "@/services/digest-v2.service";
 import { isFeatureEnabled } from "@/lib/feature-flags";
-import { DIGEST_V2_FLAG } from "@/lib/digest-constants";
+import { DIGEST_V2_FLAG, DIGEST_SNAPSHOT_PREFIX, DIGEST_SNAPSHOT_TTL } from "@/lib/digest-constants";
+import { createDigestSnapshot, computeDeltas, type DigestSnapshot } from "@/lib/digest-engines";
 
 const querySchema = z.object({
   period: z.enum(["today", "week", "month"]).default("today"),
@@ -55,7 +57,29 @@ export async function GET(
 
     if (useV2) {
       const data = await getClanDigestV2(clanId, parsed.data.period, parsed.data.tz);
-      return NextResponse.json(data);
+
+      // Delta Engine: per-user snapshot comparison
+      const snapshotKey = `${DIGEST_SNAPSHOT_PREFIX}:${clanId}:${session.user.id}:${parsed.data.period}`;
+      let deltas = data.deltas;
+
+      try {
+        // Load previous snapshot
+        const prevRaw = await redis.get(snapshotKey);
+        const previousSnapshot: DigestSnapshot | null = prevRaw ? JSON.parse(prevRaw) : null;
+
+        // Create current snapshot from digest data
+        const currentSnapshot = createDigestSnapshot(data.cockpit, data.stateAssessment);
+
+        // Compute deltas
+        deltas = computeDeltas(currentSnapshot, previousSnapshot);
+
+        // Save current snapshot for next comparison
+        await redis.set(snapshotKey, JSON.stringify(currentSnapshot), "EX", DIGEST_SNAPSHOT_TTL);
+      } catch {
+        // Delta computation is best-effort — don't fail the digest
+      }
+
+      return NextResponse.json({ ...data, deltas });
     }
 
     const data = await getClanDigest(clanId, parsed.data.period, parsed.data.tz);
