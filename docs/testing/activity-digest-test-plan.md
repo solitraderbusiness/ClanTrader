@@ -89,13 +89,57 @@
 | 44 | Open trade closed in MT | Delta shows reduced openTradeCount, closed count up | Not tested |
 | 45 | New trade opened without SL in MT | Unprotected alert appears, safety score drops | Not tested |
 
-## Unit Test Coverage (Phase 2)
+### Concentration Analysis (Phase 2)
 
-Target file: `src/lib/__tests__/digest-engines.test.ts`
+| # | Scenario | Expected | Status |
+|---|----------|----------|--------|
+| 46 | 3+ trades on same instrument+direction | Concentration cluster shown | Not tested |
+| 47 | Multiple members in same position | Cluster shows member count | Not tested |
+| 48 | Below threshold (2 trades same instrument) | No cluster shown | Not tested |
+| 49 | Multiple clusters | Sorted by trade count descending | Not tested |
 
-Planned test groups:
-- `computeStateAssessment` — score computation, band mapping, edge cases
-- `createDigestSnapshot` / `computeDeltas` — snapshot shape, delta direction
-- `generateAlerts` — alert generation per type, severity modifiers
+### Risk Budget (Phase 2+3)
+
+| # | Scenario | Expected | Status |
+|---|----------|----------|--------|
+| 50 | Low risk (< 3R SL exposure) | Green bar, "Low exposure" | Not tested |
+| 51 | High risk (6-10R SL exposure) | Orange bar, "High exposure" | Not tested |
+| 52 | Critical risk (> 10R exposure) | Red bar, "Critical exposure" | Not tested |
+| 53 | No open trades | Risk budget not shown | Not tested |
+| 54 | MT accounts have equity data | Equity impact % shown | Not tested |
+
+### Member Trends (Phase 2)
+
+| # | Scenario | Expected | Status |
+|---|----------|----------|--------|
+| 55 | First digest view (no previous snapshot) | All members show "new" (no badge) | Not tested |
+| 56 | Member's issues decreased | "Improving" badge (green) | Not tested |
+| 57 | Member's issues increased | "Declining" badge (red) | Not tested |
+| 58 | Member's issues unchanged | No trend badge (stable) | Not tested |
+
+### Predictive Hints (Phase 3)
+
+| # | Scenario | Expected | Status |
+|---|----------|----------|--------|
+| 59 | Safety score dropped 10+ since last check | "Safety dropped rapidly" hint shown | Not tested |
+| 60 | Unknown risk count high and growing | "Unknown risk growing" hint shown | Not tested |
+| 61 | No worsening trends | No hints shown | Not tested |
+| 62 | First load (no previous) | No hints shown | Not tested |
+
+## Unit Test Coverage (Implemented)
+
+File: `src/lib/__tests__/digest-engines.test.ts`
+
+Test groups:
+- `computeStateAssessment` — score computation, band mapping, zero trades
+- `computeStateMetrics` — metric counting from health results
+- `createDigestSnapshot` / `createDigestSnapshotV2` — snapshot shape with member data
+- `computeDeltas` — delta direction (good-when-up/down), null previous
+- `generateAlerts` — per-member + aggregate + concentration alerts, severity modifiers
 - `generateActions` — priority sorting, ACTION_MAX cap
-- `computeMemberImpactScore` — weighted shares, zero-total handling
+- `computeMemberImpactScore` — weighted shares, zero-total exclusion
+- `getMemberImpactLabel` — label thresholds
+- `computeConcentration` — clustering, threshold filtering
+- `computeRiskBudget` — band assignment, equity %, null cases
+- `computeMemberTrend` — improving/declining/stable/new
+- `computePredictiveHints` — rapid drops, worsening metrics

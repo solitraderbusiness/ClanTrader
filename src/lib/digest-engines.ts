@@ -19,7 +19,12 @@ export type AlertType =
   | "account_inactive_with_open_positions"
   | "confidence_degraded"
   | "missing_stop_loss_cluster"
-  | "high_open_trade_cluster";
+  | "high_open_trade_cluster"
+  | "concentration_risk";
+
+export type MemberTrend = "improving" | "declining" | "stable" | "new";
+export type RiskBudgetBand = "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
+export type HintSeverity = "warning" | "info";
 
 export interface StateMetrics {
   openTradeCount: number;
@@ -75,6 +80,8 @@ export interface DigestSnapshot {
   confidenceScore: number;
   safetyScore: number;
   ts: number;
+  /** Per-member metrics for trend computation (Phase 2) */
+  memberMetrics?: Record<string, MemberSnapshotData>;
 }
 
 export interface DigestDelta {
@@ -96,6 +103,47 @@ export interface AlertMemberInput {
   staleCount: number;
 }
 
+// ─── Phase 2+3 Types ───
+
+export interface ConcentrationCluster {
+  instrument: string;
+  direction: string;
+  tradeCount: number;
+  memberCount: number;
+  members: string[];
+  totalFloatingR: number | null;
+  totalRiskToSLR: number | null;
+}
+
+export interface ConcentrationPositionInput {
+  instrument: string;
+  direction: string;
+  memberName: string;
+  floatingR: number | null;
+  riskToSLR: number | null;
+}
+
+export interface RiskBudget {
+  totalOpenRiskR: number;
+  totalEquity: number | null;
+  riskPctOfEquity: number | null;
+  riskBudgetBand: RiskBudgetBand;
+}
+
+export interface PredictiveHint {
+  metric: string;
+  hintKey: string;
+  severity: HintSeverity;
+}
+
+export interface MemberSnapshotData {
+  needAction: number;
+  unknownRisk: number;
+  trackingLost: number;
+  unprotected: number;
+  openCount: number;
+}
+
 // ─── Internal Constants ───
 
 const ALERT_BASE_SEVERITY: Record<AlertType, number> = {
@@ -104,6 +152,7 @@ const ALERT_BASE_SEVERITY: Record<AlertType, number> = {
   missing_stop_loss_cluster: 72,
   stale_with_exposure: 70,
   unprotected_trade: 68,
+  concentration_risk: 62,
   unknown_risk_trade: 60,
   confidence_degraded: 50,
   high_open_trade_cluster: 45,
@@ -120,7 +169,17 @@ const GOOD_WHEN_DOWN = new Set([
 ]);
 
 const HIGH_TRADE_CLUSTER_THRESHOLD = 5;
+const CONCENTRATION_THRESHOLD = 3; // trades on same instrument+direction
 const ACTION_MAX = 3;
+
+// Risk budget thresholds (total SL risk as negative R)
+const RISK_BUDGET_MODERATE_R = -3;
+const RISK_BUDGET_HIGH_R = -6;
+const RISK_BUDGET_CRITICAL_R = -10;
+
+// Predictive hint thresholds
+const HINT_RAPID_SAFETY_DROP = 10;
+const HINT_HIGH_ISSUE_THRESHOLD = 5;
 
 // ═══════════════════════════════════════════
 // ENGINE 1: STATE ASSESSMENT
@@ -282,7 +341,8 @@ export function computeDeltas(
 export function generateAlerts(
   assessment: StateAssessment,
   members: AlertMemberInput[],
-  previousSnapshot: DigestSnapshot | null = null
+  previousSnapshot: DigestSnapshot | null = null,
+  concentrationClusters: ConcentrationCluster[] = []
 ): DigestAlert[] {
   const alerts: DigestAlert[] = [];
   let nextId = 0;
@@ -335,6 +395,17 @@ export function generateAlerts(
       String(++nextId), "account_inactive_with_open_positions",
       null, null, inactive, previousSnapshot
     ));
+  }
+
+  // Concentration alerts (Phase 2)
+  for (const cluster of concentrationClusters) {
+    if (cluster.tradeCount >= CONCENTRATION_THRESHOLD) {
+      alerts.push(makeAlert(
+        String(++nextId), "concentration_risk",
+        `${cluster.instrument} ${cluster.direction}`, null,
+        cluster.tradeCount, previousSnapshot
+      ));
+    }
   }
 
   // Sort by severity descending
@@ -448,4 +519,250 @@ export function getMemberImpactLabel(
   if (score >= 50 && member.unknownRiskCount > 0) return "digest.impact.highUnknownRisk";
   if (score >= 50) return "digest.impact.mainRiskSource";
   return null;
+}
+
+// ═══════════════════════════════════════════
+// ENGINE 6: CONCENTRATION ANALYSIS (Phase 2)
+// ═══════════════════════════════════════════
+
+export function computeConcentration(
+  positions: ConcentrationPositionInput[]
+): ConcentrationCluster[] {
+  const map = new Map<string, {
+    instrument: string;
+    direction: string;
+    trades: number;
+    members: Set<string>;
+    floatingR: number;
+    riskToSLR: number;
+    hasR: boolean;
+    hasRisk: boolean;
+  }>();
+
+  for (const p of positions) {
+    const key = `${p.instrument}:${p.direction}`;
+    let entry = map.get(key);
+    if (!entry) {
+      entry = {
+        instrument: p.instrument,
+        direction: p.direction,
+        trades: 0,
+        members: new Set(),
+        floatingR: 0,
+        riskToSLR: 0,
+        hasR: false,
+        hasRisk: false,
+      };
+      map.set(key, entry);
+    }
+    entry.trades++;
+    entry.members.add(p.memberName);
+    if (p.floatingR !== null) {
+      entry.floatingR += p.floatingR;
+      entry.hasR = true;
+    }
+    if (p.riskToSLR !== null) {
+      entry.riskToSLR += p.riskToSLR;
+      entry.hasRisk = true;
+    }
+  }
+
+  const clusters: ConcentrationCluster[] = [];
+  for (const e of map.values()) {
+    if (e.trades >= CONCENTRATION_THRESHOLD) {
+      clusters.push({
+        instrument: e.instrument,
+        direction: e.direction,
+        tradeCount: e.trades,
+        memberCount: e.members.size,
+        members: Array.from(e.members),
+        totalFloatingR: e.hasR ? Math.round(e.floatingR * 100) / 100 : null,
+        totalRiskToSLR: e.hasRisk ? Math.round(e.riskToSLR * 100) / 100 : null,
+      });
+    }
+  }
+
+  // Sort by trade count descending
+  clusters.sort((a, b) => b.tradeCount - a.tradeCount);
+  return clusters;
+}
+
+// ═══════════════════════════════════════════
+// ENGINE 7: RISK BUDGET (Phase 2+3)
+// ═══════════════════════════════════════════
+
+export function computeRiskBudget(input: {
+  currentOpenRiskR: number | null;
+  totalEquity: number | null;
+  totalBalance: number | null;
+  openTradeCount: number;
+}): RiskBudget | null {
+  if (input.openTradeCount === 0 || input.currentOpenRiskR === null) return null;
+
+  const riskR = input.currentOpenRiskR; // negative = risk
+
+  // Risk as % of equity (Phase 3)
+  let riskPctOfEquity: number | null = null;
+  if (input.totalEquity && input.totalEquity > 0 && input.totalBalance && input.totalBalance > 0) {
+    // currentOpenRiskR is in R units not money, so we estimate:
+    // if equity and balance are close, risk is manageable
+    // Use equity drawdown potential as a proxy
+    const equityDiff = input.totalEquity - input.totalBalance;
+    const drawdownPct = input.totalBalance > 0 ? (equityDiff / input.totalBalance) * 100 : 0;
+    riskPctOfEquity = Math.round(drawdownPct * 100) / 100;
+  }
+
+  // Band based on total R risk
+  let riskBudgetBand: RiskBudgetBand;
+  if (riskR >= RISK_BUDGET_MODERATE_R) riskBudgetBand = "LOW";
+  else if (riskR >= RISK_BUDGET_HIGH_R) riskBudgetBand = "MODERATE";
+  else if (riskR >= RISK_BUDGET_CRITICAL_R) riskBudgetBand = "HIGH";
+  else riskBudgetBand = "CRITICAL";
+
+  return {
+    totalOpenRiskR: Math.round(riskR * 100) / 100,
+    totalEquity: input.totalEquity,
+    riskPctOfEquity,
+    riskBudgetBand,
+  };
+}
+
+// ═══════════════════════════════════════════
+// ENGINE 8: MEMBER TREND (Phase 2)
+// ═══════════════════════════════════════════
+
+export function computeMemberTrend(
+  current: MemberSnapshotData,
+  previous: MemberSnapshotData | null
+): MemberTrend {
+  if (!previous) return "new";
+
+  // Count improvements (bad metrics going down) and deteriorations (bad metrics going up)
+  let improvements = 0;
+  let deteriorations = 0;
+
+  if (current.needAction < previous.needAction) improvements++;
+  else if (current.needAction > previous.needAction) deteriorations++;
+
+  if (current.unknownRisk < previous.unknownRisk) improvements++;
+  else if (current.unknownRisk > previous.unknownRisk) deteriorations++;
+
+  if (current.trackingLost < previous.trackingLost) improvements++;
+  else if (current.trackingLost > previous.trackingLost) deteriorations++;
+
+  if (current.unprotected < previous.unprotected) improvements++;
+  else if (current.unprotected > previous.unprotected) deteriorations++;
+
+  if (deteriorations > improvements) return "declining";
+  if (improvements > deteriorations) return "improving";
+  return "stable";
+}
+
+// ═══════════════════════════════════════════
+// ENGINE 9: PREDICTIVE HINTS (Phase 3)
+// ═══════════════════════════════════════════
+
+export function computePredictiveHints(
+  current: DigestSnapshot,
+  previous: DigestSnapshot | null,
+  deltas: DigestDelta[] | null
+): PredictiveHint[] {
+  const hints: PredictiveHint[] = [];
+  if (!previous || !deltas) return hints;
+
+  // Rapid safety score drop
+  const safetyDrop = previous.safetyScore - current.safetyScore;
+  if (safetyDrop >= HINT_RAPID_SAFETY_DROP) {
+    hints.push({
+      metric: "safetyScore",
+      hintKey: "digest.hint.rapidSafetyDrop",
+      severity: "warning",
+    });
+  }
+
+  // Rapid confidence drop
+  const confDrop = previous.confidenceScore - current.confidenceScore;
+  if (confDrop >= HINT_RAPID_SAFETY_DROP) {
+    hints.push({
+      metric: "confidenceScore",
+      hintKey: "digest.hint.rapidConfidenceDrop",
+      severity: "warning",
+    });
+  }
+
+  // High and worsening issue counts
+  for (const d of deltas) {
+    if (d.direction !== "bad") continue;
+
+    if (d.metric === "unknownRiskCount" && d.current >= HINT_HIGH_ISSUE_THRESHOLD) {
+      hints.push({
+        metric: "unknownRiskCount",
+        hintKey: "digest.hint.unknownRiskGrowing",
+        severity: "warning",
+      });
+    }
+    if (d.metric === "unprotectedCount" && d.current >= HINT_HIGH_ISSUE_THRESHOLD) {
+      hints.push({
+        metric: "unprotectedCount",
+        hintKey: "digest.hint.unprotectedGrowing",
+        severity: "warning",
+      });
+    }
+    if (d.metric === "trackingLostTradeCount" && d.current >= 2) {
+      hints.push({
+        metric: "trackingLostTradeCount",
+        hintKey: "digest.hint.trackingDeteriorating",
+        severity: "warning",
+      });
+    }
+  }
+
+  // Open trades growing without proportional risk coverage
+  if (current.openTradeCount > previous.openTradeCount) {
+    const newTrades = current.openTradeCount - previous.openTradeCount;
+    const newUnknown = current.unknownRiskCount - previous.unknownRiskCount;
+    if (newUnknown > 0 && newUnknown >= newTrades / 2) {
+      hints.push({
+        metric: "openTradeCount",
+        hintKey: "digest.hint.newTradesLowCoverage",
+        severity: "info",
+      });
+    }
+  }
+
+  return hints;
+}
+
+// ═══════════════════════════════════════════
+// Enhanced createDigestSnapshot (Phase 2)
+// ═══════════════════════════════════════════
+
+export function createDigestSnapshotV2(
+  cockpit: {
+    totalFloatingPnl: number | null;
+    realizedPnl: number | null;
+    realizedR: number | null;
+    closedCount: number;
+  },
+  assessment: StateAssessment,
+  memberData?: Record<string, MemberSnapshotData>
+): DigestSnapshot {
+  const m = assessment.metrics;
+  return {
+    openPnl: cockpit.totalFloatingPnl,
+    realizedPnl: cockpit.realizedPnl,
+    realizedR: cockpit.realizedR,
+    needActionCount: m.needActionCount,
+    unknownRiskCount: m.unknownRiskCount,
+    unprotectedCount: m.unprotectedCount,
+    trackingLostTradeCount: m.trackingLostTradeCount,
+    staleTradeCount: m.staleTradeCount,
+    activeAccountCount: m.activeAccountCount,
+    closedCount: cockpit.closedCount,
+    openTradeCount: m.openTradeCount,
+    confidenceScore: assessment.confidenceScore,
+    safetyScore: assessment.safetyScore,
+    ts: Date.now(),
+    memberMetrics: memberData,
+  };
 }

@@ -5,9 +5,15 @@ import { redis } from "@/lib/redis";
 import { z } from "zod";
 import { getClanDigest } from "@/services/clan-digest.service";
 import { getClanDigestV2 } from "@/services/digest-v2.service";
-import { isFeatureEnabled } from "@/lib/feature-flags";
-import { DIGEST_V2_FLAG, DIGEST_SNAPSHOT_PREFIX, DIGEST_SNAPSHOT_TTL } from "@/lib/digest-constants";
-import { createDigestSnapshot, computeDeltas, type DigestSnapshot } from "@/lib/digest-engines";
+import { DIGEST_SNAPSHOT_PREFIX, DIGEST_SNAPSHOT_TTL } from "@/lib/digest-constants";
+import {
+  createDigestSnapshotV2,
+  computeDeltas,
+  computeMemberTrend,
+  computePredictiveHints,
+  type DigestSnapshot,
+  type MemberSnapshotData,
+} from "@/lib/digest-engines";
 
 const querySchema = z.object({
   period: z.enum(["today", "week", "month"]).default("today"),
@@ -52,34 +58,55 @@ export async function GET(
       );
     }
 
-    // Use v2 if feature flag enabled or explicitly requested
-    const useV2 = parsed.data.v === 2 || await isFeatureEnabled(DIGEST_V2_FLAG);
+    // Use v2 by default; v=1 can force legacy
+    const useV2 = parsed.data.v !== 1;
 
     if (useV2) {
-      const data = await getClanDigestV2(clanId, parsed.data.period, parsed.data.tz);
+      const rawData = await getClanDigestV2(clanId, parsed.data.period, parsed.data.tz);
+
+      // Extract internal member snapshot data (not part of public response)
+      const { _memberSnapshotData, ...data } = rawData as typeof rawData & { _memberSnapshotData?: Record<string, MemberSnapshotData> };
+      const memberSnapData = _memberSnapshotData ?? {};
 
       // Delta Engine: per-user snapshot comparison
       const snapshotKey = `${DIGEST_SNAPSHOT_PREFIX}:${clanId}:${session.user.id}:${parsed.data.period}`;
       let deltas = data.deltas;
+      let hints = data.hints;
 
       try {
         // Load previous snapshot
         const prevRaw = await redis.get(snapshotKey);
         const previousSnapshot: DigestSnapshot | null = prevRaw ? JSON.parse(prevRaw) : null;
 
-        // Create current snapshot from digest data
-        const currentSnapshot = createDigestSnapshot(data.cockpit, data.stateAssessment);
+        // Create current snapshot with member-level data
+        const currentSnapshot = createDigestSnapshotV2(
+          data.cockpit, data.stateAssessment, memberSnapData
+        );
 
         // Compute deltas
         deltas = computeDeltas(currentSnapshot, previousSnapshot);
 
+        // Engine 8: Member trends (Phase 2)
+        if (previousSnapshot?.memberMetrics) {
+          for (const member of data.members) {
+            const current = memberSnapData[member.userId];
+            const prev = previousSnapshot.memberMetrics[member.userId] ?? null;
+            if (current) {
+              member.memberTrend = computeMemberTrend(current, prev);
+            }
+          }
+        }
+
+        // Engine 9: Predictive hints (Phase 3)
+        hints = computePredictiveHints(currentSnapshot, previousSnapshot, deltas);
+
         // Save current snapshot for next comparison
         await redis.set(snapshotKey, JSON.stringify(currentSnapshot), "EX", DIGEST_SNAPSHOT_TTL);
       } catch {
-        // Delta computation is best-effort — don't fail the digest
+        // Delta/trend/hint computation is best-effort — don't fail the digest
       }
 
-      return NextResponse.json({ ...data, deltas });
+      return NextResponse.json({ ...data, deltas, hints });
     }
 
     const data = await getClanDigest(clanId, parsed.data.period, parsed.data.tz);

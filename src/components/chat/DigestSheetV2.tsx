@@ -46,6 +46,11 @@ import type {
   ConfidenceBand,
   DigestDelta,
   ActionItem,
+  ConcentrationCluster,
+  RiskBudget,
+  RiskBudgetBand,
+  MemberTrend,
+  PredictiveHint,
 } from "@/lib/digest-engines";
 
 interface DigestSheetV2Props {
@@ -360,6 +365,21 @@ function V2Content({
         <TopActionsBlock actions={data.actions} t={t} />
       )}
 
+      {/* ─── PREDICTIVE HINTS (Phase 3) ─── */}
+      {data.hints && data.hints.length > 0 && (
+        <HintsBlock hints={data.hints} t={t} />
+      )}
+
+      {/* ─── RISK BUDGET (Phase 2+3) ─── */}
+      {data.riskBudget && (
+        <RiskBudgetBar budget={data.riskBudget} t={t} />
+      )}
+
+      {/* ─── CONCENTRATION CLUSTERS (Phase 2) ─── */}
+      {data.concentration && data.concentration.length > 0 && (
+        <ConcentrationBlock clusters={data.concentration} t={t} />
+      )}
+
       {/* ─── Tracking bar (compact, only if issues or accounts exist) ─── */}
       {(ts.activeAccounts + ts.staleAccounts + ts.lostAccounts) > 0 && (
         <div className={cn(
@@ -617,6 +637,9 @@ function MemberCockpitRow({
               <span className="rounded bg-orange-500/10 px-1 text-[9px] font-medium text-orange-600 dark:text-orange-400">
                 {t(`digest.${member.memberImpactLabel.replace("digest.", "")}`)}
               </span>
+            )}
+            {member.memberTrend && member.memberTrend !== "new" && member.memberTrend !== "stable" && (
+              <MemberTrendBadge trend={member.memberTrend} t={t} />
             )}
           </div>
           {/* Primary cockpit row: numbers */}
@@ -1116,6 +1139,154 @@ function TopActionsBlock({
       </div>
     </div>
   );
+}
+
+// ─── Concentration Block (Phase 2) ───
+
+function ConcentrationBlock({
+  clusters,
+  t,
+}: {
+  clusters: ConcentrationCluster[];
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  return (
+    <div>
+      <h4 className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase text-muted-foreground">
+        {t("digest.concentration.title")}
+      </h4>
+      <div className="space-y-1">
+        {clusters.slice(0, 5).map((c) => (
+          <div
+            key={`${c.instrument}:${c.direction}`}
+            className="flex items-center gap-2 rounded-lg border border-orange-500/20 bg-orange-500/5 px-2.5 py-1.5 text-xs"
+          >
+            <span className="font-mono font-medium">{c.instrument}</span>
+            <span className={cn(
+              "rounded px-1 py-0.5 text-[9px] font-semibold",
+              c.direction === "LONG"
+                ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                : "bg-red-500/10 text-red-600 dark:text-red-400"
+            )}>
+              {c.direction}
+            </span>
+            <span className="text-muted-foreground">
+              {t("digest.concentration.trades", { count: c.tradeCount })}
+            </span>
+            {c.memberCount > 1 && (
+              <span className="text-muted-foreground">
+                · {t("digest.concentration.members", { count: c.memberCount })}
+              </span>
+            )}
+            {c.totalRiskToSLR !== null && (
+              <span className="ms-auto font-mono text-orange-600 dark:text-orange-400">
+                {fmtR(c.totalRiskToSLR)}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Risk Budget Bar (Phase 2+3) ───
+
+const RISK_BUDGET_STYLES: Record<RiskBudgetBand, { bg: string; bar: string; text: string }> = {
+  LOW: { bg: "bg-green-500/10", bar: "bg-green-500", text: "text-green-600 dark:text-green-400" },
+  MODERATE: { bg: "bg-yellow-500/10", bar: "bg-yellow-500", text: "text-yellow-600 dark:text-yellow-400" },
+  HIGH: { bg: "bg-orange-500/10", bar: "bg-orange-500", text: "text-orange-600 dark:text-orange-400" },
+  CRITICAL: { bg: "bg-red-500/10", bar: "bg-red-500", text: "text-red-600 dark:text-red-400" },
+};
+
+function RiskBudgetBar({
+  budget,
+  t,
+}: {
+  budget: RiskBudget;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  const style = RISK_BUDGET_STYLES[budget.riskBudgetBand];
+  // Normalize risk to a 0-100 bar (10R = 100%)
+  const barWidth = Math.min(Math.abs(budget.totalOpenRiskR) * 10, 100);
+
+  return (
+    <div className={cn("rounded-lg border px-3 py-2", style.bg)}>
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-medium">{t("digest.riskBudget.title")}</span>
+        <span className={cn("font-mono font-bold", style.text)}>
+          {fmtR(budget.totalOpenRiskR)}
+        </span>
+      </div>
+      <div className="mt-1 h-1.5 rounded-full bg-muted/50">
+        <div
+          className={cn("h-full rounded-full transition-all", style.bar)}
+          style={{ width: `${barWidth}%` }}
+        />
+      </div>
+      <div className="mt-0.5 flex justify-between text-[9px] text-muted-foreground">
+        <span>{t(`digest.riskBudget.${budget.riskBudgetBand.toLowerCase()}`)}</span>
+        {budget.riskPctOfEquity !== null && (
+          <span>{t("digest.riskBudget.equityImpact", { pct: budget.riskPctOfEquity })}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Predictive Hints Block (Phase 3) ───
+
+function HintsBlock({
+  hints,
+  t,
+}: {
+  hints: PredictiveHint[];
+  t: (key: string) => string;
+}) {
+  return (
+    <div className="space-y-1">
+      {hints.slice(0, 3).map((h) => (
+        <div
+          key={h.metric}
+          className={cn(
+            "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px]",
+            h.severity === "warning"
+              ? "border-orange-500/30 bg-orange-500/5 text-orange-600 dark:text-orange-400"
+              : "border-blue-500/30 bg-blue-500/5 text-blue-600 dark:text-blue-400"
+          )}
+        >
+          <AlertTriangle className="h-3 w-3 shrink-0" />
+          <span>{t(h.hintKey)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Member Trend Badge (Phase 2) ───
+
+function MemberTrendBadge({
+  trend,
+  t,
+}: {
+  trend: MemberTrend;
+  t: (key: string) => string;
+}) {
+  if (trend === "improving") {
+    return (
+      <span className="rounded bg-green-500/10 px-1 text-[9px] font-medium text-green-600 dark:text-green-400">
+        {t("digest.trend.improving")}
+      </span>
+    );
+  }
+  if (trend === "declining") {
+    return (
+      <span className="rounded bg-red-500/10 px-1 text-[9px] font-medium text-red-600 dark:text-red-400">
+        {t("digest.trend.declining")}
+      </span>
+    );
+  }
+  return null;
 }
 
 // ─── Shared Components ───

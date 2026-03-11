@@ -122,7 +122,37 @@ const alertTypeEnum = z.enum([
   "confidence_degraded",
   "missing_stop_loss_cluster",
   "high_open_trade_cluster",
+  "concentration_risk",
 ]);
+
+// ─── Concentration Clusters (Phase 2) ───
+
+export const concentrationClusterSchema = z.object({
+  instrument: z.string(),
+  direction: z.string(),
+  tradeCount: z.number(),
+  memberCount: z.number(),
+  members: z.array(z.string()),
+  totalFloatingR: z.number().nullable(),
+  totalRiskToSLR: z.number().nullable(),
+});
+
+// ─── Risk Budget (Phase 2+3) ───
+
+export const riskBudgetSchema = z.object({
+  totalOpenRiskR: z.number(),
+  totalEquity: z.number().nullable(),
+  riskPctOfEquity: z.number().nullable(),
+  riskBudgetBand: z.enum(["LOW", "MODERATE", "HIGH", "CRITICAL"]),
+});
+
+// ─── Predictive Hints (Phase 3) ───
+
+export const predictiveHintSchema = z.object({
+  metric: z.string(),
+  hintKey: z.string(),
+  severity: z.enum(["warning", "info"]),
+});
 
 // ─── Alerts ───
 
@@ -234,6 +264,7 @@ export const memberStatsV2Schema = z.object({
   memberUnprotectedCount: z.number(),
   memberImpactScore: z.number(),
   memberImpactLabel: z.string().nullable(),
+  memberTrend: z.enum(["improving", "declining", "stable", "new"]),
   closedTrades: z.array(closedTradeV2Schema),
   openPositions: z.array(openPositionV2Schema),
 });
@@ -266,6 +297,9 @@ export const digestV2ResponseSchema = z.object({
   alerts: z.array(digestAlertSchema),
   actions: z.array(actionItemSchema),
   deltas: z.array(digestDeltaSchema).nullable(),
+  concentration: z.array(concentrationClusterSchema),
+  riskBudget: riskBudgetSchema.nullable(),
+  hints: z.array(predictiveHintSchema),
 });
 
 export type DigestV2Response = z.infer<typeof digestV2ResponseSchema>;

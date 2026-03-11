@@ -5,6 +5,17 @@ Newest entries first.
 
 ---
 
+## 2026-03-11 — Activity Digest Phase 2+3: concentration, risk budget, trends, hints
+
+- **Task:** activity-digest
+- **Decision:** Implement 4 additional engines: concentration analysis (group trades by instrument+direction), risk budget (SL exposure bar with equity %), member trend (improving/declining from snapshot history), predictive hints (detect worsening patterns). Also added `concentration_risk` alert type and enhanced snapshots with per-member metrics.
+- **Why:** Phase 1 showed state + changes + danger + actions + attribution. Phase 2+3 adds deeper intelligence: what's concentrated, how much risk is open, which members are getting better/worse, and what's accelerating in a bad direction.
+- **Affected files/rules:** `digest-engines.ts` (4 new engines), `digest-v2.service.ts` (equity fetch, concentration wiring), `route.ts` (enhanced snapshots, trends, hints), `DigestSheetV2.tsx` (4 new UI components)
+- **Needs SOURCE_OF_TRUTH update now?:** yes — material feature additions
+- **Needs manual testing?:** yes — concentration clusters, risk budget bar, member trend badges, predictive hints
+
+---
+
 ## 2026-03-11 — Activity Digest 5-engine architecture
 
 - **Task:** activity-digest

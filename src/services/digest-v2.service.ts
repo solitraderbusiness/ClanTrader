@@ -22,7 +22,11 @@ import {
   generateActions,
   computeMemberImpactScore,
   getMemberImpactLabel,
+  computeConcentration,
+  computeRiskBudget,
   type AlertMemberInput,
+  type ConcentrationPositionInput,
+  type MemberSnapshotData,
 } from "@/lib/digest-engines";
 import type { DigestPeriod } from "@/types/clan-digest";
 import type {
@@ -149,6 +153,8 @@ export async function getClanDigestV2(
               broker: true,
               serverName: true,
               platform: true,
+              equity: true,
+              balance: true,
             },
           },
         },
@@ -181,12 +187,20 @@ export async function getClanDigestV2(
 
   // ─── Build tracking summary from unique MT accounts across all trades ───
   const seenAccounts = new Map<string, string>();
+  let totalEquity = 0;
+  let totalBalance = 0;
+  let hasEquityData = false;
   for (const t of trades) {
     const mt = t.mtTradeMatches[0];
     if (mt?.mtAccount) {
       const id = mt.mtAccount.id;
       if (!seenAccounts.has(id)) {
         seenAccounts.set(id, deriveTrackingStatus(mt.mtAccount.lastHeartbeat));
+        if (mt.mtAccount.equity && mt.mtAccount.equity > 0) {
+          totalEquity += mt.mtAccount.equity;
+          totalBalance += mt.mtAccount.balance ?? 0;
+          hasEquityData = true;
+        }
       }
     }
   }
@@ -606,11 +620,32 @@ export async function getClanDigestV2(
       staleCount: e.mStaleCount,
     }));
 
-  // ─── Engine 3: Risk Severity (Alerts) ───
-  const alerts = generateAlerts(stateAssessment, alertMembers);
+  // ─── Engine 6: Concentration Analysis (Phase 2) ───
+  const concentrationPositions: ConcentrationPositionInput[] = [];
+  for (const ot of openHealthResults) {
+    concentrationPositions.push({
+      instrument: ot.trade.tradeCard?.instrument ?? "",
+      direction: ot.trade.tradeCard?.direction ?? "",
+      memberName: ot.trade.user?.name ?? "Unknown",
+      floatingR: ot.floatingR,
+      riskToSLR: ot.riskToSLR,
+    });
+  }
+  const concentration = computeConcentration(concentrationPositions);
+
+  // ─── Engine 3: Risk Severity (Alerts) — with concentration ───
+  const alerts = generateAlerts(stateAssessment, alertMembers, null, concentration);
 
   // ─── Engine 4: Action Queue ───
   const actions = generateActions(alerts);
+
+  // ─── Engine 7: Risk Budget (Phase 2+3) ───
+  const riskBudget = computeRiskBudget({
+    currentOpenRiskR: cockpit.currentOpenRiskR,
+    totalEquity: hasEquityData ? totalEquity : null,
+    totalBalance: hasEquityData ? totalBalance : null,
+    openTradeCount: openHealthResults.length,
+  });
 
   // ─── Engine 5: Member Impact ───
   const memberImpactMap = new Map<string, { score: number; label: string | null }>();
@@ -618,6 +653,18 @@ export async function getClanDigestV2(
     const score = computeMemberImpactScore(am, stateAssessment.metrics);
     const label = getMemberImpactLabel(score, am);
     memberImpactMap.set(am.userId, { score, label });
+  }
+
+  // ─── Engine 8: Member Trend + Snapshot Data (Phase 2) ───
+  const memberSnapshotData: Record<string, MemberSnapshotData> = {};
+  for (const am of alertMembers) {
+    memberSnapshotData[am.userId] = {
+      needAction: am.needActionCount,
+      unknownRisk: am.unknownRiskCount,
+      trackingLost: am.trackingLostCount,
+      unprotected: am.unprotectedCount,
+      openCount: am.openTradeCount,
+    };
   }
 
   const members: MemberStatsV2[] = Array.from(memberMap.values())
@@ -648,6 +695,7 @@ export async function getClanDigestV2(
         memberUnprotectedCount: e.mUnprotectedCount,
         memberImpactScore: impact?.score ?? 0,
         memberImpactLabel: impact?.label ?? null,
+        memberTrend: "new" as const,
         closedTrades: e.closedTrades,
         openPositions: e.openPositions,
       };
@@ -679,7 +727,11 @@ export async function getClanDigestV2(
     alerts,
     actions,
     deltas: null,
-  };
+    concentration,
+    riskBudget,
+    hints: [],
+    _memberSnapshotData: memberSnapshotData,
+  } as DigestV2Response & { _memberSnapshotData: Record<string, MemberSnapshotData> };
 
   try {
     await redis.set(cacheKey, JSON.stringify(result), "EX", DIGEST_V2_CACHE_TTL);

@@ -1217,7 +1217,32 @@
     "alert.severity.critical": "Critical",
     "alert.severity.high": "High",
     "alert.severity.medium": "Medium",
-    "alert.severity.low": "Low"
+    "alert.severity.low": "Low",
+
+    "concentration.title": "Position Concentration",
+    "concentration.trades": "{count} trades",
+    "concentration.members": "{count} members",
+
+    "riskBudget.title": "Open Risk Exposure",
+    "riskBudget.low": "Low exposure",
+    "riskBudget.moderate": "Moderate exposure",
+    "riskBudget.high": "High exposure",
+    "riskBudget.critical": "Critical exposure",
+    "riskBudget.equityImpact": "Equity impact: {pct}%",
+
+    "trend.improving": "Improving",
+    "trend.declining": "Declining",
+    "trend.stable": "Stable",
+    "trend.new": "New",
+
+    "hint.rapidSafetyDrop": "Safety score dropped rapidly since last check",
+    "hint.rapidConfidenceDrop": "Confidence dropped rapidly since last check",
+    "hint.unknownRiskGrowing": "Unknown risk count is growing — review risk data",
+    "hint.unprotectedGrowing": "Unprotected trade count is growing — add stop losses",
+    "hint.trackingDeteriorating": "Tracking coverage is deteriorating — check EA connections",
+    "hint.newTradesLowCoverage": "New trades opened without full risk coverage",
+
+    "actions.concentration_risk": "Review {count} concentrated positions on {member}"
   },
   "landing": {
     "brandName": "ClanTrader",

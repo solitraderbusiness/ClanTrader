@@ -1217,7 +1217,32 @@
     "alert.severity.critical": "بحرانی",
     "alert.severity.high": "بالا",
     "alert.severity.medium": "متوسط",
-    "alert.severity.low": "کم"
+    "alert.severity.low": "کم",
+
+    "concentration.title": "تمرکز پوزیشن‌ها",
+    "concentration.trades": "{count} معامله",
+    "concentration.members": "{count} عضو",
+
+    "riskBudget.title": "ریسک باز",
+    "riskBudget.low": "ریسک کم",
+    "riskBudget.moderate": "ریسک متوسط",
+    "riskBudget.high": "ریسک بالا",
+    "riskBudget.critical": "ریسک بحرانی",
+    "riskBudget.equityImpact": "تأثیر بر اکوئیتی: {pct}%",
+
+    "trend.improving": "در حال بهبود",
+    "trend.declining": "رو به وخامت",
+    "trend.stable": "ثابت",
+    "trend.new": "جدید",
+
+    "hint.rapidSafetyDrop": "امتیاز ایمنی از بررسی قبلی به شدت کاهش یافته",
+    "hint.rapidConfidenceDrop": "اعتماد به داده‌ها از بررسی قبلی به شدت کاهش یافته",
+    "hint.unknownRiskGrowing": "تعداد معاملات با ریسک نامشخص در حال افزایش است — داده‌های ریسک را بررسی کنید",
+    "hint.unprotectedGrowing": "تعداد معاملات بدون حد ضرر در حال افزایش است — حد ضرر اضافه کنید",
+    "hint.trackingDeteriorating": "پوشش ردیابی در حال کاهش است — اتصال EA را بررسی کنید",
+    "hint.newTradesLowCoverage": "معاملات جدید بدون پوشش کامل ریسک باز شده‌اند",
+
+    "actions.concentration_risk": "بررسی {count} پوزیشن متمرکز روی {member}"
   },
   "landing": {
     "brandName": "ClanTrader",

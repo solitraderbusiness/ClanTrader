@@ -42,34 +42,39 @@ The v2 digest (feature-flagged behind `digest_v2`) already provides cockpit metr
 - [x] i18n keys (en + fa)
 - [x] Zod schemas for all new types
 
-### Phase 2 (next)
-- [ ] Concentration / risk cluster logic
-- [ ] Stronger danger bar / risk budget visualization
-- [ ] Better symbol/direction clustering in alerts
-- [ ] Richer trust/confidence explanations
-- [ ] Per-member trend states (improving/declining)
-- [ ] Digest engines unit tests
+### Phase 2 (implemented)
+- [x] Concentration / risk cluster logic (Engine 6)
+- [x] Risk budget visualization with progress bar (Engine 7)
+- [x] Symbol/direction clustering in alerts (concentration_risk alert type)
+- [x] Per-member trend states — improving/declining/stable badges (Engine 8)
+- [x] Digest engines unit tests
+- [x] ConcentrationBlock, RiskBudgetBar, MemberTrendBadge UI components
+- [x] Equity/balance data from MT accounts for risk budget
+- [x] i18n keys for concentration, risk budget, trends, hints
 
-### Phase 3 (future)
-- [ ] Risk-budget logic with account equity data
-- [ ] Advanced attribution scoring
-- [ ] Predictive deterioration hints
-- [ ] Deeper drill-down flows
-- [ ] Start-of-day baseline comparison
-- [ ] Timeframe-selectable baselines
+### Phase 3 (implemented)
+- [x] Risk-budget with account equity data (equity impact %)
+- [x] Predictive deterioration hints (Engine 9 — rapid drops, worsening trends)
+- [x] HintsBlock UI component
+- [x] Enhanced snapshots with per-member metrics for trend computation
+- [ ] Start-of-day baseline comparison (deferred — needs trigger mechanism)
+- [ ] Timeframe-selectable baselines (deferred — needs additional UI)
+- [ ] Advanced attribution scoring (deferred — current impact scoring is sufficient)
+- [ ] Deeper drill-down flows (deferred — needs trade detail page linking)
 
 ## 5. Files & Systems
 
 | File | Change |
 |------|--------|
-| `src/lib/digest-engines.ts` | NEW — all 5 engine computations |
-| `src/lib/digest-constants.ts` | Added snapshot prefix/TTL constants |
-| `src/lib/digest-v2-schema.ts` | Added schemas for state/alerts/actions/deltas |
-| `src/services/digest-v2.service.ts` | Wired engines into digest computation |
-| `src/app/api/clans/[clanId]/digest/route.ts` | Per-user delta snapshots via Redis |
-| `src/components/chat/DigestSheetV2.tsx` | 3 new UI sections + member impact |
-| `src/locales/en.json` | ~47 new digest keys |
-| `src/locales/fa.json` | ~47 new Persian translations |
+| `src/lib/digest-engines.ts` | 9 engines: state, delta, alerts, actions, impact, concentration, risk budget, member trend, predictive hints |
+| `src/lib/digest-constants.ts` | Snapshot prefix/TTL + risk budget thresholds |
+| `src/lib/digest-v2-schema.ts` | Schemas for all engine outputs including concentration, risk budget, hints |
+| `src/services/digest-v2.service.ts` | Wired all engines, equity data from MT accounts |
+| `src/app/api/clans/[clanId]/digest/route.ts` | Enhanced per-user snapshots with member metrics, trends, hints |
+| `src/components/chat/DigestSheetV2.tsx` | 7 new components: StateStatusBar, DeltaStrip, TopActionsBlock, ConcentrationBlock, RiskBudgetBar, HintsBlock, MemberTrendBadge |
+| `src/lib/__tests__/digest-engines.test.ts` | Unit tests for all 9 engines |
+| `src/locales/en.json` | ~70 digest keys |
+| `src/locales/fa.json` | ~70 Persian translations |
 
 ## 6. Edge Cases
 
@@ -101,7 +106,20 @@ See `docs/testing/activity-digest-test-plan.md`
 
 ## 10. Change Notes
 
-### 2026-03-11
+### 2026-03-11 (Phase 2+3)
+- Phase 2+3 implemented: 4 new engines (concentration, risk budget, member trend, predictive hints)
+- Concentration analysis groups open trades by instrument+direction across members
+- Risk budget shows total SL exposure with progress bar + equity impact %
+- Member trends computed from per-member snapshot comparison
+- Predictive hints detect rapid safety/confidence drops and worsening patterns
+- Enhanced snapshots include per-member metrics for trend tracking
+- MT account equity/balance added to service query for risk budget
+- `concentration_risk` alert type added to severity engine
+- 4 new UI components + member trend badges
+- Unit tests for all 9 engines
+- V2 is now the default (no feature flag needed)
+
+### 2026-03-11 (Phase 1)
 - Phase 1 implemented: all 5 decision engines, 3 UI components, i18n, schemas
 - Pure function pattern chosen for testability
 - Per-user Redis snapshots for delta comparison
