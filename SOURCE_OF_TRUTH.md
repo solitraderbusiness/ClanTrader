@@ -52,7 +52,7 @@
 - PM2 process management
 - Deploy scripts (pack, staging, promote-to-prod)
 - Price pool (5-layer Redis cache, source-aware, verification-grade)
-- Activity Digest v2 (health-first open trade analysis, attention queue, live health summary — feature-flagged behind `digest_v2`)
+- Activity Digest v2 (trading cockpit: floating P/L, R, risk-to-SL, actions needed, attention queue — feature-flagged behind `digest_v2`)
 - Channel posts (backend API — no UI yet)
 - Onboarding (minimal modal)
 
@@ -433,14 +433,16 @@ Enforced rules verified from code. For full evidence, see `SITE_RULES_AUDIT_REPO
 - Badge admin changes tracked separately
 
 ### Activity Digest
-**Status: LIVE** (feature-flagged: `digest_v2` for health layer)
+**Status: LIVE** (feature-flagged: `digest_v2` for cockpit layer)
 - v1 (default): Per-member aggregates (signals, analysis, TP/SL/BE/open counts, win rate, total/avg R, trade list)
-- v2 (behind `digest_v2` flag): Health-first open trade analysis layer on top of v1 closed-trade metrics
-  - 6 health dimensions per open trade: dataConfidence, entryQuality, protectionStatus, setupStatus, managementStatus, profitProtection
-  - Overall health: HEALTHY / NEEDS_REVIEW / AT_RISK / BROKEN_PLAN / LOW_CONFIDENCE (strict precedence)
-  - Attention queue: max 5 items, max 2 per member, priority-ordered (CRITICAL > WARNING > INFO)
-  - Live health summary: aggregate counters across all open positions
-  - Closed trades remain R-centric (unchanged from v1)
+- v2 (behind `digest_v2` flag): Trading cockpit — primary metrics up front, health model as expandable detail
+  - **Cockpit-first approach**: Primary view answers "what's floating, what's at risk, what needs action"
+  - Per-trade: floating P/L, floating R, `riskToSLR` (R position if current SL hits), actions needed
+  - Per-member aggregates: floating P/L, floating R, total risk-to-SL, action count
+  - Realized section: closed P/L, closed R (unchanged from v1)
+  - Attention queue: groups tracking-lost trades by member, max 5 items, max 2 per member, priority-ordered (CRITICAL > WARNING > INFO)
+  - Health model (secondary): 6 dimensions demoted to expandable detail row, no longer the primary UX
+  - **Deferred**: Daily Snapshot Layer for day-over-day comparison (no snapshot infrastructure exists, BACKLOG)
 - API: `GET /api/clans/[clanId]/digest?period=today|week|month&tz=N&v=2`
 - Redis cached: 90s TTL per clan/period/timezone
 - UI: DigestSheetV2 in chat toolbar (replaces DigestSheet, backward-compatible with v1 responses)
@@ -605,6 +607,7 @@ Newest first. Append-only.
 
 | Date | Change | Reason | Affected Files |
 |------|--------|--------|----------------|
+| 2026-03-11 | Activity Digest v2 cockpit refactor | Refactored v2 from health-taxonomy to trading cockpit. Primary metrics now: floating P/L, floating R, risk-to-SL, actions needed, realized P/L/R. Health model demoted to expandable detail. Attention queue groups tracking-lost by member. Per-trade `riskToSLR`. Per-member cockpit aggregates. Daily Snapshot Layer deferred (BACKLOG). Verified in code. | src/lib/digest-v2-schema.ts, src/services/digest-v2.service.ts, src/components/chat/DigestSheetV2.tsx, src/locales/en.json, src/locales/fa.json |
 | 2026-03-10 | Activity Digest v2.1 — Open Trade Health Layer | New health-first analysis for open trades in clan digest. 6 health dimensions, attention queue, live health summary. Feature-flagged behind `digest_v2`. 139 unit tests. Backward-compatible with v1. Verified in code. | src/lib/open-trade-health.ts, src/lib/digest-constants.ts, src/lib/digest-v2-schema.ts, src/services/digest-v2.service.ts, src/components/chat/DigestSheetV2.tsx, src/app/api/clans/[clanId]/digest/route.ts, src/locales/en.json, src/locales/fa.json |
 | 2026-03-10 | EA extended account data fields | EA login now sends accountName, currency, leverage, stopoutLevel, stopoutMode, isDemo. Heartbeat now sends floatingProfit, tradeAllowed. 5 new nullable columns + 1 boolean on MtAccount. Backward-compatible. Verified in code. | ea/MQL4/*.mq4, ea/MQL5/*.mq5, prisma/schema.prisma, src/services/ea.service.ts, src/lib/validators.ts |
 | 2026-03-10 | Final precision pass | Clarified LIVE status (dev, not production), renamed "Shipped" → "Built", tightened target-user wording, added plaintext API key to Security section, replaced "shipped" with "completed" in triggers. No structural changes. | SOURCE_OF_TRUTH.md |
