@@ -5,6 +5,17 @@ Newest entries first.
 
 ---
 
+## 2026-03-11 — Activity Digest Phase 5a: Live Trading Intelligence
+
+- **Task:** activity-digest
+- **Decision:** Add live trading intelligence layers to Activity Digest — 3 new engines (entry quality, scaling pattern, concentration summary), account-aware attribution on positions, enhanced position details (lots, open price). Deferred profit quality (no P/L history) and what-if downside (no pip value tables) as not truthfully implementable with current data.
+- **Why:** The digest was underpowered as a trading-intelligence tool — it told users about system maintenance (reconnect terminal, restore account) but didn't help with trading decisions. The new engines analyze entry clustering, sizing patterns, and concentration risk — things MetaTrader alone doesn't summarize for the trader.
+- **Affected files/rules:** `digest-engines.ts` (3 new engines), `digest-v2-schema.ts` (6 new schema additions), `digest-v2.service.ts` (lots/account pipeline, engine wiring), `DigestSheetV2.tsx` (3 new UI blocks, account labels, position details), `en.json` + `fa.json` (30+ keys)
+- **Needs SOURCE_OF_TRUTH update now?:** no — these are enhancements within the existing Activity Digest feature, not new product behavior or rule changes
+- **Needs manual testing?:** yes — entry quality calculations, scaling pattern detection, concentration summary accuracy, account labels on positions
+
+---
+
 ## 2026-03-11 — Activity Digest Phase 4: Scope-Aware Trader/Clan split
 
 - **Task:** activity-digest

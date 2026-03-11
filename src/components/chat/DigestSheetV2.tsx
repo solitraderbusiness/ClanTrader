@@ -47,12 +47,18 @@ import {
   generateAlerts,
   generateActions,
   computeRiskBudget,
+  computeEntryInsights,
+  computeScalingInsights,
+  computeConcentrationSummary,
   type SafetyBand,
   type ConfidenceBand,
   type DigestDelta,
   type ActionItem,
   type AlertMemberInput,
   type ConcentrationCluster,
+  type ConcentrationSummary,
+  type EntryClusterInsight,
+  type ScalingInsight,
   type RiskBudget,
   type RiskBudgetBand,
   type MemberTrend,
@@ -331,6 +337,38 @@ function buildTraderView(data: DigestV2Response): DigestV2Response | null {
     activeMemberCount: 1,
   };
 
+  // Trader entry insights
+  const traderEntryInsights = computeEntryInsights(
+    myMember.openPositions.map((p) => ({
+      instrument: p.instrument,
+      direction: p.direction,
+      openPrice: p.openPrice ?? null,
+      lots: p.lots ?? null,
+      floatingPnl: p.floatingPnl,
+      accountLabel: p.accountLabel,
+    }))
+  );
+
+  // Trader scaling insights
+  const traderScalingInsights = computeScalingInsights(
+    myMember.openPositions.map((p) => ({
+      instrument: p.instrument,
+      direction: p.direction,
+      openPrice: p.openPrice ?? null,
+      lots: p.lots ?? null,
+      createdAt: p.createdAt,
+    }))
+  );
+
+  // Trader concentration summary
+  const traderConcentrationSummary = computeConcentrationSummary(
+    myMember.openPositions.map((p) => ({
+      instrument: p.instrument,
+      direction: p.direction,
+      accountLabel: p.accountLabel,
+    }))
+  );
+
   return {
     ...data,
     cockpit: traderCockpit,
@@ -346,6 +384,9 @@ function buildTraderView(data: DigestV2Response): DigestV2Response | null {
     summary: traderSummary,
     deltas: data.traderDeltas ?? null,
     hints: data.traderHints ?? [],
+    entryInsights: traderEntryInsights,
+    scalingInsights: traderScalingInsights,
+    concentrationSummary: traderConcentrationSummary,
   };
 }
 
@@ -432,7 +473,7 @@ export function DigestSheetV2({ open, onOpenChange, clanId }: DigestSheetV2Props
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex w-full flex-col overflow-hidden sm:max-w-lg">
         <SheetHeader className="shrink-0">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pe-10">
             <SheetTitle className="text-lg font-bold">{t("digest.title")}</SheetTitle>
             <button
               type="button"
@@ -700,6 +741,21 @@ function V2Content({
                 {new Date(data.generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </span>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ ZONE 4b: Live Intelligence Insights ═══ */}
+      {(data.concentrationSummary || (data.entryInsights && data.entryInsights.length > 0) || (data.scalingInsights && data.scalingInsights.length > 0)) && (
+        <div className="space-y-3">
+          {data.concentrationSummary && (
+            <ConcentrationSummaryBlock summary={data.concentrationSummary} t={t} />
+          )}
+          {data.entryInsights && data.entryInsights.length > 0 && (
+            <EntryInsightBlock insights={data.entryInsights} t={t} />
+          )}
+          {data.scalingInsights && data.scalingInsights.length > 0 && (
+            <ScalingInsightBlock insights={data.scalingInsights} t={t} />
           )}
         </div>
       )}
@@ -1076,6 +1132,196 @@ function HintsBlock({
   );
 }
 
+// ─── Concentration Summary Block ───
+
+const CONCENTRATION_RISK_STYLES: Record<ConcentrationSummary["riskLevel"], { bg: string; text: string; border: string }> = {
+  low: { bg: "bg-green-500/5", text: "text-green-600 dark:text-green-400", border: "border-green-500/20" },
+  moderate: { bg: "bg-yellow-500/5", text: "text-yellow-600 dark:text-yellow-400", border: "border-yellow-500/20" },
+  high: { bg: "bg-orange-500/5", text: "text-orange-600 dark:text-orange-400", border: "border-orange-500/20" },
+  critical: { bg: "bg-red-500/5", text: "text-red-600 dark:text-red-400", border: "border-red-500/20" },
+};
+
+function ConcentrationSummaryBlock({
+  summary,
+  t,
+}: {
+  summary: ConcentrationSummary;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  const style = CONCENTRATION_RISK_STYLES[summary.riskLevel];
+  const topPct = Math.round(summary.topSymbolShare * 100);
+  const longPct = Math.round(summary.longShare * 100);
+  const shortPct = Math.round(summary.shortShare * 100);
+
+  return (
+    <div className={cn("rounded-xl border p-3", style.bg, style.border)}>
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("digest.insight.concentrationRisk")}
+        </p>
+        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", style.text, style.bg)}>
+          {t(`digest.insight.risk.${summary.riskLevel}`)}
+        </span>
+      </div>
+      <div className="mt-2 space-y-1.5 text-xs">
+        {summary.topSymbol && (
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">{t("digest.insight.topSymbol")}</span>
+            <span className="font-mono font-semibold">
+              {summary.topSymbol} <span className={style.text}>{topPct}%</span>
+            </span>
+          </div>
+        )}
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">{t("digest.insight.directionBalance")}</span>
+          <span className="font-mono text-xs">
+            {summary.singleDirectionExposure ? (
+              <span className={style.text}>
+                100% {longPct === 100 ? "LONG" : "SHORT"}
+              </span>
+            ) : (
+              <span>
+                <span className="text-green-600 dark:text-green-400">{longPct}%L</span>
+                {" / "}
+                <span className="text-red-600 dark:text-red-400">{shortPct}%S</span>
+              </span>
+            )}
+          </span>
+        </div>
+        {summary.accountCount > 0 && (
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">{t("digest.insight.accounts")}</span>
+            <span className="font-mono">{summary.accountCount}</span>
+          </div>
+        )}
+      </div>
+      {(summary.singleSymbolExposure || summary.singleDirectionExposure) && summary.riskLevel !== "low" && (
+        <p className={cn("mt-2 text-[10px] leading-relaxed", style.text)}>
+          {summary.singleSymbolExposure && summary.singleDirectionExposure
+            ? t("digest.insight.concentrationWarnBoth", { symbol: summary.topSymbol ?? "?" })
+            : summary.singleSymbolExposure
+              ? t("digest.insight.concentrationWarnSymbol", { symbol: summary.topSymbol ?? "?" })
+              : t("digest.insight.concentrationWarnDirection")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Entry Insight Block ───
+
+const ENTRY_QUALITY_STYLES: Record<EntryClusterInsight["qualityLabel"], { text: string; bg: string }> = {
+  tight: { text: "text-green-600 dark:text-green-400", bg: "bg-green-500/10" },
+  spread: { text: "text-yellow-600 dark:text-yellow-400", bg: "bg-yellow-500/10" },
+  wide: { text: "text-red-600 dark:text-red-400", bg: "bg-red-500/10" },
+  unknown: { text: "text-muted-foreground", bg: "bg-muted/30" },
+};
+
+function EntryInsightBlock({
+  insights,
+  t,
+}: {
+  insights: EntryClusterInsight[];
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  return (
+    <div>
+      <SectionHeader label={t("digest.insight.entryQuality")} />
+      <div className="mt-2 space-y-1.5">
+        {insights.slice(0, 4).map((ins) => {
+          const qStyle = ENTRY_QUALITY_STYLES[ins.qualityLabel];
+          return (
+            <div
+              key={`${ins.instrument}:${ins.direction}`}
+              className="rounded-lg bg-muted/20 px-3 py-2"
+            >
+              <div className="flex items-center gap-2 text-xs">
+                <span className="font-mono font-semibold">{ins.instrument}</span>
+                <DirectionBadge direction={ins.direction as "LONG" | "SHORT"} />
+                <span className={cn("ms-auto rounded-full px-2 py-0.5 text-[10px] font-semibold", qStyle.text, qStyle.bg)}>
+                  {t(`digest.insight.quality.${ins.qualityLabel}`)}
+                </span>
+              </div>
+              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+                {ins.weightedAvgEntry !== null && (
+                  <span>
+                    {t("digest.insight.avgEntry")}: <span className="font-mono">{ins.weightedAvgEntry}</span>
+                  </span>
+                )}
+                {ins.entrySpreadPct !== null && (
+                  <span>
+                    {t("digest.insight.entrySpread")}: <span className="font-mono">{ins.entrySpreadPct}%</span>
+                  </span>
+                )}
+                <span>{ins.tradeCount} {t("digest.insight.trades")}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Scaling Insight Block ───
+
+const SCALING_PATTERN_STYLES: Record<ScalingInsight["pattern"], { text: string; bg: string }> = {
+  balanced: { text: "text-green-600 dark:text-green-400", bg: "bg-green-500/10" },
+  increasing: { text: "text-orange-600 dark:text-orange-400", bg: "bg-orange-500/10" },
+  decreasing: { text: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10" },
+  spike: { text: "text-red-600 dark:text-red-400", bg: "bg-red-500/10" },
+  unknown: { text: "text-muted-foreground", bg: "bg-muted/30" },
+};
+
+function ScalingInsightBlock({
+  insights,
+  t,
+}: {
+  insights: ScalingInsight[];
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  return (
+    <div>
+      <SectionHeader label={t("digest.insight.scalingPattern")} />
+      <div className="mt-2 space-y-1.5">
+        {insights.slice(0, 4).map((ins) => {
+          const pStyle = SCALING_PATTERN_STYLES[ins.pattern];
+          const lastVsAvgPct = Math.round((ins.lastLegVsAvg - 1) * 100);
+          const largestPct = Math.round(ins.largestLegShare * 100);
+
+          return (
+            <div
+              key={`${ins.instrument}:${ins.direction}`}
+              className="rounded-lg bg-muted/20 px-3 py-2"
+            >
+              <div className="flex items-center gap-2 text-xs">
+                <span className="font-mono font-semibold">{ins.instrument}</span>
+                <DirectionBadge direction={ins.direction as "LONG" | "SHORT"} />
+                <span className={cn("ms-auto rounded-full px-2 py-0.5 text-[10px] font-semibold", pStyle.text, pStyle.bg)}>
+                  {t(`digest.insight.pattern.${ins.pattern}`)}
+                </span>
+              </div>
+              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+                <span>
+                  {ins.legCount} {t("digest.insight.legs")} · {ins.totalLots} {t("digest.insight.lots")}
+                </span>
+                <span>
+                  {t("digest.insight.largestLeg")}: <span className="font-mono">{largestPct}%</span>
+                </span>
+                {ins.legCount >= 2 && lastVsAvgPct !== 0 && (
+                  <span className={lastVsAvgPct > 50 ? "text-orange-600 dark:text-orange-400" : ""}>
+                    {t("digest.insight.lastLeg")}: <span className="font-mono">{lastVsAvgPct > 0 ? "+" : ""}{lastVsAvgPct}%</span> {t("digest.insight.vsAvg")}
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Section Header ───
 
 function SectionHeader({ icon, label }: { icon?: React.ReactNode; label: string }) {
@@ -1253,6 +1499,9 @@ function OpenTradeRow({
       >
         <DirectionBadge direction={position.direction as "LONG" | "SHORT"} />
         <span className="font-mono font-medium">{position.instrument}</span>
+        {position.accountLabel && (
+          <span className="truncate text-[9px] text-muted-foreground">{position.accountLabel}</span>
+        )}
         <span className="ms-auto flex items-center gap-2 font-mono">
           {position.floatingPnl !== null && (
             <span className={cn("font-medium", pnlColor(position.floatingPnl))}>
@@ -1277,6 +1526,16 @@ function OpenTradeRow({
       {expanded && (
         <div className="space-y-1 border-t border-border/30 px-2.5 py-1.5">
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px]">
+            {position.lots != null && position.lots > 0 && (
+              <span className="text-muted-foreground">
+                {position.lots} {t("digest.insight.lots")}
+              </span>
+            )}
+            {position.openPrice != null && (
+              <span className="text-muted-foreground">
+                @ {position.openPrice}
+              </span>
+            )}
             {position.riskToSLR !== null && (
               <span className="text-orange-600 dark:text-orange-400">
                 {t("digest.cockpit.slRisk")}: {fmtR(position.riskToSLR)}

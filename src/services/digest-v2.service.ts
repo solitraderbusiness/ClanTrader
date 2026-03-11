@@ -24,6 +24,9 @@ import {
   getMemberImpactLabel,
   computeConcentration,
   computeRiskBudget,
+  computeEntryInsights,
+  computeScalingInsights,
+  computeConcentrationSummary,
   type AlertMemberInput,
   type ConcentrationPositionInput,
   type MemberSnapshotData,
@@ -139,6 +142,8 @@ export async function getClanDigestV2(
         select: {
           closePrice: true,
           openPrice: true,
+          lots: true,
+          ticket: true,
           stopLoss: true,
           takeProfit: true,
           profit: true,
@@ -153,6 +158,8 @@ export async function getClanDigestV2(
               broker: true,
               serverName: true,
               platform: true,
+              accountNumber: true,
+              accountName: true,
               equity: true,
               balance: true,
             },
@@ -560,6 +567,15 @@ export async function getClanDigestV2(
     if (ot.health.protectionStatus === "UNPROTECTED") m.mUnprotectedCount++;
 
     if (m.openPositions.length < 20) {
+      // Build account label for issue attribution
+      const mtMatch = t.mtTradeMatches[0];
+      const acctNum = mtMatch?.mtAccount?.accountNumber;
+      const acctBroker = mtMatch?.mtAccount?.broker;
+      const acctPlatform = mtMatch?.mtAccount?.platform;
+      const accountLabel = acctNum
+        ? `#${acctNum}${acctBroker ? ` (${acctBroker}${acctPlatform ? ` ${acctPlatform}` : ""})` : ""}`
+        : undefined;
+
       m.openPositions.push({
         tradeId: t.id,
         instrument: t.tradeCard?.instrument ?? "",
@@ -572,6 +588,9 @@ export async function getClanDigestV2(
         trackingStatus: ot.trackingStatus,
         cardType: t.cardType ?? "SIGNAL",
         createdAt: t.createdAt.toISOString(),
+        openPrice: mtMatch?.openPrice ?? null,
+        lots: mtMatch?.lots ?? null,
+        accountLabel,
       });
     }
   }
@@ -701,6 +720,39 @@ export async function getClanDigestV2(
       };
     });
 
+  // ─── Engine 10: Entry Quality Insights (Phase 5) ───
+  const allOpenPositions = Array.from(memberMap.values()).flatMap((m) => m.openPositions);
+  const entryInsights = computeEntryInsights(
+    allOpenPositions.map((p) => ({
+      instrument: p.instrument,
+      direction: p.direction,
+      openPrice: p.openPrice ?? null,
+      lots: p.lots ?? null,
+      floatingPnl: p.floatingPnl,
+      accountLabel: p.accountLabel,
+    }))
+  );
+
+  // ─── Engine 11: Scaling Pattern Insights (Phase 5) ───
+  const scalingInsights = computeScalingInsights(
+    allOpenPositions.map((p) => ({
+      instrument: p.instrument,
+      direction: p.direction,
+      openPrice: p.openPrice ?? null,
+      lots: p.lots ?? null,
+      createdAt: p.createdAt,
+    }))
+  );
+
+  // ─── Engine 12: Enhanced Concentration Summary (Phase 5) ───
+  const concentrationSummary = computeConcentrationSummary(
+    allOpenPositions.map((p) => ({
+      instrument: p.instrument,
+      direction: p.direction,
+      accountLabel: p.accountLabel,
+    }))
+  );
+
   const result: DigestV2Response = {
     version: 2,
     period,
@@ -730,6 +782,9 @@ export async function getClanDigestV2(
     concentration,
     riskBudget,
     hints: [],
+    entryInsights: entryInsights.length > 0 ? entryInsights : undefined,
+    scalingInsights: scalingInsights.length > 0 ? scalingInsights : undefined,
+    concentrationSummary,
     _memberSnapshotData: memberSnapshotData,
   } as DigestV2Response & { _memberSnapshotData: Record<string, MemberSnapshotData> };
 

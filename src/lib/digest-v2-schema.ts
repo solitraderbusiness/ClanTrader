@@ -146,6 +146,46 @@ export const riskBudgetSchema = z.object({
   riskBudgetBand: z.enum(["LOW", "MODERATE", "HIGH", "CRITICAL"]),
 });
 
+// ─── Entry Quality Insight (Phase 5) ───
+
+export const entryClusterInsightSchema = z.object({
+  instrument: z.string(),
+  direction: z.string(),
+  tradeCount: z.number(),
+  weightedAvgEntry: z.number().nullable(),
+  entrySpread: z.number().nullable(),
+  entrySpreadPct: z.number().nullable(),
+  qualityLabel: z.enum(["tight", "spread", "wide", "unknown"]),
+  accounts: z.array(z.string()),
+});
+
+// ─── Scaling Insight (Phase 5) ───
+
+export const scalingInsightSchema = z.object({
+  instrument: z.string(),
+  direction: z.string(),
+  legCount: z.number(),
+  totalLots: z.number(),
+  avgLots: z.number(),
+  largestLegLots: z.number(),
+  largestLegShare: z.number(),
+  lastLegVsAvg: z.number(),
+  pattern: z.enum(["balanced", "increasing", "decreasing", "spike", "unknown"]),
+});
+
+// ─── Concentration Summary (Phase 5) ───
+
+export const concentrationSummarySchema = z.object({
+  topSymbolShare: z.number(),
+  topSymbol: z.string().nullable(),
+  longShare: z.number(),
+  shortShare: z.number(),
+  singleDirectionExposure: z.boolean(),
+  singleSymbolExposure: z.boolean(),
+  accountCount: z.number(),
+  riskLevel: z.enum(["low", "moderate", "high", "critical"]),
+});
+
 // ─── Predictive Hints (Phase 3) ───
 
 export const predictiveHintSchema = z.object({
@@ -222,6 +262,10 @@ export const openPositionV2Schema = z.object({
   trackingStatus: z.string(),
   cardType: z.string(),
   createdAt: z.string(),
+  // Phase 5: Live intelligence fields
+  openPrice: z.number().nullable().optional(),
+  lots: z.number().nullable().optional(),
+  accountLabel: z.string().optional(),
 });
 
 // ─── Closed Trade ───
@@ -300,6 +344,10 @@ export const digestV2ResponseSchema = z.object({
   concentration: z.array(concentrationClusterSchema),
   riskBudget: riskBudgetSchema.nullable(),
   hints: z.array(predictiveHintSchema),
+  // Phase 5: Live intelligence insights (optional for backward compat)
+  entryInsights: z.array(entryClusterInsightSchema).optional(),
+  scalingInsights: z.array(scalingInsightSchema).optional(),
+  concentrationSummary: concentrationSummarySchema.nullable().optional(),
   // Scope-aware fields (added by route, optional for service)
   currentUserId: z.string().optional(),
   traderDeltas: z.array(digestDeltaSchema).nullable().optional(),

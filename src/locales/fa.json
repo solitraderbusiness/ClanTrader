@@ -1246,7 +1246,40 @@
     "hint.trackingDeteriorating": "پوشش ردیابی در حال کاهش است — اتصال EA را بررسی کنید",
     "hint.newTradesLowCoverage": "معاملات جدید بدون پوشش کامل ریسک باز شده‌اند",
 
-    "actions.concentration_risk": "بررسی {count} پوزیشن متمرکز روی {member}"
+    "actions.concentration_risk": "بررسی {count} پوزیشن متمرکز روی {member}",
+
+    "insight.concentrationRisk": "ریسک تمرکز",
+    "insight.topSymbol": "نماد اصلی",
+    "insight.directionBalance": "جهت",
+    "insight.accounts": "حساب‌ها",
+    "insight.risk.low": "کم",
+    "insight.risk.moderate": "متوسط",
+    "insight.risk.high": "بالا",
+    "insight.risk.critical": "بحرانی",
+    "insight.concentrationWarnBoth": "کل پرتفوی روی {symbol} متمرکز است — یک نماد، یک جهت",
+    "insight.concentrationWarnSymbol": "تمام اکسپوژر روی {symbol} است — ریسک تک‌نماد",
+    "insight.concentrationWarnDirection": "تمام پوزیشن‌ها در یک جهت هستند — بدون هج",
+
+    "insight.entryQuality": "کیفیت ورود",
+    "insight.avgEntry": "میانگین ورود",
+    "insight.entrySpread": "پراکندگی",
+    "insight.trades": "معامله",
+    "insight.quality.tight": "فشرده",
+    "insight.quality.spread": "پراکنده",
+    "insight.quality.wide": "باز",
+    "insight.quality.unknown": "نامشخص",
+
+    "insight.scalingPattern": "الگوی مقیاس‌بندی",
+    "insight.legs": "پا",
+    "insight.lots": "لات",
+    "insight.largestLeg": "بزرگ‌ترین پا",
+    "insight.lastLeg": "آخرین پا",
+    "insight.vsAvg": "نسبت به میانگین",
+    "insight.pattern.balanced": "متعادل",
+    "insight.pattern.increasing": "افزایشی",
+    "insight.pattern.decreasing": "کاهشی",
+    "insight.pattern.spike": "جهش",
+    "insight.pattern.unknown": "نامشخص"
   },
   "landing": {
     "brandName": "ClanTrader",

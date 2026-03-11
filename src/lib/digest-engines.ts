@@ -766,3 +766,252 @@ export function createDigestSnapshotV2(
     memberMetrics: memberData,
   };
 }
+
+// ═══════════════════════════════════════════
+// ENGINE 10: ENTRY QUALITY INSIGHT (Phase 5)
+// ═══════════════════════════════════════════
+
+export interface EntryClusterInput {
+  instrument: string;
+  direction: string;
+  openPrice: number | null;
+  lots: number | null;
+  floatingPnl: number | null;
+  accountLabel?: string;
+}
+
+export interface EntryClusterInsight {
+  instrument: string;
+  direction: string;
+  tradeCount: number;
+  weightedAvgEntry: number | null;
+  entrySpread: number | null;
+  entrySpreadPct: number | null;
+  qualityLabel: "tight" | "spread" | "wide" | "unknown";
+  accounts: string[];
+}
+
+export function computeEntryInsights(
+  positions: EntryClusterInput[]
+): EntryClusterInsight[] {
+  // Group by instrument+direction
+  const clusters = new Map<string, {
+    instrument: string;
+    direction: string;
+    entries: Array<{ price: number; lots: number }>;
+    accounts: Set<string>;
+    count: number;
+  }>();
+
+  for (const p of positions) {
+    if (p.openPrice === null || p.openPrice <= 0) continue;
+    const key = `${p.instrument}:${p.direction}`;
+    let c = clusters.get(key);
+    if (!c) {
+      c = { instrument: p.instrument, direction: p.direction, entries: [], accounts: new Set(), count: 0 };
+      clusters.set(key, c);
+    }
+    c.entries.push({ price: p.openPrice, lots: p.lots ?? 1 });
+    c.count++;
+    if (p.accountLabel) c.accounts.add(p.accountLabel);
+  }
+
+  const results: EntryClusterInsight[] = [];
+  for (const c of clusters.values()) {
+    if (c.count < 2) continue; // Need at least 2 trades for meaningful cluster
+
+    const totalLots = c.entries.reduce((s, e) => s + e.lots, 0);
+    const weightedAvgEntry = totalLots > 0
+      ? c.entries.reduce((s, e) => s + e.price * e.lots, 0) / totalLots
+      : null;
+
+    const prices = c.entries.map((e) => e.price);
+    const minEntry = Math.min(...prices);
+    const maxEntry = Math.max(...prices);
+    const entrySpread = maxEntry - minEntry;
+    const avgPrice = weightedAvgEntry ?? (minEntry + maxEntry) / 2;
+    const entrySpreadPct = avgPrice > 0 ? Math.round((entrySpread / avgPrice) * 10000) / 100 : null;
+
+    // Quality: tight (<0.5% spread), spread (0.5-2%), wide (>2%)
+    let qualityLabel: EntryClusterInsight["qualityLabel"] = "unknown";
+    if (entrySpreadPct !== null) {
+      if (entrySpreadPct < 0.5) qualityLabel = "tight";
+      else if (entrySpreadPct < 2) qualityLabel = "spread";
+      else qualityLabel = "wide";
+    }
+
+    results.push({
+      instrument: c.instrument,
+      direction: c.direction,
+      tradeCount: c.count,
+      weightedAvgEntry: weightedAvgEntry !== null ? Math.round(weightedAvgEntry * 100000) / 100000 : null,
+      entrySpread: Math.round(entrySpread * 100000) / 100000,
+      entrySpreadPct,
+      qualityLabel,
+      accounts: Array.from(c.accounts),
+    });
+  }
+
+  results.sort((a, b) => b.tradeCount - a.tradeCount);
+  return results;
+}
+
+// ═══════════════════════════════════════════
+// ENGINE 11: SCALING PATTERN (Phase 5)
+// ═══════════════════════════════════════════
+
+export interface ScalingInput {
+  instrument: string;
+  direction: string;
+  openPrice: number | null;
+  lots: number | null;
+  createdAt: string;
+}
+
+export type ScalingPattern = "balanced" | "increasing" | "decreasing" | "spike" | "unknown";
+
+export interface ScalingInsight {
+  instrument: string;
+  direction: string;
+  legCount: number;
+  totalLots: number;
+  avgLots: number;
+  largestLegLots: number;
+  largestLegShare: number; // 0-1
+  lastLegVsAvg: number; // ratio: lastLeg/avgLots
+  pattern: ScalingPattern;
+}
+
+export function computeScalingInsights(
+  positions: ScalingInput[]
+): ScalingInsight[] {
+  const clusters = new Map<string, {
+    instrument: string;
+    direction: string;
+    legs: Array<{ lots: number; ts: number }>;
+  }>();
+
+  for (const p of positions) {
+    if (p.lots === null || p.lots <= 0) continue;
+    const key = `${p.instrument}:${p.direction}`;
+    let c = clusters.get(key);
+    if (!c) {
+      c = { instrument: p.instrument, direction: p.direction, legs: [] };
+      clusters.set(key, c);
+    }
+    c.legs.push({ lots: p.lots, ts: new Date(p.createdAt).getTime() });
+  }
+
+  const results: ScalingInsight[] = [];
+  for (const c of clusters.values()) {
+    if (c.legs.length < 2) continue; // Need multiple legs
+
+    // Sort by time ascending
+    c.legs.sort((a, b) => a.ts - b.ts);
+
+    const totalLots = c.legs.reduce((s, l) => s + l.lots, 0);
+    const avgLots = totalLots / c.legs.length;
+    const largestLeg = Math.max(...c.legs.map((l) => l.lots));
+    const largestLegShare = totalLots > 0 ? largestLeg / totalLots : 0;
+    const lastLeg = c.legs[c.legs.length - 1].lots;
+    const lastLegVsAvg = avgLots > 0 ? lastLeg / avgLots : 1;
+
+    // Detect pattern
+    let pattern: ScalingPattern = "unknown";
+    if (c.legs.length >= 2) {
+      const lotSizes = c.legs.map((l) => l.lots);
+      const isIncreasing = lotSizes.every((v, i) => i === 0 || v >= lotSizes[i - 1]);
+      const isDecreasing = lotSizes.every((v, i) => i === 0 || v <= lotSizes[i - 1]);
+      const maxDeviation = Math.max(...lotSizes.map((l) => Math.abs(l - avgLots)));
+      const isBalanced = maxDeviation / avgLots < 0.3; // within 30% of avg
+
+      if (isBalanced) pattern = "balanced";
+      else if (largestLegShare > 0.5) pattern = "spike"; // one leg > 50% of total
+      else if (isIncreasing) pattern = "increasing";
+      else if (isDecreasing) pattern = "decreasing";
+      else pattern = "spike"; // mixed with a large leg
+    }
+
+    results.push({
+      instrument: c.instrument,
+      direction: c.direction,
+      legCount: c.legs.length,
+      totalLots: Math.round(totalLots * 100) / 100,
+      avgLots: Math.round(avgLots * 100) / 100,
+      largestLegLots: Math.round(largestLeg * 100) / 100,
+      largestLegShare: Math.round(largestLegShare * 100) / 100,
+      lastLegVsAvg: Math.round(lastLegVsAvg * 100) / 100,
+      pattern,
+    });
+  }
+
+  results.sort((a, b) => b.legCount - a.legCount);
+  return results;
+}
+
+// ═══════════════════════════════════════════
+// ENGINE 12: ENHANCED CONCENTRATION (Phase 5)
+// ═══════════════════════════════════════════
+
+export interface ConcentrationSummary {
+  topSymbolShare: number; // 0-1
+  topSymbol: string | null;
+  longShare: number; // 0-1
+  shortShare: number; // 0-1;
+  singleDirectionExposure: boolean;
+  singleSymbolExposure: boolean;
+  accountCount: number;
+  riskLevel: "low" | "moderate" | "high" | "critical";
+}
+
+export function computeConcentrationSummary(
+  positions: Array<{ instrument: string; direction: string; accountLabel?: string }>
+): ConcentrationSummary | null {
+  if (positions.length < 2) return null;
+
+  // Symbol counts
+  const symbolCounts = new Map<string, number>();
+  const accounts = new Set<string>();
+  let longCount = 0;
+  let shortCount = 0;
+
+  for (const p of positions) {
+    symbolCounts.set(p.instrument, (symbolCounts.get(p.instrument) ?? 0) + 1);
+    if (p.accountLabel) accounts.add(p.accountLabel);
+    if (p.direction === "LONG" || p.direction === "BUY") longCount++;
+    else shortCount++;
+  }
+
+  const total = positions.length;
+  let topSymbol: string | null = null;
+  let topCount = 0;
+  for (const [sym, count] of symbolCounts) {
+    if (count > topCount) {
+      topCount = count;
+      topSymbol = sym;
+    }
+  }
+
+  const topSymbolShare = topCount / total;
+  const longShare = longCount / total;
+  const shortShare = shortCount / total;
+  const singleDirectionExposure = longShare === 1 || shortShare === 1;
+  const singleSymbolExposure = topSymbolShare === 1;
+
+  // Risk level based on concentration
+  let riskLevel: ConcentrationSummary["riskLevel"] = "low";
+  if (singleSymbolExposure && singleDirectionExposure) riskLevel = "critical";
+  else if (singleSymbolExposure || singleDirectionExposure) riskLevel = "high";
+  else if (topSymbolShare >= 0.7) riskLevel = "moderate";
+
+  return {
+    topSymbolShare: Math.round(topSymbolShare * 100) / 100,
+    topSymbol,
+    longShare: Math.round(longShare * 100) / 100,
+    shortShare: Math.round(shortShare * 100) / 100,
+    singleDirectionExposure,
+    singleSymbolExposure,
+    accountCount: accounts.size,
+    riskLevel,
+  };
+}

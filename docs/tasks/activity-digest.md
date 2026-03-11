@@ -94,19 +94,36 @@ The v2 digest (feature-flagged behind `digest_v2`) already provides cockpit metr
 - [x] Route updated: trader-scoped snapshot/delta computation with `:trader` key suffix
 - [x] i18n keys: scope.trader, scope.clan, myPositions, myClosedTrades (en + fa)
 
+### Phase 5a: Live Trading Intelligence (implemented)
+- [x] Engine 10: Entry Quality — weighted avg entry, entry spread %, quality label (tight/spread/wide)
+- [x] Engine 11: Scaling Pattern — lot sequence analysis, pattern detection (balanced/increasing/decreasing/spike)
+- [x] Engine 12: Concentration Summary — symbol/direction shares, single-exposure flags, risk level
+- [x] Account-aware issue attribution: account label on every open position row (account number + broker + platform)
+- [x] Lots and open price displayed in position expanded view
+- [x] EntryInsightBlock UI component — cluster quality cards with avg entry, spread %, quality badge
+- [x] ScalingInsightBlock UI component — pattern cards with leg count, lots, largest leg %, last leg vs avg
+- [x] ConcentrationSummaryBlock UI component — risk level badge, top symbol %, direction balance, warning text
+- [x] buildTraderView computes trader-scoped entry/scaling/concentration insights
+- [x] Schema updated: openPrice, lots, accountLabel on positions; 3 new insight schemas on response
+- [x] Service pipeline: lots/ticket from MtTrade, accountNumber/accountName from MtAccount, accountLabel construction
+- [x] Fix refresh/close icon overlap (pe-10 on header row)
+- [x] i18n: 30+ new keys in en.json + fa.json
+- [ ] Profit quality / drawdown path (deferred — no per-trade P/L history)
+- [ ] What-if downside scenarios (deferred — no pip value tables)
+
 ## 5. Files & Systems
 
 | File | Change |
 |------|--------|
-| `src/lib/digest-engines.ts` | 9 engines: state, delta, alerts, actions, impact, concentration, risk budget, member trend, predictive hints |
+| `src/lib/digest-engines.ts` | 12 engines: state, delta, alerts, actions, impact, concentration, risk budget, member trend, predictive hints, entry quality, scaling pattern, concentration summary |
 | `src/lib/digest-constants.ts` | Snapshot prefix/TTL + risk budget thresholds |
-| `src/lib/digest-v2-schema.ts` | Schemas for all engine outputs + scope-aware fields (currentUserId, traderDeltas, traderHints) |
-| `src/services/digest-v2.service.ts` | Wired all engines, equity data from MT accounts |
+| `src/lib/digest-v2-schema.ts` | Schemas for all engine outputs + scope-aware fields + Phase 5 insight schemas |
+| `src/services/digest-v2.service.ts` | Wired all engines, equity data from MT accounts, account label construction, lots/openPrice pipeline |
 | `src/app/api/clans/[clanId]/digest/route.ts` | Enhanced per-user snapshots with member metrics, trends, hints + trader-scoped snapshot/delta |
-| `src/components/chat/DigestSheetV2.tsx` | Scope switcher, buildTraderView, scope-aware V2Content, My Positions zone |
+| `src/components/chat/DigestSheetV2.tsx` | Scope switcher, buildTraderView, scope-aware V2Content, My Positions, Phase 5 insight blocks, account labels |
 | `src/lib/__tests__/digest-engines.test.ts` | Unit tests for all 9 engines |
-| `src/locales/en.json` | ~70 digest keys |
-| `src/locales/fa.json` | ~70 Persian translations |
+| `src/locales/en.json` | ~100 digest keys |
+| `src/locales/fa.json` | ~100 Persian translations |
 
 ## 6. Edge Cases
 
@@ -142,6 +159,18 @@ See `docs/testing/activity-digest-test-plan.md`
 - Persian translations need native speaker review
 
 ## 10. Change Notes
+
+### 2026-03-11 (Phase 5a: Live Trading Intelligence)
+- Added 3 new pure-function engines: Entry Quality (Engine 10), Scaling Pattern (Engine 11), Concentration Summary (Engine 12)
+- Account-aware attribution: every open position row now shows account label (number + broker + platform)
+- Position expanded view shows lots and open price
+- New UI blocks: ConcentrationSummaryBlock (risk level, % shares, direction balance, warnings), EntryInsightBlock (quality labels, avg entry, spread), ScalingInsightBlock (patterns, leg analysis)
+- buildTraderView updated to compute trader-scoped entry/scaling/concentration insights
+- Service pipeline updated: lots/ticket from MtTrade, accountNumber/accountName from MtAccount
+- Schema: openPrice, lots, accountLabel on positions; entryInsights, scalingInsights, concentrationSummary on response
+- Fixed refresh/close icon overlap in header
+- 30+ i18n keys added (en + fa)
+- Deferred: profit quality (needs P/L history), what-if downside (needs pip value tables)
 
 ### 2026-03-11 (Phase 4: Scope-Aware Digest)
 - Added Trader/Clan scope switcher at top of digest (pill tabs with User/Users icons)

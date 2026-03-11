@@ -1246,7 +1246,40 @@
     "hint.trackingDeteriorating": "Tracking coverage is deteriorating — check EA connections",
     "hint.newTradesLowCoverage": "New trades opened without full risk coverage",
 
-    "actions.concentration_risk": "Review {count} concentrated positions on {member}"
+    "actions.concentration_risk": "Review {count} concentrated positions on {member}",
+
+    "insight.concentrationRisk": "Concentration Risk",
+    "insight.topSymbol": "Top symbol",
+    "insight.directionBalance": "Direction",
+    "insight.accounts": "Accounts",
+    "insight.risk.low": "Low",
+    "insight.risk.moderate": "Moderate",
+    "insight.risk.high": "High",
+    "insight.risk.critical": "Critical",
+    "insight.concentrationWarnBoth": "Entire book is concentrated in {symbol} — one symbol, one direction",
+    "insight.concentrationWarnSymbol": "All exposure is in {symbol} — single symbol risk",
+    "insight.concentrationWarnDirection": "All positions face the same direction — no hedge",
+
+    "insight.entryQuality": "Entry Quality",
+    "insight.avgEntry": "Avg entry",
+    "insight.entrySpread": "Spread",
+    "insight.trades": "trades",
+    "insight.quality.tight": "Tight",
+    "insight.quality.spread": "Spread",
+    "insight.quality.wide": "Wide",
+    "insight.quality.unknown": "Unknown",
+
+    "insight.scalingPattern": "Scaling Pattern",
+    "insight.legs": "legs",
+    "insight.lots": "lots",
+    "insight.largestLeg": "Largest leg",
+    "insight.lastLeg": "Last leg",
+    "insight.vsAvg": "vs avg",
+    "insight.pattern.balanced": "Balanced",
+    "insight.pattern.increasing": "Increasing",
+    "insight.pattern.decreasing": "Decreasing",
+    "insight.pattern.spike": "Spike",
+    "insight.pattern.unknown": "Unknown"
   },
   "landing": {
     "brandName": "ClanTrader",
