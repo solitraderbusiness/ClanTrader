@@ -23,7 +23,6 @@ import {
   Wifi,
   WifiOff,
   Clock,
-  TrendingDown,
   User,
   Users,
   Target,
@@ -52,18 +51,18 @@ import {
   computeScalingInsights,
   computeConcentrationSummary,
   computeSmartActions,
+  computePriceLadder,
   type SafetyBand,
   type ConfidenceBand,
   type DigestDelta,
   type ActionItem,
   type AlertMemberInput,
-  type ConcentrationSummary,
   type EntryClusterInsight,
-  type ScalingInsight,
   type SmartAction,
   type RiskBudgetBand,
   type MemberTrend,
-  type PredictiveHint,
+  type PriceLadderData,
+  type PriceLadderLevel,
 } from "@/lib/digest-engines";
 
 interface DigestSheetV2Props {
@@ -580,7 +579,6 @@ function V2Content({
   const sa = data.stateAssessment;
   const hasTrackingIssue = ts.staleAccounts > 0 || ts.lostAccounts > 0;
   const hasOpenPositions = data.summary.openCount > 0;
-  const hasClosedResults = c.closedCount > 0;
 
   const nowMs = new Date(data.generatedAt).getTime();
 
@@ -596,6 +594,8 @@ function V2Content({
     [allPositions]
   );
 
+  const equity = data.riskBudget?.totalEquity ?? null;
+
   // Smart actions (trade intelligence)
   const smartActions = useMemo(() =>
     computeSmartActions({
@@ -607,101 +607,99 @@ function V2Content({
         direction: p.direction,
         openPrice: p.openPrice ?? null,
         createdAt: p.createdAt,
+        currentSL: p.currentSL ?? null,
+        currentTP: p.currentTP ?? null,
       })),
       totalFloatingPnl: c.totalFloatingPnl,
+      accountEquity: equity,
       entryInsights: data.entryInsights ?? [],
       scalingInsights: data.scalingInsights ?? [],
       concentrationSummary: data.concentrationSummary ?? null,
     }),
-    [allPositions, c.totalFloatingPnl, data.entryInsights, data.scalingInsights, data.concentrationSummary]
+    [allPositions, c.totalFloatingPnl, equity, data.entryInsights, data.scalingInsights, data.concentrationSummary]
   );
 
-  // Unprotected count for risk exposure
+  // Price Ladder computation
+  const priceLadders = useMemo(() =>
+    computePriceLadder({
+      positions: allPositions.map((p) => ({
+        instrument: p.instrument,
+        direction: p.direction,
+        openPrice: p.openPrice ?? null,
+        lots: p.lots ?? null,
+        floatingPnl: p.floatingPnl,
+        currentPrice: p.currentPrice ?? null,
+        currentSL: p.currentSL ?? null,
+      })),
+      accountEquity: equity,
+    }),
+    [allPositions, equity]
+  );
+
+  // Context line: "5 positions · 250 lots UKBRENT LONG · 5 unprotected"
   const unprotectedCount = allPositions.filter(
     (p) => p.health.protectionStatus === "UNPROTECTED" || p.health.protectionStatus === "UNKNOWN_RISK"
   ).length;
+  const contextLine = useMemo(() => {
+    const parts: string[] = [];
+    parts.push(`${allPositions.length} positions`);
+    if (positionGroups.length > 0) {
+      const top = positionGroups[0];
+      parts.push(`${top.totalLots}L ${top.instrument} ${top.direction}`);
+    }
+    if (unprotectedCount > 0) parts.push(`${unprotectedCount} unprotected`);
+    return parts.join(" · ");
+  }, [allPositions.length, positionGroups, unprotectedCount]);
 
   return (
-    <div className="space-y-2">
-      {/* ═══ ZONE 1: THE COCKPIT — Above the fold ═══ */}
+    <div className="space-y-3">
+      {/* ═══ SECTION 1: HERO STATS ═══ */}
 
-      {/* 1A. System Status Bar — slim inline */}
+      {/* Status banner — only on tracking issues */}
       <SystemStatusBar
         tracking={ts}
-        assessment={sa}
         hasTrackingIssue={hasTrackingIssue}
         generatedAt={data.generatedAt}
         t={t}
       />
 
-      {/* 1B. The Money Line — P/L Hero */}
+      {/* Hero: P/L + % of equity */}
       {hasOpenPositions && (
-        <MoneyLine
-          cockpit={c}
-          equity={data.riskBudget?.totalEquity ?? null}
-          openCount={data.summary.openCount}
-          t={t}
-        />
+        <HeroStats pnl={c.totalFloatingPnl} equity={equity} contextLine={contextLine} />
       )}
 
-      {/* 1D. Smart Actions — trade intelligence */}
+      {/* ═══ SECTION 2: SMART ACTIONS ═══ */}
       {smartActions.length > 0 && (
         <SmartActionsBlock actions={smartActions} t={t} />
       )}
 
-      {/* ═══ ZONE 2: THE ANALYSIS — Scrollable cards ═══ */}
+      {/* ═══ SECTION 3: PRICE LADDER ═══ */}
+      {priceLadders.length > 0 && priceLadders.map((ladder) => (
+        <PriceLadderCard key={`${ladder.symbol}-${ladder.direction}`} ladder={ladder} t={t} />
+      ))}
 
-      {/* 2A. Position Summary */}
-      {positionGroups.length > 0 && (
-        <PositionSummaryCard groups={positionGroups} totalPnl={c.totalFloatingPnl ?? 0} t={t} />
-      )}
-
-      {/* 2B. Risk Exposure */}
-      {hasOpenPositions && unprotectedCount > 0 && (
-        <RiskExposureCard
-          totalPnl={c.totalFloatingPnl}
-          totalRisk={c.currentOpenRiskR}
-          unprotectedCount={unprotectedCount}
-          totalPositions={allPositions.length}
+      {/* ═══ SECTION 4: POSITION PROFILE ═══ */}
+      {allPositions.length > 1 && (
+        <PositionProfileCard
+          positions={allPositions}
+          entryInsights={data.entryInsights ?? []}
+          nowMs={nowMs}
           t={t}
         />
       )}
 
-      {/* 2C. Entry Quality */}
-      {data.entryInsights && data.entryInsights.length > 0 && (
-        <EntryQualityCard insights={data.entryInsights} t={t} />
-      )}
-
-      {/* 2D. Scaling Pattern */}
-      {data.scalingInsights && data.scalingInsights.length > 0 && (
-        <ScalingPatternCard insights={data.scalingInsights} positions={allPositions} t={t} />
-      )}
-
-      {/* 2E. Profit Attribution */}
-      {allPositions.length > 1 && allPositions.some((p) => p.floatingPnl !== null) && (
-        <ProfitAttributionCard positions={allPositions} nowMs={nowMs} t={t} />
-      )}
-
-      {/* 2G. Concentration */}
-      {data.concentrationSummary && (
-        <ConcentrationCard summary={data.concentrationSummary} t={t} />
-      )}
-
-      {/* Delta Strip */}
+      {/* ═══ SECTION 5: WHAT CHANGED ═══ */}
       <DeltaStrip deltas={data.deltas} t={t} />
-
-      {/* Hints */}
-      {data.hints && data.hints.length > 0 && (
-        <HintsBlock hints={data.hints} t={t} />
-      )}
 
       {/* ═══ ZONE 3: THE DETAILS ═══ */}
 
-      {/* 3A/3B. Positions or Member Breakdown */}
+      {/* ═══ SECTION 6: MY POSITIONS (collapsed by default) ═══ */}
       {scope === "clan" ? (
-        <div>
-          <SectionHeader label={t("digest.memberBreakdown")} />
-          <div className="mt-2 space-y-2">
+        <CollapsibleSection
+          label={`${t("digest.memberBreakdown")} (${data.members.length})`}
+          defaultOpen={false}
+        >
+          <div className="space-y-2">
             {data.members.map((member) => (
               <MemberCard
                 key={member.userId}
@@ -714,44 +712,21 @@ function V2Content({
               />
             ))}
           </div>
-        </div>
-      ) : data.members[0] && (data.members[0].openPositions.length > 0 || data.members[0].closedTrades.length > 0) ? (
-        <div className="space-y-3">
-          {data.members[0].openPositions.length > 0 && (
-            <div>
-              <SectionHeader label={`${t("digest.myPositions")} (${data.members[0].openPositions.length})`} />
-              <div className="mt-2 space-y-1">
-                {data.members[0].openPositions.map((pos) => (
-                  <OpenTradeRow
-                    key={pos.tradeId}
-                    position={pos}
-                    expanded={expandedTrades.has(pos.tradeId)}
-                    onToggle={() => toggleTrade(pos.tradeId)}
-                    t={t}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-          {data.members[0].closedTrades.length > 0 && (
-            <div>
-              <SectionHeader label={`${t("digest.myClosedTrades")} (${data.members[0].closedTrades.length})`} />
-              <div className="mt-2 space-y-1">
-                {data.members[0].closedTrades.map((trade) => (
-                  <ClosedTradeRow key={trade.tradeId} trade={trade} t={t} />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        </CollapsibleSection>
+      ) : allPositions.length > 0 ? (
+        <CollapsibleSection
+          label={`${t("digest.myPositions")} (${allPositions.length})`}
+          defaultOpen={false}
+        >
+          <div className="space-y-0.5">
+            {allPositions.map((pos) => (
+              <CompactPositionRow key={pos.tradeId} position={pos} />
+            ))}
+          </div>
+        </CollapsibleSection>
       ) : null}
 
-      {/* Period Results — only when there are actual results */}
-      {hasClosedResults && (
-        <PeriodResultsCard cockpit={c} summary={data.summary} t={t} />
-      )}
-
-      {/* 3C. System Health — collapsed at bottom */}
+      {/* ═══ SECTION 7: SYSTEM HEALTH (collapsed at bottom) ═══ */}
       <SystemHealthSection
         tracking={ts}
         assessment={sa}
@@ -766,28 +741,24 @@ function V2Content({
 }
 
 // ════════════════════════════════════════════
-// ZONE 1 COMPONENTS
+// SECTION COMPONENTS
 // ════════════════════════════════════════════
 
-// ─── 1A. System Status Bar ───
+// ─── System Status Bar (slim banner) ───
 
 function SystemStatusBar({
   tracking,
-  assessment,
   hasTrackingIssue,
   generatedAt,
   t,
 }: {
   tracking: DigestV2Response["trackingSummary"];
-  assessment: DigestV2Response["stateAssessment"];
   hasTrackingIssue: boolean;
   generatedAt: string;
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
-  const safety = SAFETY_STYLES[assessment.safetyBand as SafetyBand];
   const totalAccounts = tracking.activeAccounts + tracking.staleAccounts + tracking.lostAccounts;
 
-  // Slim banner for issues
   if (hasTrackingIssue) {
     return (
       <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 px-3 py-1.5">
@@ -804,11 +775,10 @@ function SystemStatusBar({
     );
   }
 
-  // Slim healthy bar
   if (totalAccounts > 0) {
     return (
       <div className="flex items-center gap-2 px-1 py-0.5">
-        <span className={cn("h-2 w-2 shrink-0 rounded-full", safety.dot)} />
+        <span className="h-2 w-2 shrink-0 rounded-full bg-green-500" />
         <span className="text-[10px] text-muted-foreground">{t("digest.status.live")}</span>
         <span className="ms-auto text-[10px] text-muted-foreground">
           {new Date(generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -820,56 +790,386 @@ function SystemStatusBar({
   return null;
 }
 
-// ─── 1B. Money Line ───
+// ─── Section 1: Hero Stats ───
 
-function MoneyLine({
-  cockpit,
+function HeroStats({
+  pnl,
   equity,
-  openCount,
-  t,
+  contextLine,
 }: {
-  cockpit: DigestV2Response["cockpit"];
+  pnl: number | null;
   equity: number | null;
-  openCount: number;
-  t: (key: string, params?: Record<string, string | number>) => string;
+  contextLine: string;
 }) {
-  const pnl = cockpit.totalFloatingPnl;
   const pnlPct = equity && equity > 0 && pnl !== null ? (pnl / equity) * 100 : null;
 
   return (
-    <div className="rounded-xl bg-muted/20 px-4 py-3">
+    <div className="px-1">
       <div className="flex items-baseline justify-between">
-        <span className={cn("text-3xl font-black tabular-nums tracking-tight", pnlColor(pnl))}>
+        <span className={cn("text-4xl font-black tabular-nums tracking-tight", pnlColor(pnl))}>
           {pnl !== null ? fmtCurrency(pnl) : "—"}
         </span>
-        {pnlPct !== null && (
-          <span className={cn("text-lg font-bold tabular-nums", pnlColor(pnl))}>
+        {pnlPct !== null ? (
+          <span className={cn("text-xl font-bold tabular-nums", pnlColor(pnl))}>
             {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%
           </span>
+        ) : (
+          <span className="text-sm text-muted-foreground">—%</span>
         )}
       </div>
-      <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
-        <span>{t("digest.moneyLine.openPnl")} · {openCount} {t("digest.moneyLine.positions")}</span>
-        {pnlPct !== null && <span>{t("digest.moneyLine.ofEquity")}</span>}
+      <p className="mt-0.5 text-[13px] text-muted-foreground">{contextLine}</p>
+    </div>
+  );
+}
+
+// ─── Section 3: Price Ladder Card (SVG thermometer) ───
+
+const ZONE_COLORS: Record<PriceLadderLevel["zone"], string> = {
+  profit: "text-green-500",
+  warning: "text-amber-500",
+  danger: "text-red-500",
+  catastrophic: "text-red-700 dark:text-red-400",
+};
+
+function PriceLadderCard({
+  ladder,
+  t,
+}: {
+  ladder: PriceLadderData;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  const levels = ladder.levels;
+  if (levels.length < 2) return null;
+
+  const maxPrice = levels[0].price;
+  const minPrice = levels[levels.length - 1].price;
+  const range = maxPrice - minPrice;
+  if (range <= 0) return null;
+
+  const BAR_HEIGHT = 280;
+  const BAR_WIDTH = 32;
+  const LEFT_MARGIN = 60;
+  const RIGHT_MARGIN = 180;
+  const SVG_WIDTH = LEFT_MARGIN + BAR_WIDTH + RIGHT_MARGIN + 10;
+  const SVG_HEIGHT = BAR_HEIGHT + 40;
+  const TOP_PAD = 20;
+
+  function priceToY(price: number): number {
+    return TOP_PAD + (1 - (price - minPrice) / range) * BAR_HEIGHT;
+  }
+
+  // Find breakeven Y for gradient split
+  const beLevel = levels.find((l) => l.label === "Breakeven");
+  const bePct = beLevel ? ((beLevel.price - minPrice) / range) * 100 : 50;
+
+  return (
+    <div className="rounded-xl border border-border/30 bg-muted/10 p-3">
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {t("digest.ladder.title")} — {ladder.symbol}
+      </p>
+      <svg
+        width="100%"
+        viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
+        className="overflow-visible"
+        aria-label={`Price ladder for ${ladder.symbol}`}
+      >
+        <defs>
+          <linearGradient id={`grad-${ladder.symbol}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#22c55e" stopOpacity="0.7" />
+            <stop offset={`${100 - bePct}%`} stopColor="#eab308" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#ef4444" stopOpacity="0.7" />
+          </linearGradient>
+        </defs>
+
+        {/* Main thermometer bar */}
+        <rect
+          x={LEFT_MARGIN}
+          y={TOP_PAD}
+          width={BAR_WIDTH}
+          height={BAR_HEIGHT}
+          rx={6}
+          fill={`url(#grad-${ladder.symbol})`}
+        />
+
+        {/* Level markers */}
+        {levels.map((level, i) => {
+          const y = priceToY(level.price);
+          const color = ZONE_COLORS[level.zone];
+          const isCurrent = level.isCurrent;
+
+          // Avoid overlapping labels: offset if too close to previous
+          const prevY = i > 0 ? priceToY(levels[i - 1].price) : -100;
+          const tooClose = Math.abs(y - prevY) < 16;
+          const labelY = tooClose ? y + (y > prevY ? 8 : -8) : y;
+
+          return (
+            <g key={`${level.label}-${i}`}>
+              {/* Horizontal tick line */}
+              <line
+                x1={LEFT_MARGIN}
+                y1={y}
+                x2={LEFT_MARGIN + BAR_WIDTH}
+                y2={y}
+                stroke="currentColor"
+                className={isCurrent ? "text-white" : "text-white/30"}
+                strokeWidth={isCurrent ? 2 : 1}
+              />
+
+              {/* Current price marker */}
+              {isCurrent && (
+                <circle
+                  cx={LEFT_MARGIN + BAR_WIDTH / 2}
+                  cy={y}
+                  r={5}
+                  fill="white"
+                  className="drop-shadow-md"
+                />
+              )}
+
+              {/* Price label (left) */}
+              <text
+                x={LEFT_MARGIN - 4}
+                y={labelY + 4}
+                textAnchor="end"
+                className={cn("fill-current text-[10px] tabular-nums", color)}
+              >
+                {level.price.toFixed(2)}
+              </text>
+
+              {/* Level label + sublabel (right) */}
+              <text
+                x={LEFT_MARGIN + BAR_WIDTH + 8}
+                y={labelY + 4}
+                className={cn("fill-current text-[11px] font-medium", color)}
+              >
+                {level.label}
+              </text>
+              {level.sublabel && (
+                <text
+                  x={LEFT_MARGIN + BAR_WIDTH + 8}
+                  y={labelY + 16}
+                  className="fill-current text-[9px] text-muted-foreground"
+                >
+                  {level.sublabel}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+// ─── Section 4: Position Profile Card ───
+
+function PositionProfileCard({
+  positions,
+  entryInsights,
+  t,
+}: {
+  positions: OpenPositionV2[];
+  entryInsights: EntryClusterInsight[];
+  nowMs?: number;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  // Donut SVG constants
+  const DONUT_SIZE = 90;
+  const DONUT_R = 34;
+  const DONUT_STROKE = 12;
+  const circumference = 2 * Math.PI * DONUT_R;
+  const DONUT_GREENS = ["#22c55e", "#16a34a", "#15803d", "#166534", "#14532d"];
+
+  // All memoized computations
+  const { donutArcs, profitSegments, topInsight, totalLots, maxShare, withLotsCount } = useMemo(() => {
+    const wLots = positions.filter((p) => p.lots != null && p.lots > 0);
+    const wPnl = positions.filter((p) => p.floatingPnl !== null);
+    const tLots = wLots.reduce((s, p) => s + (p.lots ?? 0), 0);
+    const tPnl = wPnl.reduce((s, p) => s + (p.floatingPnl ?? 0), 0);
+
+    // Donut segments + arcs
+    const segments = wLots.map((p) => ({
+      share: tLots > 0 ? (p.lots ?? 0) / tLots : 0,
+    }));
+    const mxShare = Math.max(...segments.map((s) => s.share), 0);
+
+    const arcs: Array<{ dash: number; gap: number; offset: number }> = [];
+    let runningOffset = 0;
+    for (const seg of segments) {
+      const dash = seg.share * circumference;
+      arcs.push({ dash, gap: circumference - dash, offset: runningOffset });
+      runningOffset += dash;
+    }
+
+    // Profit bar segments
+    const pSegs = wPnl
+      .filter((p) => (p.floatingPnl ?? 0) !== 0)
+      .sort((a, b) => Math.abs(b.floatingPnl ?? 0) - Math.abs(a.floatingPnl ?? 0))
+      .map((p) => ({
+        tradeId: p.tradeId,
+        pnl: p.floatingPnl ?? 0,
+        pct: tPnl !== 0 ? ((p.floatingPnl ?? 0) / tPnl) * 100 : 0,
+        lots: p.lots ?? 0,
+        openPrice: p.openPrice ?? 0,
+      }));
+
+    return {
+      donutArcs: arcs,
+      profitSegments: pSegs,
+      topInsight: entryInsights.length > 0 ? entryInsights[0] : null,
+      totalLots: tLots,
+      maxShare: mxShare,
+      withLotsCount: wLots.length,
+    };
+  }, [positions, entryInsights, circumference]);
+
+  return (
+    <div className="rounded-xl border border-border/30 bg-muted/10 p-3">
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {t("digest.profile.title")}
+      </p>
+
+      <div className="flex items-start gap-4">
+        {/* Mini donut */}
+        {withLotsCount > 1 && (
+          <div className="flex shrink-0 flex-col items-center">
+            <svg width={DONUT_SIZE} height={DONUT_SIZE} viewBox={`0 0 ${DONUT_SIZE} ${DONUT_SIZE}`}>
+              {donutArcs.map((arc, i) => (
+                  <circle
+                    key={i}
+                    cx={DONUT_SIZE / 2}
+                    cy={DONUT_SIZE / 2}
+                    r={DONUT_R}
+                    fill="none"
+                    stroke={DONUT_GREENS[i % DONUT_GREENS.length]}
+                    strokeWidth={DONUT_STROKE}
+                    strokeDasharray={`${arc.dash} ${arc.gap}`}
+                    strokeDashoffset={-arc.offset}
+                    transform={`rotate(-90 ${DONUT_SIZE / 2} ${DONUT_SIZE / 2})`}
+                  />
+              ))}
+              <text
+                x={DONUT_SIZE / 2}
+                y={DONUT_SIZE / 2 + 1}
+                textAnchor="middle"
+                dominantBaseline="central"
+                className="fill-current text-sm font-bold text-foreground"
+              >
+                {Math.round(totalLots)}
+              </text>
+            </svg>
+            <span className="mt-0.5 text-[10px] text-muted-foreground">
+              {t("digest.profile.largestLeg")}: {Math.round(maxShare * 100)}%
+            </span>
+          </div>
+        )}
+
+        {/* Profit stacked bar + best trade */}
+        {profitSegments.length > 0 && (
+          <div className="min-w-0 flex-1">
+            <p className="mb-1 text-[10px] text-muted-foreground">{t("digest.profile.profitByTrade")}</p>
+            <div className="flex h-5 overflow-hidden rounded-full">
+              {profitSegments.map((seg, i) => {
+                const absPct = Math.max(Math.abs(seg.pct), 3);
+                const opacity = 0.4 + (i === 0 ? 0.6 : 0.3 / Math.max(profitSegments.length - 1, 1) * (profitSegments.length - 1 - i));
+                return (
+                  <div
+                    key={seg.tradeId}
+                    className={seg.pnl >= 0 ? "bg-green-500" : "bg-red-500"}
+                    style={{ width: `${absPct}%`, opacity: Math.min(opacity, 1) }}
+                    title={`${fmtCurrency(seg.pnl)} (${seg.pct.toFixed(0)}%)`}
+                  />
+                );
+              })}
+            </div>
+            {profitSegments[0] && (
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                {t("digest.profile.best")}: {profitSegments[0].lots}L @{profitSegments[0].openPrice}{" "}
+                <span className="font-mono text-green-600 dark:text-green-400">
+                  {fmtCurrency(profitSegments[0].pnl)}
+                </span>
+              </p>
+            )}
+          </div>
+        )}
       </div>
-      {/* Secondary metrics row */}
-      <div className="mt-2 flex items-center gap-3 text-xs">
-        {cockpit.totalFloatingR !== null && (
-          <span className={cn("font-mono font-semibold", pnlColor(cockpit.totalFloatingR))}>
-            {fmtR(cockpit.totalFloatingR)}
-          </span>
-        )}
-        {cockpit.currentOpenRiskR !== null && (
-          <span className="font-mono text-orange-600 dark:text-orange-400">
-            {t("digest.cockpit.slRisk")}: {fmtR(cockpit.currentOpenRiskR)}
-          </span>
-        )}
-        {cockpit.unknownRiskCount > 0 && (
-          <span className="text-muted-foreground">
-            {cockpit.unknownRiskCount} {t("digest.cockpit.unknownRisk")}
-          </span>
-        )}
-      </div>
+
+      {/* Entry spread gauge */}
+      {topInsight && topInsight.weightedAvgEntry !== null && topInsight.entrySpreadPct !== null && (
+        <div className="mt-3">
+          <p className="mb-1 text-[10px] text-muted-foreground">{t("digest.profile.entrySpread")}</p>
+          <div className="relative h-3 rounded-full bg-muted/30">
+            {/* Range bar */}
+            <div className="absolute inset-y-0 rounded-full bg-blue-500/30" style={{ left: "5%", right: "5%" }} />
+            {/* Avg entry marker */}
+            <div
+              className="absolute top-0 h-full w-0.5 bg-amber-500"
+              style={{ left: "50%" }}
+              title={`Avg: ${topInsight.weightedAvgEntry}`}
+            />
+          </div>
+          <div className="mt-0.5 flex justify-between text-[9px] text-muted-foreground">
+            <span>{topInsight.instrument}</span>
+            <span className="font-mono">
+              {t("digest.insight.entrySpread")}: {topInsight.entrySpreadPct}%
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Collapsible Section ───
+
+function CollapsibleSection({
+  label,
+  defaultOpen = false,
+  children,
+}: {
+  label: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="rounded-xl border border-border/30 bg-muted/10">
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 px-3 py-2 text-start text-xs font-medium"
+        onClick={() => setOpen(!open)}
+      >
+        <span className="flex-1">{label}</span>
+        {open ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+      </button>
+      {open && <div className="border-t border-border/30 px-3 pb-3 pt-2">{children}</div>}
+    </div>
+  );
+}
+
+// ─── Compact Position Row (single-line for collapsed section) ───
+
+function CompactPositionRow({ position }: { position: OpenPositionV2 }) {
+  const noSL = position.health.protectionStatus === "UNPROTECTED" || position.health.protectionStatus === "UNKNOWN_RISK";
+  return (
+    <div className="flex items-center gap-1.5 py-1 text-[11px]">
+      <DirectionBadge direction={position.direction as "LONG" | "SHORT"} />
+      <span className="font-mono font-medium">{position.instrument}</span>
+      {position.lots != null && position.lots > 0 && (
+        <span className="text-muted-foreground">{position.lots}L</span>
+      )}
+      {position.openPrice != null && (
+        <span className="text-muted-foreground">@{position.openPrice}</span>
+      )}
+      <span className={cn("ms-auto font-mono font-semibold", pnlColor(position.floatingPnl))}>
+        {position.floatingPnl !== null ? fmtCurrency(position.floatingPnl) : "—"}
+      </span>
+      <span className="w-12 text-end text-[10px] text-muted-foreground">{holdDuration(position.createdAt)}</span>
+      {noSL && (
+        <span className="flex items-center gap-0.5 text-red-500">
+          <ShieldOff className="h-3 w-3" />
+        </span>
+      )}
     </div>
   );
 }
@@ -924,403 +1224,8 @@ function SmartActionsBlock({
 }
 
 // ════════════════════════════════════════════
-// ZONE 2 COMPONENTS
+// KEPT V1 COMPONENTS (still used)
 // ════════════════════════════════════════════
-
-// ─── 2A. Position Summary Card ───
-
-function PositionSummaryCard({
-  groups,
-  totalPnl,
-  t,
-}: {
-  groups: PositionGroup[];
-  totalPnl: number;
-  t: (key: string, params?: Record<string, string | number>) => string;
-}) {
-  return (
-    <div>
-      <SectionHeader label={t("digest.posSummary.title")} />
-      <div className="mt-1.5 space-y-1.5">
-        {groups.map((g) => {
-          const absPnl = Math.abs(g.totalPnl);
-          const barWidth = totalPnl !== 0 ? Math.min((absPnl / Math.abs(totalPnl)) * 100, 100) : 0;
-
-          return (
-            <div key={`${g.instrument}:${g.direction}`} className="rounded-lg bg-muted/20 px-3 py-2">
-              <div className="flex items-center gap-2 text-xs">
-                <DirectionBadge direction={g.direction as "LONG" | "SHORT"} />
-                <span className="font-mono font-semibold">{g.instrument}</span>
-                <span className="text-muted-foreground">
-                  {g.positions.length} {t("digest.insight.trades")} · {g.totalLots} {t("digest.insight.lots")}
-                </span>
-                <span className={cn("ms-auto font-mono font-bold", pnlColor(g.totalPnl))}>
-                  {fmtCurrency(g.totalPnl)}
-                </span>
-              </div>
-              {/* P/L contribution bar */}
-              <div className="mt-1.5 h-1.5 rounded-full bg-muted/50">
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-all",
-                    g.totalPnl >= 0 ? "bg-green-500/60" : "bg-red-500/60"
-                  )}
-                  style={{ width: `${barWidth}%` }}
-                />
-              </div>
-              {g.avgEntry !== null && (
-                <div className="mt-1 flex gap-3 text-[10px] text-muted-foreground">
-                  <span>{t("digest.posSummary.avgEntry")}: <span className="font-mono">{g.avgEntry}</span></span>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── 2B. Risk Exposure Card ───
-
-function RiskExposureCard({
-  totalPnl,
-  totalRisk,
-  unprotectedCount,
-  totalPositions,
-  t,
-}: {
-  totalPnl: number | null;
-  totalRisk: number | null;
-  unprotectedCount: number;
-  totalPositions: number;
-  t: (key: string, params?: Record<string, string | number>) => string;
-}) {
-  return (
-    <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2.5">
-      <div className="flex items-center justify-between">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-red-600 dark:text-red-400">
-          {t("digest.riskExposure.title")}
-        </p>
-        <ShieldOff className="h-3.5 w-3.5 text-red-500/60" />
-      </div>
-      <div className="mt-2 space-y-1 text-xs">
-        {totalPnl !== null && totalPnl > 0 && (
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">{t("digest.riskExposure.unprotectedPnl")}</span>
-            <span className="font-mono font-semibold text-red-600 dark:text-red-400">{fmtCurrency(totalPnl)}</span>
-          </div>
-        )}
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">{t("digest.riskExposure.noSL")}</span>
-          <span className="font-mono">{unprotectedCount}/{totalPositions} {t("digest.insight.trades")}</span>
-        </div>
-        {totalRisk !== null && (
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">{t("digest.cockpit.slRisk")}</span>
-            <span className="font-mono text-orange-600 dark:text-orange-400">{fmtR(totalRisk)}</span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── 2C. Entry Quality Card ───
-
-const ENTRY_QUALITY_STYLES: Record<EntryClusterInsight["qualityLabel"], { text: string; bg: string }> = {
-  tight: { text: "text-green-600 dark:text-green-400", bg: "bg-green-500/10" },
-  spread: { text: "text-yellow-600 dark:text-yellow-400", bg: "bg-yellow-500/10" },
-  wide: { text: "text-red-600 dark:text-red-400", bg: "bg-red-500/10" },
-  unknown: { text: "text-muted-foreground", bg: "bg-muted/30" },
-};
-
-function EntryQualityCard({
-  insights,
-  t,
-}: {
-  insights: EntryClusterInsight[];
-  t: (key: string, params?: Record<string, string | number>) => string;
-}) {
-  return (
-    <div>
-      <SectionHeader label={t("digest.insight.entryQuality")} />
-      <div className="mt-1.5 space-y-1.5">
-        {insights.slice(0, 3).map((ins) => {
-          const qStyle = ENTRY_QUALITY_STYLES[ins.qualityLabel];
-          return (
-            <div key={`${ins.instrument}:${ins.direction}`} className="rounded-lg bg-muted/20 px-3 py-2">
-              <div className="flex items-center gap-2 text-xs">
-                <span className="font-mono font-semibold">{ins.instrument}</span>
-                <DirectionBadge direction={ins.direction as "LONG" | "SHORT"} />
-                <span className={cn("ms-auto rounded-full px-2 py-0.5 text-[10px] font-semibold", qStyle.text, qStyle.bg)}>
-                  {t(`digest.insight.quality.${ins.qualityLabel}`)}
-                </span>
-              </div>
-              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
-                {ins.weightedAvgEntry !== null && (
-                  <span>{t("digest.insight.avgEntry")}: <span className="font-mono">{ins.weightedAvgEntry}</span></span>
-                )}
-                {ins.entrySpreadPct !== null && (
-                  <span>{t("digest.insight.entrySpread")}: <span className="font-mono">{ins.entrySpreadPct}%</span></span>
-                )}
-                <span>{ins.tradeCount} {t("digest.insight.trades")}</span>
-              </div>
-              {/* Insight sentence */}
-              {ins.qualityLabel === "wide" && ins.entrySpreadPct !== null && ins.entrySpreadPct > 5 && (
-                <p className="mt-1 text-[10px] text-orange-600 dark:text-orange-400">
-                  {t("digest.entryInsight.wideSpread", { pct: ins.entrySpreadPct })}
-                </p>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── 2D. Scaling Pattern Card ───
-
-const SCALING_PATTERN_STYLES: Record<ScalingInsight["pattern"], { text: string; bg: string }> = {
-  balanced: { text: "text-green-600 dark:text-green-400", bg: "bg-green-500/10" },
-  increasing: { text: "text-orange-600 dark:text-orange-400", bg: "bg-orange-500/10" },
-  decreasing: { text: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10" },
-  spike: { text: "text-red-600 dark:text-red-400", bg: "bg-red-500/10" },
-  unknown: { text: "text-muted-foreground", bg: "bg-muted/30" },
-};
-
-function ScalingPatternCard({
-  insights,
-  positions,
-  t,
-}: {
-  insights: ScalingInsight[];
-  positions: OpenPositionV2[];
-  t: (key: string, params?: Record<string, string | number>) => string;
-}) {
-  return (
-    <div>
-      <SectionHeader label={t("digest.insight.scalingPattern")} />
-      <div className="mt-1.5 space-y-1.5">
-        {insights.slice(0, 3).map((ins) => {
-          const pStyle = SCALING_PATTERN_STYLES[ins.pattern];
-          const lastVsAvgPct = Math.round((ins.lastLegVsAvg - 1) * 100);
-          const largestPct = Math.round(ins.largestLegShare * 100);
-
-          // Get individual legs for this cluster
-          const clusterPositions = positions
-            .filter((p) => p.instrument === ins.instrument && p.direction === ins.direction && p.lots != null && p.lots > 0)
-            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-
-          return (
-            <div key={`${ins.instrument}:${ins.direction}`} className="rounded-lg bg-muted/20 px-3 py-2">
-              <div className="flex items-center gap-2 text-xs">
-                <span className="font-mono font-semibold">{ins.instrument}</span>
-                <DirectionBadge direction={ins.direction as "LONG" | "SHORT"} />
-                <span className={cn("ms-auto rounded-full px-2 py-0.5 text-[10px] font-semibold", pStyle.text, pStyle.bg)}>
-                  {t(`digest.insight.pattern.${ins.pattern}`)}
-                </span>
-              </div>
-              {/* Entry timeline */}
-              {clusterPositions.length > 0 && (
-                <div className="mt-2 space-y-0.5">
-                  {clusterPositions.map((p) => {
-                    const isLargest = p.lots === ins.largestLegLots;
-                    return (
-                      <div key={p.tradeId} className="flex items-center gap-2 text-[10px]">
-                        <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", isLargest ? "bg-orange-500" : "bg-muted-foreground/40")} />
-                        <span className={cn("w-14 font-mono", isLargest ? "font-bold text-foreground" : "text-muted-foreground")}>
-                          {p.lots} {t("digest.insight.lots")}
-                        </span>
-                        {p.openPrice != null && (
-                          <span className="font-mono text-muted-foreground">@ {p.openPrice}</span>
-                        )}
-                        <span className="ms-auto text-muted-foreground/60">
-                          {new Date(p.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}
-                        </span>
-                        {isLargest && (
-                          <span className="text-[9px] text-orange-500">←</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
-                <span>{ins.legCount} {t("digest.insight.legs")} · {ins.totalLots} {t("digest.insight.lots")}</span>
-                <span>{t("digest.insight.largestLeg")}: {largestPct}%</span>
-                {lastVsAvgPct !== 0 && (
-                  <span className={lastVsAvgPct > 50 ? "text-orange-600 dark:text-orange-400" : ""}>
-                    {t("digest.insight.lastLeg")}: {lastVsAvgPct > 0 ? "+" : ""}{lastVsAvgPct}% {t("digest.insight.vsAvg")}
-                  </span>
-                )}
-              </div>
-              {/* Insight sentence for dangerous patterns */}
-              {ins.pattern === "increasing" && ins.lastLegVsAvg > 1.4 && (
-                <p className="mt-1 text-[10px] text-orange-600 dark:text-orange-400">
-                  {t("digest.scalingInsight.increasing")}
-                </p>
-              )}
-              {ins.pattern === "spike" && ins.largestLegShare > 0.5 && (
-                <p className="mt-1 text-[10px] text-orange-600 dark:text-orange-400">
-                  {t("digest.scalingInsight.spike", { pct: largestPct })}
-                </p>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── 2E. Profit Attribution Card ───
-
-function ProfitAttributionCard({
-  positions,
-  nowMs,
-  t,
-}: {
-  positions: OpenPositionV2[];
-  nowMs: number;
-  t: (key: string, params?: Record<string, string | number>) => string;
-}) {
-  const sorted = [...positions]
-    .filter((p) => p.floatingPnl !== null)
-    .sort((a, b) => Math.abs(b.floatingPnl ?? 0) - Math.abs(a.floatingPnl ?? 0));
-
-  if (sorted.length === 0) return null;
-
-  const totalPnl = sorted.reduce((s, p) => s + (p.floatingPnl ?? 0), 0);
-  const maxAbsPnl = Math.max(...sorted.map((p) => Math.abs(p.floatingPnl ?? 0)));
-
-  return (
-    <div>
-      <SectionHeader label={t("digest.profitAttribution.title")} />
-      <div className="mt-1.5 space-y-1">
-        {sorted.slice(0, 6).map((p) => {
-          const pnl = p.floatingPnl ?? 0;
-          const pct = totalPnl !== 0 ? (pnl / totalPnl) * 100 : 0;
-          const barWidth = maxAbsPnl > 0 ? (Math.abs(pnl) / maxAbsPnl) * 100 : 0;
-          const days = Math.max(1, (nowMs - new Date(p.createdAt).getTime()) / 86400000);
-          const perDay = pnl / days;
-
-          return (
-            <div key={p.tradeId} className="rounded-lg bg-muted/20 px-3 py-1.5">
-              <div className="flex items-center gap-2 text-[11px]">
-                <DirectionBadge direction={p.direction as "LONG" | "SHORT"} />
-                <span className="font-mono text-xs">{p.instrument}</span>
-                {p.lots != null && (
-                  <span className="text-muted-foreground">{p.lots}L</span>
-                )}
-                {p.openPrice != null && (
-                  <span className="text-muted-foreground">@{p.openPrice}</span>
-                )}
-                <span className={cn("ms-auto font-mono font-semibold", pnlColor(pnl))}>
-                  {fmtCurrency(pnl)}
-                </span>
-                <span className="w-10 text-end text-[10px] text-muted-foreground">
-                  {pct.toFixed(0)}%
-                </span>
-              </div>
-              <div className="mt-1 flex items-center gap-2">
-                <div className="h-1 flex-1 rounded-full bg-muted/50">
-                  <div
-                    className={cn("h-full rounded-full", pnl >= 0 ? "bg-green-500/50" : "bg-red-500/50")}
-                    style={{ width: `${barWidth}%` }}
-                  />
-                </div>
-                <span className="shrink-0 text-[9px] text-muted-foreground">
-                  {fmtCurrency(perDay)}/{t("digest.profitAttribution.day")}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── 2G. Concentration Card ───
-
-const CONCENTRATION_RISK_STYLES: Record<ConcentrationSummary["riskLevel"], { bg: string; text: string; border: string }> = {
-  low: { bg: "bg-green-500/5", text: "text-green-600 dark:text-green-400", border: "border-green-500/20" },
-  moderate: { bg: "bg-yellow-500/5", text: "text-yellow-600 dark:text-yellow-400", border: "border-yellow-500/20" },
-  high: { bg: "bg-orange-500/5", text: "text-orange-600 dark:text-orange-400", border: "border-orange-500/20" },
-  critical: { bg: "bg-red-500/5", text: "text-red-600 dark:text-red-400", border: "border-red-500/20" },
-};
-
-function ConcentrationCard({
-  summary,
-  t,
-}: {
-  summary: ConcentrationSummary;
-  t: (key: string, params?: Record<string, string | number>) => string;
-}) {
-  const style = CONCENTRATION_RISK_STYLES[summary.riskLevel];
-  const topPct = Math.round(summary.topSymbolShare * 100);
-  const longPct = Math.round(summary.longShare * 100);
-  const shortPct = Math.round(summary.shortShare * 100);
-
-  return (
-    <div className={cn("rounded-xl border p-3", style.bg, style.border)}>
-      <div className="flex items-center justify-between">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("digest.insight.concentrationRisk")}
-        </p>
-        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", style.text, style.bg)}>
-          {t(`digest.insight.risk.${summary.riskLevel}`)}
-        </span>
-      </div>
-
-      {/* Symbol bar */}
-      {summary.topSymbol && (
-        <div className="mt-2">
-          <div className="flex items-center justify-between text-[10px]">
-            <span className="text-muted-foreground">{summary.topSymbol}</span>
-            <span className={cn("font-mono font-semibold", style.text)}>{topPct}%</span>
-          </div>
-          <div className="mt-0.5 h-1.5 rounded-full bg-muted/30">
-            <div className={cn("h-full rounded-full", style.text.replace("text-", "bg-").replace(" dark:text-", " dark:bg-").split(" ")[0] + "/40")} style={{ width: `${topPct}%` }} />
-          </div>
-        </div>
-      )}
-
-      {/* Direction bar */}
-      <div className="mt-2">
-        <div className="flex items-center justify-between text-[10px]">
-          <span className="text-muted-foreground">{t("digest.insight.directionBalance")}</span>
-          {summary.singleDirectionExposure ? (
-            <span className={style.text}>100% {longPct === 100 ? "LONG" : "SHORT"}</span>
-          ) : (
-            <span className="font-mono">
-              <span className="text-green-600 dark:text-green-400">{longPct}%L</span>
-              {" / "}
-              <span className="text-red-600 dark:text-red-400">{shortPct}%S</span>
-            </span>
-          )}
-        </div>
-        <div className="mt-0.5 flex h-1.5 overflow-hidden rounded-full bg-muted/30">
-          <div className="h-full bg-green-500/50" style={{ width: `${longPct}%` }} />
-          <div className="h-full bg-red-500/50" style={{ width: `${shortPct}%` }} />
-        </div>
-      </div>
-
-      {/* Warning */}
-      {(summary.singleSymbolExposure || summary.singleDirectionExposure) && summary.riskLevel !== "low" && (
-        <p className={cn("mt-2 text-[10px] leading-relaxed", style.text)}>
-          {summary.singleSymbolExposure && summary.singleDirectionExposure
-            ? t("digest.insight.concentrationWarnBoth", { symbol: summary.topSymbol ?? "?" })
-            : summary.singleSymbolExposure
-              ? t("digest.insight.concentrationWarnSymbol", { symbol: summary.topSymbol ?? "?" })
-              : t("digest.insight.concentrationWarnDirection")}
-        </p>
-      )}
-    </div>
-  );
-}
 
 // ─── Delta Strip ───
 
@@ -1374,75 +1279,6 @@ function DeltaStrip({
   );
 }
 
-// ─── Hints Block ───
-
-function HintsBlock({
-  hints,
-  t,
-}: {
-  hints: PredictiveHint[];
-  t: (key: string) => string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      {hints.slice(0, 3).map((h) => (
-        <div
-          key={h.metric}
-          className={cn(
-            "flex items-center gap-2 rounded-lg px-3 py-2 text-xs",
-            h.severity === "warning"
-              ? "bg-orange-500/5 text-orange-600 dark:text-orange-400"
-              : "bg-blue-500/5 text-blue-600 dark:text-blue-400"
-          )}
-        >
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          <span>{t(h.hintKey)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ════════════════════════════════════════════
-// ZONE 3 COMPONENTS
-// ════════════════════════════════════════════
-
-// ─── Period Results Card ───
-
-function PeriodResultsCard({
-  cockpit,
-  summary,
-  t,
-}: {
-  cockpit: DigestV2Response["cockpit"];
-  summary: DigestV2Response["summary"];
-  t: (key: string, params?: Record<string, string | number>) => string;
-}) {
-  return (
-    <div>
-      <SectionHeader
-        icon={<TrendingDown className="h-3.5 w-3.5" />}
-        label={t("digest.cockpit.periodResults")}
-      />
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-muted/20 px-3 py-2 text-xs">
-        <span>{cockpit.closedCount} {t("digest.cockpit.closed")}</span>
-        {cockpit.realizedR !== null && (
-          <span className={cn("font-mono font-semibold", pnlColor(cockpit.realizedR))}>
-            {fmtR(cockpit.realizedR)}
-          </span>
-        )}
-        {cockpit.officialWinRate !== null && (
-          <span>WR: <span className="font-mono text-green-600 dark:text-green-400">{cockpit.officialWinRate}%</span></span>
-        )}
-        <span className="flex gap-1.5">
-          <span className="text-green-600 dark:text-green-400">TP:{summary.tpHit}</span>
-          <span className="text-red-600 dark:text-red-400">SL:{summary.slHit}</span>
-          {summary.be > 0 && <span className="text-yellow-600 dark:text-yellow-400">BE:{summary.be}</span>}
-        </span>
-      </div>
-    </div>
-  );
-}
 
 // ─── System Health Section (collapsible, at bottom) ───
 

@@ -1029,8 +1029,11 @@ export interface SmartActionInput {
     direction: string;
     openPrice: number | null;
     createdAt: string;
+    currentSL: number | null;
+    currentTP: number | null;
   }>;
   totalFloatingPnl: number | null;
+  accountEquity: number | null;
   entryInsights: EntryClusterInsight[];
   scalingInsights: ScalingInsight[];
   concentrationSummary: ConcentrationSummary | null;
@@ -1046,17 +1049,16 @@ export interface SmartAction {
 
 export function computeSmartActions(input: SmartActionInput): SmartAction[] {
   const actions: SmartAction[] = [];
-  const { positions, entryInsights, scalingInsights, concentrationSummary } = input;
+  const { positions, accountEquity, entryInsights, scalingInsights, concentrationSummary } = input;
 
   if (positions.length === 0) return actions;
 
-  // Priority 1: Unprotected profit — highest urgency
+  // P1: Unprotected profit — highest urgency
   const unprotectedProfitable = positions.filter(
     (p) => p.floatingPnl !== null && p.floatingPnl > 0 && p.protectionStatus === "UNPROTECTED"
   );
   if (unprotectedProfitable.length > 0) {
     const totalUnprotectedPnl = unprotectedProfitable.reduce((s, p) => s + (p.floatingPnl ?? 0), 0);
-    const totalLots = unprotectedProfitable.reduce((s, p) => s + (p.lots ?? 0), 0);
     actions.push({
       priority: 1,
       icon: "risk",
@@ -1065,15 +1067,14 @@ export function computeSmartActions(input: SmartActionInput): SmartAction[] {
       detailParams: {
         pnl: Math.round(totalUnprotectedPnl),
         count: unprotectedProfitable.length,
-        lots: Math.round(totalLots),
+        lots: Math.round(unprotectedProfitable.reduce((s, p) => s + (p.lots ?? 0), 0)),
       },
     });
   }
 
-  // Priority 2: Position size anomaly (last leg >40% larger than avg)
+  // P2: Position size anomaly (last leg >40% larger than avg)
   for (const s of scalingInsights) {
     if (s.lastLegVsAvg > 1.4) {
-      const deviationPct = Math.round((s.lastLegVsAvg - 1) * 100);
       actions.push({
         priority: 2,
         icon: "risk",
@@ -1081,19 +1082,56 @@ export function computeSmartActions(input: SmartActionInput): SmartAction[] {
         detailKey: "digest.smart.reviewSizingDetail",
         detailParams: {
           instrument: s.instrument,
-          deviationPct,
+          deviationPct: Math.round((s.lastLegVsAvg - 1) * 100),
           avgLots: s.avgLots,
         },
       });
-      break; // only show worst case
+      break;
     }
   }
 
-  // Priority 3: Single-asset concentration (>80% in one symbol)
+  // P3: Wide entry spread (>10% of current price)
+  for (const e of entryInsights) {
+    if (e.qualityLabel === "wide" && e.entrySpreadPct !== null && e.entrySpreadPct > 10) {
+      actions.push({
+        priority: 3,
+        icon: "analysis",
+        titleKey: "digest.smart.wideSpread",
+        detailKey: "digest.smart.wideSpreadDetail",
+        detailParams: { instrument: e.instrument, spreadPct: e.entrySpreadPct, tradeCount: e.tradeCount },
+      });
+      break;
+    }
+  }
+
+  // P4: If all SLs hit — total loss across all SL-protected positions
+  const withSL = positions.filter((p) => p.currentSL !== null && p.currentSL > 0 && p.openPrice !== null && p.lots !== null);
+  if (withSL.length > 0) {
+    const totalSLLoss = withSL.reduce((sum, p) => {
+      const dir = p.direction === "LONG" ? 1 : -1;
+      const pv = getSymbolPointValue(p.instrument);
+      return sum + dir * (p.currentSL! - p.openPrice!) * (p.lots ?? 0) * pv;
+    }, 0);
+    if (totalSLLoss < 0) {
+      const pct = accountEquity && accountEquity > 0 ? Math.round((totalSLLoss / accountEquity) * 1000) / 10 : null;
+      actions.push({
+        priority: 4,
+        icon: "analysis",
+        titleKey: "digest.smart.allSLHit",
+        detailKey: "digest.smart.allSLHitDetail",
+        detailParams: {
+          loss: Math.round(Math.abs(totalSLLoss)),
+          pct: pct !== null ? pct : 0,
+          count: withSL.length,
+        },
+      });
+    }
+  }
+
+  // P5: Single-asset concentration (>80% in one symbol)
   if (concentrationSummary && concentrationSummary.topSymbolShare > 0.8) {
-    const pct = Math.round(concentrationSummary.topSymbolShare * 100);
     actions.push({
-      priority: 3,
+      priority: 5,
       icon: "risk",
       titleKey: "digest.smart.concentration",
       detailKey: concentrationSummary.singleDirectionExposure
@@ -1101,37 +1139,19 @@ export function computeSmartActions(input: SmartActionInput): SmartAction[] {
         : "digest.smart.concentrationSymbol",
       detailParams: {
         symbol: concentrationSummary.topSymbol ?? "?",
-        pct,
+        pct: Math.round(concentrationSummary.topSymbolShare * 100),
       },
     });
   }
 
-  // Priority 4: Wide entry spread (>10% of current price)
-  for (const e of entryInsights) {
-    if (e.qualityLabel === "wide" && e.entrySpreadPct !== null && e.entrySpreadPct > 10) {
-      actions.push({
-        priority: 4,
-        icon: "analysis",
-        titleKey: "digest.smart.wideSpread",
-        detailKey: "digest.smart.wideSpreadDetail",
-        detailParams: {
-          instrument: e.instrument,
-          spreadPct: e.entrySpreadPct,
-          tradeCount: e.tradeCount,
-        },
-      });
-      break;
-    }
-  }
-
-  // Priority 5: No SL on non-profitable positions (if not already covered by P1)
+  // P6: No SL on non-profitable positions (if not already covered by P1)
   if (!actions.some((a) => a.priority === 1)) {
     const noSL = positions.filter(
       (p) => p.protectionStatus === "UNPROTECTED" || p.protectionStatus === "UNKNOWN_RISK"
     );
     if (noSL.length > 0) {
       actions.push({
-        priority: 5,
+        priority: 6,
         icon: "risk",
         titleKey: "digest.smart.defineRisk",
         detailKey: "digest.smart.defineRiskDetail",
@@ -1140,24 +1160,208 @@ export function computeSmartActions(input: SmartActionInput): SmartAction[] {
     }
   }
 
-  // Priority 6: Extended hold without SL (>48h)
-  const now = Date.now();
-  const extendedNoSL = positions.filter((p) => {
-    const age = now - new Date(p.createdAt).getTime();
-    return (
-      age > 48 * 3600 * 1000 &&
-      (p.protectionStatus === "UNPROTECTED" || p.protectionStatus === "UNKNOWN_RISK")
-    );
-  });
-  if (extendedNoSL.length > 0 && !actions.some((a) => a.priority === 1 || a.priority === 5)) {
-    actions.push({
-      priority: 6,
-      icon: "risk",
-      titleKey: "digest.smart.extendedNoSL",
-      detailKey: "digest.smart.extendedNoSLDetail",
-      detailParams: { count: extendedNoSL.length },
+  return actions.sort((a, b) => a.priority - b.priority).slice(0, 3);
+}
+
+
+// ═══════════════════════════════════════════
+// ENGINE 14: PRICE LADDER (Phase 7)
+// ═══════════════════════════════════════════
+
+/** Lookup table: dollar P/L per 1.0 price move per 1 standard lot */
+const POINT_VALUES: Record<string, number> = {
+  // Oil (1 lot = 100 barrels for most brokers)
+  UKBRENT: 100, UKOIL: 100, BRENT: 100,
+  USOIL: 100, USCRUDE: 100, XTIUSD: 100, WTI: 100, CL: 100,
+  // Gold/Silver
+  XAUUSD: 100, GOLD: 100,
+  XAGUSD: 5000,
+  // Major FX (1 lot = 100k units, pip = 0.0001 for most)
+  EURUSD: 100000, GBPUSD: 100000, AUDUSD: 100000, NZDUSD: 100000,
+  USDCHF: 100000, USDCAD: 100000, USDJPY: 100000,
+  GBPJPY: 100000, EURJPY: 100000, EURGBP: 100000,
+  // Indices (contract sizes vary)
+  US30: 1, DJ30: 1, USTEC: 1, NAS100: 1, US500: 1, SPX500: 1,
+  DE40: 1, UK100: 1, JP225: 1,
+  // Crypto (1 lot = 1 coin for most)
+  BTCUSD: 1, BTCUSDT: 1, ETHUSD: 1, ETHUSDT: 1,
+};
+
+export function getSymbolPointValue(symbol: string): number {
+  const key = symbol.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  if (POINT_VALUES[key]) return POINT_VALUES[key];
+  // Fuzzy match: check if symbol contains any known key
+  for (const [k, v] of Object.entries(POINT_VALUES)) {
+    if (key.includes(k) || k.includes(key)) return v;
+  }
+  return 1; // fallback: 1:1 price-to-PL ratio
+}
+
+export type PriceLadderZone = "profit" | "warning" | "danger" | "catastrophic";
+
+export interface PriceLadderLevel {
+  price: number;
+  label: string;
+  sublabel?: string;
+  zone: PriceLadderZone;
+  isCurrent?: boolean;
+}
+
+export interface PriceLadderData {
+  symbol: string;
+  direction: "LONG" | "SHORT";
+  levels: PriceLadderLevel[];
+  currentPrice: number;
+  avgEntry: number;
+  totalLots: number;
+  totalPnl: number;
+}
+
+export interface PriceLadderInput {
+  positions: Array<{
+    instrument: string;
+    direction: string;
+    openPrice: number | null;
+    lots: number | null;
+    floatingPnl: number | null;
+    currentPrice: number | null;
+    currentSL: number | null;
+  }>;
+  accountEquity: number | null;
+}
+
+export function computePriceLadder(input: PriceLadderInput): PriceLadderData[] {
+  const { positions, accountEquity } = input;
+
+  // Group by symbol+direction
+  const groups = new Map<string, typeof positions>();
+  for (const p of positions) {
+    if (!p.openPrice || !p.lots || !p.currentPrice) continue;
+    const key = `${p.instrument}|${p.direction}`;
+    const arr = groups.get(key) ?? [];
+    arr.push(p);
+    groups.set(key, arr);
+  }
+
+  const ladders: PriceLadderData[] = [];
+
+  for (const [key, group] of groups) {
+    const [symbol, dir] = key.split("|");
+    const isLong = dir === "LONG";
+    const pv = getSymbolPointValue(symbol);
+    const totalLots = group.reduce((s, p) => s + (p.lots ?? 0), 0);
+    if (totalLots <= 0) continue;
+
+    const avgEntry = group.reduce((s, p) => s + (p.lots ?? 0) * (p.openPrice ?? 0), 0) / totalLots;
+    const curPrice = group[0].currentPrice!;
+    const totalPnl = group.reduce((s, p) => s + (p.floatingPnl ?? 0), 0);
+
+    const levels: PriceLadderLevel[] = [];
+
+    // Current Price
+    levels.push({
+      price: curPrice,
+      label: "Current",
+      sublabel: `P/L: ${totalPnl >= 0 ? "+" : ""}$${Math.round(totalPnl).toLocaleString()}`,
+      zone: totalPnl >= 0 ? "profit" : "danger",
+      isCurrent: true,
+    });
+
+    // Half Profit
+    if (totalPnl > 0 && pv > 0) {
+      const halfDelta = (totalPnl / 2) / (totalLots * pv);
+      const halfPrice = isLong ? curPrice - halfDelta : curPrice + halfDelta;
+      if ((isLong && halfPrice > avgEntry) || (!isLong && halfPrice < avgEntry)) {
+        levels.push({
+          price: halfPrice,
+          label: "Half Profit",
+          sublabel: `+$${Math.round(totalPnl / 2).toLocaleString()}`,
+          zone: "profit",
+        });
+      }
+    }
+
+    // Breakeven (Avg Entry)
+    levels.push({
+      price: avgEntry,
+      label: "Breakeven",
+      sublabel: "$0 P/L",
+      zone: "warning",
+    });
+
+    // Worst entry
+    const entries = group.map((p) => p.openPrice ?? 0).filter((e) => e > 0);
+    const worstEntry = isLong ? Math.max(...entries) : Math.min(...entries);
+    if (Math.abs(worstEntry - avgEntry) > avgEntry * 0.005) {
+      levels.push({
+        price: worstEntry,
+        label: "Worst Entry",
+        zone: "warning",
+      });
+    }
+
+    // Account loss levels (-10%, -20%, -50%)
+    if (accountEquity && accountEquity > 0 && pv > 0) {
+      for (const pct of [0.10, 0.20, 0.50]) {
+        const lossDelta = (accountEquity * pct) / (totalLots * pv);
+        const lossPrice = isLong ? avgEntry - lossDelta : avgEntry + lossDelta;
+        if (lossPrice > 0) {
+          levels.push({
+            price: lossPrice,
+            label: `-${Math.round(pct * 100)}% Account`,
+            sublabel: `-$${Math.round(accountEquity * pct).toLocaleString()}`,
+            zone: pct >= 0.50 ? "catastrophic" : "danger",
+          });
+        }
+      }
+    }
+
+    // SL levels
+    const withSL = group.filter((p) => p.currentSL !== null && p.currentSL > 0);
+    if (withSL.length > 0) {
+      const slPrices = withSL.map((p) => p.currentSL!);
+      const firstSL = isLong ? Math.max(...slPrices) : Math.min(...slPrices);
+      const lastSL = isLong ? Math.min(...slPrices) : Math.max(...slPrices);
+
+      // Total SL loss
+      const totalSLLoss = withSL.reduce((sum, p) => {
+        const d = isLong ? 1 : -1;
+        return sum + d * (p.currentSL! - (p.openPrice ?? 0)) * (p.lots ?? 0) * pv;
+      }, 0);
+
+      levels.push({
+        price: firstSL,
+        label: withSL.length > 1 ? "First SL" : "Stop Loss",
+        sublabel: withSL.length > 1 ? `(of ${withSL.length})` : undefined,
+        zone: "warning",
+      });
+
+      if (withSL.length > 1 && Math.abs(firstSL - lastSL) > avgEntry * 0.002) {
+        levels.push({
+          price: lastSL,
+          label: "All SLs Hit",
+          sublabel: `Loss: -$${Math.round(Math.abs(totalSLLoss)).toLocaleString()}`,
+          zone: "danger",
+        });
+      }
+    }
+
+    // Sort: highest to lowest for LONG, lowest to highest for SHORT
+    levels.sort((a, b) => b.price - a.price);
+
+    ladders.push({
+      symbol,
+      direction: isLong ? "LONG" : "SHORT",
+      levels,
+      currentPrice: curPrice,
+      avgEntry,
+      totalLots,
+      totalPnl,
     });
   }
 
-  return actions.sort((a, b) => a.priority - b.priority).slice(0, 3);
+  // Sort ladders by total exposure descending
+  ladders.sort((a, b) => Math.abs(b.totalPnl) - Math.abs(a.totalPnl));
+
+  return ladders.slice(0, 2); // top 2 symbols by exposure
 }

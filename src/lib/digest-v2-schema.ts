@@ -266,6 +266,10 @@ export const openPositionV2Schema = z.object({
   openPrice: z.number().nullable().optional(),
   lots: z.number().nullable().optional(),
   accountLabel: z.string().optional(),
+  // Phase 7: Price Ladder fields
+  currentPrice: z.number().nullable().optional(),
+  currentSL: z.number().nullable().optional(),
+  currentTP: z.number().nullable().optional(),
 });
 
 // ─── Closed Trade ───

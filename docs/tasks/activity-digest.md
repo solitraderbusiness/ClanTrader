@@ -1,6 +1,6 @@
 # Task: Activity Digest — Complete Redesign for Live Trading Intelligence
 
-> Status: TESTING
+> Status: IN_PROGRESS
 > Started: 2026-03-11
 > Last updated: 2026-03-12
 

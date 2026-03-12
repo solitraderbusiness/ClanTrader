@@ -1294,6 +1294,16 @@
     "smart.defineRiskDetail": "{count} trades have no stop loss",
     "smart.extendedNoSL": "Extended hold without SL",
     "smart.extendedNoSLDetail": "{count} trades open 48h+ with no stop loss",
+    "smart.allSLHit": "If all stop losses trigger",
+    "smart.allSLHitDetail": "Total loss: ${loss} across {count} trades with SL",
+
+    "ladder.title": "Price Ladder",
+
+    "profile.title": "Position Profile",
+    "profile.largestLeg": "Largest leg",
+    "profile.profitByTrade": "Profit by trade",
+    "profile.best": "Best",
+    "profile.entrySpread": "Entry spread",
 
     "moneyLine.openPnl": "Open P/L",
     "moneyLine.positions": "positions",

@@ -1294,6 +1294,16 @@
     "smart.defineRiskDetail": "{count} معامله بدون حد ضرر",
     "smart.extendedNoSL": "معامله طولانی بدون حد ضرر",
     "smart.extendedNoSLDetail": "{count} معامله بیش از ۴۸ ساعت بدون حد ضرر",
+    "smart.allSLHit": "اگر همه حد ضررها فعال شوند",
+    "smart.allSLHitDetail": "زیان کل: ${loss} در {count} معامله با حد ضرر",
+
+    "ladder.title": "نردبان قیمت",
+
+    "profile.title": "پروفایل پوزیشن",
+    "profile.largestLeg": "بزرگ‌ترین پا",
+    "profile.profitByTrade": "سود به تفکیک معامله",
+    "profile.best": "بهترین",
+    "profile.entrySpread": "پراکندگی ورود",
 
     "moneyLine.openPnl": "سود/زیان باز",
     "moneyLine.positions": "پوزیشن",

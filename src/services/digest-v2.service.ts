@@ -231,6 +231,9 @@ export async function getClanDigestV2(
     floatingPnl: number | null;
     trackingStatus: string;
     riskToSLR: number | null;
+    currentPrice: number | null;
+    currentSL: number | null;
+    currentTP: number | null;
   }> = [];
 
   for (const t of openTrades) {
@@ -317,6 +320,9 @@ export async function getClanDigestV2(
       floatingPnl,
       trackingStatus,
       riskToSLR,
+      currentPrice,
+      currentSL,
+      currentTP: mt?.takeProfit ?? null,
     });
   }
 
@@ -591,6 +597,9 @@ export async function getClanDigestV2(
         openPrice: mtMatch?.openPrice ?? null,
         lots: mtMatch?.lots ?? null,
         accountLabel,
+        currentPrice: ot.currentPrice ?? null,
+        currentSL: ot.currentSL ?? null,
+        currentTP: ot.currentTP ?? null,
       });
     }
   }
