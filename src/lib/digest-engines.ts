@@ -1438,28 +1438,86 @@ export interface EquityCurveStats {
   maxDrawdownPct: number;
 }
 
-export function computeEquityCurveStats(data: EquityDataPoint[]): EquityCurveStats | null {
+export interface NormalizedEquityPoint {
+  timestamp: string;
+  balanceChange: number;
+  balanceChangePct: number;
+  equityChange: number;
+  equityChangePct: number;
+  rawBalance: number;
+  rawEquity: number;
+  floatingPL: number;
+}
+
+/**
+ * Normalize equity data relative to the starting balance of the period.
+ * Both equity and balance are plotted as deviation from the first data point's balance.
+ */
+export function normalizeEquityData(data: EquityDataPoint[]): NormalizedEquityPoint[] {
+  if (data.length === 0) return [];
+
+  const baseBalance = data[0].balance;
+  if (baseBalance <= 0) return [];
+
+  return data.map((d) => ({
+    timestamp: d.timestamp,
+    balanceChange: d.balance - baseBalance,
+    balanceChangePct: ((d.balance - baseBalance) / baseBalance) * 100,
+    equityChange: d.equity - baseBalance,
+    equityChangePct: ((d.equity - baseBalance) / baseBalance) * 100,
+    rawBalance: d.balance,
+    rawEquity: d.equity,
+    floatingPL: d.equity - d.balance,
+  }));
+}
+
+export interface NormalizedEquityStats {
+  currentEquityChange: number;
+  currentEquityChangePct: number;
+  currentBalanceChange: number;
+  currentBalanceChangePct: number;
+  peakEquityChange: number;
+  peakEquityChangePct: number;
+  peakTime: string;
+  lowEquityChange: number;
+  lowEquityChangePct: number;
+  lowTime: string;
+  floatingPL: number;
+  floatingPct: number;
+  baselineBalance: number;
+}
+
+export function computeEquityCurveStats(data: EquityDataPoint[]): NormalizedEquityStats | null {
   if (data.length === 0) return null;
 
+  const baseBalance = data[0].balance;
+  if (baseBalance <= 0) return null;
+
   const current = data[data.length - 1];
-  const peak = data.reduce((max, d) => (d.equity > max.equity ? d : max), data[0]);
-  const low = data.reduce((min, d) => (d.equity < min.equity ? d : min), data[0]);
+  const currentEqChange = current.equity - baseBalance;
+
+  let peakIdx = 0;
+  let lowIdx = 0;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i].equity - baseBalance > data[peakIdx].equity - baseBalance) peakIdx = i;
+    if (data[i].equity - baseBalance < data[lowIdx].equity - baseBalance) lowIdx = i;
+  }
+
   const floating = current.equity - current.balance;
-  const peakTime = new Date(peak.timestamp).getTime();
-  const lowTime = new Date(low.timestamp).getTime();
-  const maxDrawdownPct = lowTime > peakTime && peak.equity > 0
-    ? ((low.equity - peak.equity) / peak.equity) * 100
-    : 0;
 
   return {
-    currentEquity: current.equity,
-    currentBalance: current.balance,
-    peakEquity: peak.equity,
-    peakTime: peak.timestamp,
-    lowEquity: low.equity,
-    lowTime: low.timestamp,
+    currentEquityChange: currentEqChange,
+    currentEquityChangePct: (currentEqChange / baseBalance) * 100,
+    currentBalanceChange: current.balance - baseBalance,
+    currentBalanceChangePct: ((current.balance - baseBalance) / baseBalance) * 100,
+    peakEquityChange: data[peakIdx].equity - baseBalance,
+    peakEquityChangePct: ((data[peakIdx].equity - baseBalance) / baseBalance) * 100,
+    peakTime: data[peakIdx].timestamp,
+    lowEquityChange: data[lowIdx].equity - baseBalance,
+    lowEquityChangePct: ((data[lowIdx].equity - baseBalance) / baseBalance) * 100,
+    lowTime: data[lowIdx].timestamp,
     floatingPL: floating,
     floatingPct: current.balance > 0 ? (floating / current.balance) * 100 : 0,
-    maxDrawdownPct,
+    baselineBalance: baseBalance,
   };
 }

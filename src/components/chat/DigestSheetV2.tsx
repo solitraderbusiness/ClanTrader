@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Sheet,
   SheetContent,
@@ -53,6 +53,7 @@ import {
   computeSmartActions,
   computePriceLadder,
   computeEquityCurveStats,
+  normalizeEquityData,
   type SafetyBand,
   type ConfidenceBand,
   type DigestDelta,
@@ -65,6 +66,7 @@ import {
   type PriceLadderData,
   type PriceLadderLevel,
   type EquityDataPoint,
+  type NormalizedEquityStats,
 } from "@/lib/digest-engines";
 
 interface DigestSheetV2Props {
@@ -879,11 +881,11 @@ function PriceLadderCard({
 }) {
   const levels = ladder.levels;
 
-  const BAR_HEIGHT = 300;
-  const BAR_WIDTH = 32;
+  const BAR_EQ_H = 300;
+  const BAR_EQ_W = 32;
   const LEFT_MARGIN = 60;
   const RIGHT_MARGIN = 180;
-  const SVG_WIDTH = LEFT_MARGIN + BAR_WIDTH + RIGHT_MARGIN + 10;
+  const SVG_EQ_W = LEFT_MARGIN + BAR_EQ_W + RIGHT_MARGIN + 10;
   const TOP_PAD = 20;
   const MIN_LABEL_GAP = 22;
 
@@ -894,7 +896,7 @@ function PriceLadderCard({
     const r = levels[0].price - mn;
     if (r <= 0) return { resolvedY: [], minPrice: mn, range: 0, bePct: 50 };
 
-    const rawY = levels.map((l) => TOP_PAD + (1 - (l.price - mn) / r) * BAR_HEIGHT);
+    const rawY = levels.map((l) => TOP_PAD + (1 - (l.price - mn) / r) * BAR_EQ_H);
     const resolved = [...rawY];
     for (let i = 1; i < resolved.length; i++) {
       if (resolved[i] - resolved[i - 1] < MIN_LABEL_GAP) {
@@ -909,10 +911,10 @@ function PriceLadderCard({
   if (levels.length < 2 || range <= 0) return null;
 
   function priceToY(price: number): number {
-    return TOP_PAD + (1 - (price - minPrice) / range) * BAR_HEIGHT;
+    return TOP_PAD + (1 - (price - minPrice) / range) * BAR_EQ_H;
   }
 
-  const SVG_HEIGHT = Math.max(BAR_HEIGHT + 40, (resolvedY[resolvedY.length - 1] ?? BAR_HEIGHT) + 30);
+  const SVG_EQ_H = Math.max(BAR_EQ_H + 40, (resolvedY[resolvedY.length - 1] ?? BAR_EQ_H) + 30);
 
   return (
     <div className="rounded-xl border border-border/30 bg-muted/10 p-3">
@@ -921,7 +923,7 @@ function PriceLadderCard({
       </p>
       <svg
         width="100%"
-        viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
+        viewBox={`0 0 ${SVG_EQ_W} ${SVG_EQ_H}`}
         className="overflow-visible"
         aria-label={`Price ladder for ${ladder.symbol}`}
       >
@@ -937,8 +939,8 @@ function PriceLadderCard({
         <rect
           x={LEFT_MARGIN}
           y={TOP_PAD}
-          width={BAR_WIDTH}
-          height={BAR_HEIGHT}
+          width={BAR_EQ_W}
+          height={BAR_EQ_H}
           rx={6}
           fill={`url(#grad-${ladder.symbol})`}
         />
@@ -956,7 +958,7 @@ function PriceLadderCard({
               <line
                 x1={LEFT_MARGIN}
                 y1={y}
-                x2={LEFT_MARGIN + BAR_WIDTH}
+                x2={LEFT_MARGIN + BAR_EQ_W}
                 y2={y}
                 stroke="currentColor"
                 className={isCurrent ? "text-white" : "text-white/30"}
@@ -966,9 +968,9 @@ function PriceLadderCard({
               {/* Connector line from tick to offset label if needed */}
               {Math.abs(y - labelY) > 2 && (
                 <line
-                  x1={LEFT_MARGIN + BAR_WIDTH + 2}
+                  x1={LEFT_MARGIN + BAR_EQ_W + 2}
                   y1={y}
-                  x2={LEFT_MARGIN + BAR_WIDTH + 6}
+                  x2={LEFT_MARGIN + BAR_EQ_W + 6}
                   y2={labelY}
                   stroke="currentColor"
                   className="text-white/10"
@@ -979,7 +981,7 @@ function PriceLadderCard({
               {/* Current price marker */}
               {isCurrent && (
                 <circle
-                  cx={LEFT_MARGIN + BAR_WIDTH / 2}
+                  cx={LEFT_MARGIN + BAR_EQ_W / 2}
                   cy={y}
                   r={5}
                   fill="white"
@@ -999,7 +1001,7 @@ function PriceLadderCard({
 
               {/* Level label + sublabel (right) */}
               <text
-                x={LEFT_MARGIN + BAR_WIDTH + 8}
+                x={LEFT_MARGIN + BAR_EQ_W + 8}
                 y={labelY + 4}
                 className={cn("fill-current text-[11px] font-medium", color)}
               >
@@ -1007,7 +1009,7 @@ function PriceLadderCard({
               </text>
               {level.sublabel && (
                 <text
-                  x={LEFT_MARGIN + BAR_WIDTH + 8}
+                  x={LEFT_MARGIN + BAR_EQ_W + 8}
                   y={labelY + 16}
                   className="fill-current text-[9px] text-muted-foreground"
                 >
@@ -1225,7 +1227,25 @@ function PositionProfileCard({
   );
 }
 
-// ─── Section 3: Equity & Balance Curve ───
+// ─── Section 3: Equity & Balance Curve (Normalized + Interactive) ───
+
+function fmtCompact(v: number): string {
+  if (Math.abs(v) >= 1000000) return `$${(v / 1000000).toFixed(1)}M`;
+  if (Math.abs(v) >= 1000) return `$${(v / 1000).toFixed(1)}K`;
+  return `$${v.toFixed(0)}`;
+}
+
+function fmtChange(v: number): string {
+  const sign = v >= 0 ? "+" : "";
+  if (Math.abs(v) >= 1000) return `${sign}$${(v / 1000).toFixed(1)}K`;
+  return `${sign}$${v.toFixed(0)}`;
+}
+
+// Equity chart layout constants (module-level for hook dependency safety)
+const EQ_W = 340;
+const EQ_H = 140;
+const EQ_PAD_L = 55;
+const EQ_CHART_W = EQ_W - EQ_PAD_L - 4;
 
 function EquityCurveCard({
   data,
@@ -1233,10 +1253,29 @@ function EquityCurveCard({
   t,
 }: {
   data: EquityDataPoint[];
-  stats: ReturnType<typeof computeEquityCurveStats>;
+  stats: NormalizedEquityStats | null;
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
-  if (data.length < 2) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const svgNodeRef = useRef<SVGSVGElement | null>(null);
+  const normalized = useMemo(() => normalizeEquityData(data), [data]);
+
+  const findNearest = useCallback((clientX: number) => {
+    const svg = svgNodeRef.current;
+    if (!svg || normalized.length < 2) return null;
+    const rect = svg.getBoundingClientRect();
+    const svgX = ((clientX - rect.left) / rect.width) * EQ_W;
+    const chartX = svgX - EQ_PAD_L;
+    if (chartX < 0 || chartX > EQ_CHART_W) return null;
+    const ratio = chartX / EQ_CHART_W;
+    return Math.min(Math.max(0, Math.round(ratio * (normalized.length - 1))), normalized.length - 1);
+  }, [normalized.length]);
+
+  const handleMove = useCallback((clientX: number) => {
+    setHoverIdx(findNearest(clientX));
+  }, [findNearest]);
+
+  if (normalized.length < 2) {
     return (
       <div className="rounded-xl border border-border/30 bg-muted/10 p-3">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1251,43 +1290,57 @@ function EquityCurveCard({
     );
   }
 
-  const WIDTH = 340;
-  const HEIGHT = 130;
-  const PAD = { top: 8, bottom: 20, left: 0, right: 0 };
-  const chartW = WIDTH - PAD.left - PAD.right;
-  const chartH = HEIGHT - PAD.top - PAD.bottom;
+  const PAD = { top: 8, bottom: 20, left: EQ_PAD_L, right: 4 };
+  const chartW = EQ_CHART_W;
+  const chartH = EQ_H - PAD.top - PAD.bottom;
 
-  const allVals = data.flatMap((d) => [d.balance, d.equity]);
-  const minVal = Math.min(...allVals) * 0.999;
-  const maxVal = Math.max(...allVals) * 1.001;
-  const valRange = maxVal - minVal || 1;
-  const timeMin = new Date(data[0].timestamp).getTime();
-  const timeMax = new Date(data[data.length - 1].timestamp).getTime();
+  // Y-axis: normalized change values with padding + always include zero
+  const allChanges = normalized.flatMap((d) => [d.equityChange, d.balanceChange]);
+  const rawMin = Math.min(...allChanges);
+  const rawMax = Math.max(...allChanges);
+  const dataRange = rawMax - rawMin || 1;
+  const yMin = Math.min(rawMin - dataRange * 0.1, -dataRange * 0.05);
+  const yMax = Math.max(rawMax + dataRange * 0.1, dataRange * 0.05);
+  const yRange = yMax - yMin;
+
+  const timeMin = new Date(normalized[0].timestamp).getTime();
+  const timeMax = new Date(normalized[normalized.length - 1].timestamp).getTime();
   const timeRange = timeMax - timeMin || 1;
 
-  const scaleX = (ts: string) => PAD.left + ((new Date(ts).getTime() - timeMin) / timeRange) * chartW;
-  const scaleY = (v: number) => PAD.top + (1 - (v - minVal) / valRange) * chartH;
+  const sx = (ts: string) => PAD.left + ((new Date(ts).getTime() - timeMin) / timeRange) * chartW;
+  const sy = (v: number) => PAD.top + (1 - (v - yMin) / yRange) * chartH;
+  const zeroY = sy(0);
 
-  const equityPath = data.map((d, i) => `${i === 0 ? "M" : "L"}${scaleX(d.timestamp).toFixed(1)},${scaleY(d.equity).toFixed(1)}`).join(" ");
-  const balancePath = data.map((d, i) => `${i === 0 ? "M" : "L"}${scaleX(d.timestamp).toFixed(1)},${scaleY(d.balance).toFixed(1)}`).join(" ");
-  const fillPath = equityPath + " " + data.slice().reverse().map((d) => `L${scaleX(d.timestamp).toFixed(1)},${scaleY(d.balance).toFixed(1)}`).join(" ") + " Z";
+  // Paths
+  const equityPath = normalized.map((d, i) => `${i === 0 ? "M" : "L"}${sx(d.timestamp).toFixed(1)},${sy(d.equityChange).toFixed(1)}`).join(" ");
+  const balancePath = normalized.map((d, i) => `${i === 0 ? "M" : "L"}${sx(d.timestamp).toFixed(1)},${sy(d.balanceChange).toFixed(1)}`).join(" ");
 
-  const isAbove = stats ? stats.currentEquity >= stats.currentBalance : true;
-  const fillColor = isAbove ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)";
+  // Fill between equity and zero line
+  const fillAbove = equityPath + ` L${sx(normalized[normalized.length - 1].timestamp).toFixed(1)},${zeroY.toFixed(1)} L${sx(normalized[0].timestamp).toFixed(1)},${zeroY.toFixed(1)} Z`;
+
+  const isAbove = stats ? stats.currentEquityChange >= 0 : true;
   const lineColor = isAbove ? "#22c55e" : "#ef4444";
+  const fillColor = isAbove ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)";
 
-  // Time labels (up to 5 evenly spaced)
-  const labelCount = Math.min(5, data.length);
-  const labelStep = Math.max(1, Math.floor(data.length / labelCount));
+  // Y-axis labels (3 reference lines: top, zero, bottom)
+  const yLabels = [
+    { val: rawMax > 0 ? rawMax : yMax * 0.8, y: sy(rawMax > 0 ? rawMax : yMax * 0.8) },
+    { val: 0, y: zeroY },
+    { val: rawMin < 0 ? rawMin : yMin * 0.8, y: sy(rawMin < 0 ? rawMin : yMin * 0.8) },
+  ];
+
+  // X-axis time labels
+  const labelCount = Math.min(5, normalized.length);
+  const labelStep = Math.max(1, Math.floor(normalized.length / labelCount));
   const timeLabels: Array<{ x: number; label: string }> = [];
-  for (let i = 0; i < data.length; i += labelStep) {
-    const d = data[i];
-    const date = new Date(d.timestamp);
+  for (let i = 0; i < normalized.length; i += labelStep) {
     timeLabels.push({
-      x: scaleX(d.timestamp),
-      label: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      x: sx(normalized[i].timestamp),
+      label: new Date(normalized[i].timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     });
   }
+
+  const hoverPoint = hoverIdx !== null ? normalized[hoverIdx] : null;
 
   return (
     <div className="rounded-xl border border-border/30 bg-muted/10 p-3">
@@ -1295,43 +1348,165 @@ function EquityCurveCard({
         {t("digest.equity.title")}
       </p>
 
-      {/* Equity / Balance values */}
+      {/* Header values — normalized change from period start */}
       {stats && (
         <div className="mb-2 flex items-baseline gap-4 text-xs">
           <span className="font-mono font-semibold" style={{ color: lineColor }}>
-            ${stats.currentEquity.toLocaleString("en-US", { maximumFractionDigits: 0 })} <span className="text-[10px] font-normal text-muted-foreground">{t("digest.equity.equity")}</span>
+            {fmtChange(stats.currentEquityChange)} ({stats.currentEquityChangePct >= 0 ? "+" : ""}{stats.currentEquityChangePct.toFixed(1)}%)
+            <span className="ms-1 text-[10px] font-normal text-muted-foreground">{t("digest.equity.equity")}</span>
           </span>
           <span className="font-mono font-semibold text-white/40">
-            ${stats.currentBalance.toLocaleString("en-US", { maximumFractionDigits: 0 })} <span className="text-[10px] font-normal text-muted-foreground">{t("digest.equity.balance")}</span>
+            {fmtChange(stats.currentBalanceChange)} ({stats.currentBalanceChangePct >= 0 ? "+" : ""}{stats.currentBalanceChangePct.toFixed(1)}%)
+            <span className="ms-1 text-[10px] font-normal text-muted-foreground">{t("digest.equity.balance")}</span>
           </span>
         </div>
       )}
 
-      {/* SVG Chart */}
-      <svg width="100%" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="overflow-visible">
-        {/* Fill between lines */}
-        <path d={fillPath} fill={fillColor} />
-        {/* Balance line (muted, behind) */}
-        <path d={balancePath} stroke="rgba(255,255,255,0.3)" strokeWidth={1.5} fill="none" />
-        {/* Equity line (bold, in front) */}
-        <path d={equityPath} stroke={lineColor} strokeWidth={2} fill="none" />
-        {/* Time labels */}
-        {timeLabels.map((tl, i) => (
-          <text key={i} x={tl.x} y={HEIGHT - 2} textAnchor="middle" className="fill-current text-[8px] text-muted-foreground">
-            {tl.label}
-          </text>
-        ))}
-      </svg>
+      {/* Mobile touch info bar */}
+      <div className="mb-1 flex h-6 items-center gap-2 text-[10px] text-muted-foreground sm:hidden">
+        {hoverPoint ? (
+          <>
+            <span>{new Date(hoverPoint.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+            <span style={{ color: "#22c55e" }}>Eq: {fmtCompact(hoverPoint.rawEquity)}</span>
+            <span>Bal: {fmtCompact(hoverPoint.rawBalance)}</span>
+            <span style={{ color: hoverPoint.floatingPL >= 0 ? "#22c55e" : "#ef4444" }}>
+              Fl: {fmtChange(hoverPoint.floatingPL)}
+            </span>
+          </>
+        ) : (
+          <span>{t("digest.equity.touchHint")}</span>
+        )}
+      </div>
 
-      {/* Stats below chart */}
+      {/* SVG Chart */}
+      <div className="relative">
+        <svg
+          ref={svgNodeRef}
+          width="100%"
+          viewBox={`0 0 ${EQ_W} ${EQ_H}`}
+          className="overflow-visible"
+          style={{ cursor: "crosshair" }}
+          onMouseMove={(e) => handleMove(e.clientX)}
+          onMouseLeave={() => setHoverIdx(null)}
+          onTouchMove={(e) => { e.preventDefault(); handleMove(e.touches[0].clientX); }}
+          onTouchEnd={() => setHoverIdx(null)}
+        >
+          {/* Y-axis reference lines */}
+          {yLabels.map((yl, i) => (
+            <g key={`yl-${i}`}>
+              <line
+                x1={PAD.left}
+                y1={yl.y}
+                x2={EQ_W - PAD.right}
+                y2={yl.y}
+                stroke={yl.val === 0 ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.06)"}
+                strokeWidth={yl.val === 0 ? 1 : 0.5}
+                strokeDasharray={yl.val === 0 ? undefined : "4,4"}
+              />
+              <text
+                x={PAD.left - 4}
+                y={yl.y + 3}
+                textAnchor="end"
+                className="fill-current text-[8px] text-muted-foreground"
+              >
+                {fmtChange(yl.val)}
+              </text>
+            </g>
+          ))}
+
+          {/* Fill between equity and zero */}
+          <path d={fillAbove} fill={fillColor} />
+
+          {/* Balance line (muted, behind) */}
+          <path d={balancePath} stroke="rgba(255,255,255,0.3)" strokeWidth={1.5} fill="none" />
+
+          {/* Equity line (bold, in front) */}
+          <path d={equityPath} stroke={lineColor} strokeWidth={2} fill="none" />
+
+          {/* Crosshair + dots on hover */}
+          {hoverIdx !== null && hoverPoint && (
+            <>
+              <line
+                x1={sx(hoverPoint.timestamp)}
+                y1={PAD.top}
+                x2={sx(hoverPoint.timestamp)}
+                y2={EQ_H - PAD.bottom}
+                stroke="rgba(255,255,255,0.3)"
+                strokeWidth={1}
+                strokeDasharray="4,4"
+              />
+              <circle
+                cx={sx(hoverPoint.timestamp)}
+                cy={sy(hoverPoint.equityChange)}
+                r={4}
+                fill={lineColor}
+                stroke="#fff"
+                strokeWidth={1}
+              />
+              <circle
+                cx={sx(hoverPoint.timestamp)}
+                cy={sy(hoverPoint.balanceChange)}
+                r={3}
+                fill="#9ca3af"
+                stroke="#fff"
+                strokeWidth={1}
+              />
+            </>
+          )}
+
+          {/* Time labels */}
+          {timeLabels.map((tl, i) => (
+            <text key={i} x={tl.x} y={EQ_H - 2} textAnchor="middle" className="fill-current text-[8px] text-muted-foreground">
+              {tl.label}
+            </text>
+          ))}
+
+          {/* Invisible interaction overlay */}
+          <rect x={PAD.left} y={PAD.top} width={chartW} height={chartH} fill="transparent" />
+        </svg>
+
+        {/* Desktop tooltip */}
+        {hoverIdx !== null && hoverPoint && (
+          <div className="pointer-events-none absolute end-0 top-0 z-10 hidden rounded-lg border border-white/10 bg-[rgba(20,20,30,0.95)] px-3 py-2 text-[11px] backdrop-blur-sm sm:block"
+            style={{ minWidth: 170 }}
+          >
+            <p className="mb-1 text-[10px] text-muted-foreground">
+              {new Date(hoverPoint.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </p>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">{t("digest.equity.equity")}</span>
+              <span className="font-mono font-semibold text-green-400">{fmtCompact(hoverPoint.rawEquity)}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">{t("digest.equity.balance")}</span>
+              <span className="font-mono text-white/50">{fmtCompact(hoverPoint.rawBalance)}</span>
+            </div>
+            <div className="mt-1 border-t border-white/[0.08] pt-1">
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">{t("digest.equity.floating")}</span>
+                <span className={cn("font-mono font-semibold", hoverPoint.floatingPL >= 0 ? "text-green-400" : "text-red-400")}>
+                  {fmtChange(hoverPoint.floatingPL)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">{t("digest.equity.periodPL")}</span>
+                <span className={cn("font-mono", hoverPoint.equityChange >= 0 ? "text-green-400" : "text-red-400")}>
+                  {fmtChange(hoverPoint.equityChange)} ({hoverPoint.equityChangePct >= 0 ? "+" : ""}{hoverPoint.equityChangePct.toFixed(1)}%)
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Stats below chart — normalized */}
       {stats && (
         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
           <span>
-            {t("digest.equity.peak")}: ${stats.peakEquity.toLocaleString("en-US", { maximumFractionDigits: 0 })} @{new Date(stats.peakTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            {t("digest.equity.peak")}: {fmtChange(stats.peakEquityChange)} ({stats.peakEquityChangePct >= 0 ? "+" : ""}{stats.peakEquityChangePct.toFixed(1)}%) @{new Date(stats.peakTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
           <span>
-            {t("digest.equity.low")}: ${stats.lowEquity.toLocaleString("en-US", { maximumFractionDigits: 0 })} @{new Date(stats.lowTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-            {stats.maxDrawdownPct < 0 && ` (${stats.maxDrawdownPct.toFixed(1)}%)`}
+            {t("digest.equity.low")}: {fmtChange(stats.lowEquityChange)} ({stats.lowEquityChangePct.toFixed(1)}%) @{new Date(stats.lowTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
           <span className={cn("font-mono font-semibold", pnlColor(stats.floatingPL))}>
             {t("digest.equity.floating")}: {fmtCurrency(stats.floatingPL)} ({stats.floatingPct >= 0 ? "+" : ""}{stats.floatingPct.toFixed(1)}%)

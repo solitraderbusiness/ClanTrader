@@ -1315,6 +1315,8 @@
     "equity.floating": "Floating",
     "equity.collecting": "Collecting equity data...",
     "equity.collectingHint": "Chart will appear after a few hours of connected trading.",
+    "equity.touchHint": "Touch chart to see details",
+    "equity.periodPL": "Period P/L",
 
     "insight.lotDominant": "One trade holds {pct}% of total size — your biggest bet and biggest risk.",
     "insight.lotEven": "Even sizing — disciplined position management.",

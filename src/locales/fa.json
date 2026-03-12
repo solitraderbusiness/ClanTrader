@@ -1315,6 +1315,8 @@
     "equity.floating": "شناور",
     "equity.collecting": "در حال جمع‌آوری داده‌های اکوئیتی...",
     "equity.collectingHint": "نمودار پس از چند ساعت معاملات متصل ظاهر می‌شود.",
+    "equity.touchHint": "نمودار را لمس کنید برای جزئیات",
+    "equity.periodPL": "سود/زیان دوره",
 
     "insight.lotDominant": "یک معامله {pct}% از حجم کل را دارد — بزرگترین شرط و بزرگترین ریسک شما.",
     "insight.lotEven": "حجم یکنواخت — مدیریت منظم پوزیشن.",
