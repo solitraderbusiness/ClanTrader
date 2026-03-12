@@ -19,6 +19,7 @@ export type PriceStatus =
   | "fresh_cross_source"
   | "stale_same_source"
   | "stale_cross_source"
+  | "stale_last_known"
   | "market_closed"
   | "historical_trade_close"
   | "no_price";
@@ -69,6 +70,9 @@ const KEY = {
     `price:display:${symbol}`,
   activeGroups: (symbol: string) =>
     `price:active:${symbol}`,
+  /** Extended display key — 4h TTL, used as last-resort fallback when normal display expires */
+  displayExt: (symbol: string) =>
+    `price:display-ext:${symbol}`,
 } as const;
 
 // ── Source Group Identity ──
@@ -246,9 +250,13 @@ export async function writeHeartbeatPrice(input: WriteHeartbeatPriceInput): Prom
   const symbols = [sym];
   if (norm !== sym) symbols.push(norm);
 
+  const EXT_TTL = 14400; // 4 hours — last-resort fallback for heartbeat loss
+
   for (const s of symbols) {
     await setIfNewer(KEY.group(sourceGroup, s), groupJson, now, ttl);
     await setIfNewer(KEY.display(s), displayJson, now, ttl);
+    // Extended display key — longer TTL for fallback when all other prices expire
+    await setIfNewer(KEY.displayExt(s), displayJson, now, EXT_TTL);
 
     // Track active source group
     await redis.zadd(KEY.activeGroups(s), now, sourceGroup);
@@ -327,6 +335,47 @@ export async function getDisplayPrice(
     } catch { /* fall through */ }
   }
 
+  // Last resort: extended display key (4h TTL — survives heartbeat loss)
+  const extRaw = await redis.get(KEY.displayExt(symbol));
+  if (extRaw) {
+    try {
+      const parsed = JSON.parse(extRaw) as { price: number; ts: number; sourceGroup: string };
+      return {
+        price: parsed.price,
+        ts: parsed.ts,
+        symbol,
+        sourceGroup: parsed.sourceGroup,
+        scope: "display",
+        status: "stale_last_known",
+        isEstimated: true,
+        marketOpen,
+        crossSource: !!preferredSourceGroup && parsed.sourceGroup !== preferredSourceGroup,
+      };
+    } catch { /* fall through */ }
+  }
+
+  // Also try normalized symbol variant in extended key
+  const norm = normalizeSymbol(symbol);
+  if (norm !== symbol.toUpperCase()) {
+    const extNormRaw = await redis.get(KEY.displayExt(norm));
+    if (extNormRaw) {
+      try {
+        const parsed = JSON.parse(extNormRaw) as { price: number; ts: number; sourceGroup: string };
+        return {
+          price: parsed.price,
+          ts: parsed.ts,
+          symbol,
+          sourceGroup: parsed.sourceGroup,
+          scope: "display",
+          status: "stale_last_known",
+          isEstimated: true,
+          marketOpen,
+          crossSource: !!preferredSourceGroup && parsed.sourceGroup !== preferredSourceGroup,
+        };
+      } catch { /* fall through */ }
+    }
+  }
+
   return noPrice(symbol, marketOpen);
 }
 
@@ -370,6 +419,46 @@ export async function getDisplayPrices(
       }
     } else {
       result.set(sym, noPrice(sym, marketOpen));
+    }
+  }
+
+  // Second pass: try extended keys for any symbols that got no_price
+  const missingSymbols = symbols.filter((s) => result.get(s)?.status === "no_price");
+  if (missingSymbols.length > 0) {
+    const extKeys = missingSymbols.map((s) => KEY.displayExt(s));
+    // Also try normalized variants
+    const normMap = new Map<string, string>();
+    for (const s of missingSymbols) {
+      const norm = normalizeSymbol(s);
+      if (norm !== s.toUpperCase()) normMap.set(s, norm);
+    }
+    const normKeys = [...normMap.values()].map((n) => KEY.displayExt(n));
+    const allExtKeys = [...extKeys, ...normKeys];
+    const extValues = await redis.mget(...allExtKeys);
+
+    for (let i = 0; i < missingSymbols.length; i++) {
+      const sym = missingSymbols[i];
+      const raw = extValues[i]; // direct symbol match
+      const normSym = normMap.get(sym);
+      const normRaw = normSym ? extValues[extKeys.length + [...normMap.values()].indexOf(normSym)] : null;
+      const chosen = raw || normRaw;
+
+      if (chosen) {
+        try {
+          const parsed = JSON.parse(chosen) as { price: number; ts: number; sourceGroup: string };
+          result.set(sym, {
+            price: parsed.price,
+            ts: parsed.ts,
+            symbol: sym,
+            sourceGroup: parsed.sourceGroup,
+            scope: "display",
+            status: "stale_last_known",
+            isEstimated: true,
+            marketOpen,
+            crossSource: false,
+          });
+        } catch { /* keep no_price */ }
+      }
     }
   }
 

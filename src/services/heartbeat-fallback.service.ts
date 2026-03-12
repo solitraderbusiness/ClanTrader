@@ -2,7 +2,8 @@
  * heartbeat-fallback.service.ts — Background estimation for stale MT accounts
  *
  * When an EA stops sending heartbeats, this service uses the price pool
- * (fed by other EAs) to continue computing estimated equity and floating P/L.
+ * (fed by other EAs, with 4h extended TTL) to continue computing estimated
+ * equity, floating P/L, equity snapshots, and live R:R broadcasts.
  *
  * Safety invariants:
  * - NEVER modifies MtTrade records (those are MT's truth)
@@ -15,8 +16,11 @@ import { db } from "@/lib/db";
 import { redis } from "@/lib/redis";
 import { getDisplayPrice } from "@/services/price-pool.service";
 import { updateTrackingStatus, checkRankingEligibility } from "@/services/live-risk.service";
+import { getIO } from "@/lib/socket-io-global";
+import { SOCKET_EVENTS } from "@/lib/chat-constants";
+import { calculateTargetRR } from "@/lib/risk-utils";
 
-// Point value defaults for P/L estimation (same as digest-engines.ts)
+// Point value defaults for P/L estimation
 const DEFAULT_PV: Record<string, number> = {
   UKBRENT: 10, UKOIL: 10, BRENT: 10,
   USOIL: 10, USCRUDE: 10, XTIUSD: 10, WTI: 10, CL: 10,
@@ -59,6 +63,7 @@ export interface FallbackResult {
   pricesResolved: number;
   snapshotsCreated: number;
   rankingUpdates: number;
+  pnlBroadcasts: number;
   errors: number;
 }
 
@@ -68,11 +73,12 @@ export async function runHeartbeatFallback(): Promise<FallbackResult> {
     pricesResolved: 0,
     snapshotsCreated: 0,
     rankingUpdates: 0,
+    pnlBroadcasts: 0,
     errors: 0,
   };
 
   try {
-    // Find stale accounts with open trades
+    // Find stale accounts with open trades AND their matched ClanTrader trades
     const staleAccounts = await db.mtAccount.findMany({
       where: {
         isActive: true,
@@ -97,6 +103,8 @@ export async function runHeartbeatFallback(): Promise<FallbackResult> {
             profit: true,
             commission: true,
             swap: true,
+            // Include the matched ClanTrader trade ID for socket broadcast
+            matchedTradeId: true,
           },
         },
       },
@@ -118,7 +126,7 @@ export async function runHeartbeatFallback(): Promise<FallbackResult> {
       }
     }
 
-    // Batch-fetch display prices for all symbols
+    // Batch-fetch display prices for all symbols (now with 4h extended key fallback)
     const priceMap = new Map<string, number>();
     for (const symbol of symbolSet) {
       try {
@@ -131,6 +139,11 @@ export async function runHeartbeatFallback(): Promise<FallbackResult> {
         // Skip this symbol — no price available
       }
     }
+
+    // Collect matched trade IDs for socket broadcast
+    const matchedTradeIds: string[] = [];
+    const tradeCurrentPrices = new Map<string, number>(); // matchedTradeId → currentPrice
+    const tradeMtProfits = new Map<string, number>(); // matchedTradeId → estimated mtProfit
 
     // Process each stale account
     for (const acct of accountsWithTrades) {
@@ -154,8 +167,16 @@ export async function runHeartbeatFallback(): Promise<FallbackResult> {
           const estimatedProfit = priceChange * trade.lots * pv;
 
           // Add commission and swap from last known values (they don't change without MT)
-          estimatedTotalPnl += estimatedProfit + (trade.commission ?? 0) + (trade.swap ?? 0);
+          const totalTradeProfit = estimatedProfit + (trade.commission ?? 0) + (trade.swap ?? 0);
+          estimatedTotalPnl += totalTradeProfit;
           hasEstimate = true;
+
+          // Track for socket broadcast
+          if (trade.matchedTradeId) {
+            matchedTradeIds.push(trade.matchedTradeId);
+            tradeCurrentPrices.set(trade.matchedTradeId, currentPrice);
+            tradeMtProfits.set(trade.matchedTradeId, Math.round(totalTradeProfit * 100) / 100);
+          }
         }
 
         if (!hasEstimate) continue;
@@ -189,6 +210,16 @@ export async function runHeartbeatFallback(): Promise<FallbackResult> {
       }
     }
 
+    // Broadcast estimated PnL updates via socket (so trade cards in chat update)
+    if (matchedTradeIds.length > 0) {
+      try {
+        const broadcasted = await broadcastEstimatedPnl(matchedTradeIds, tradeCurrentPrices, tradeMtProfits);
+        result.pnlBroadcasts = broadcasted;
+      } catch {
+        result.errors++;
+      }
+    }
+
     // Update tracking statuses and ranking for all stale accounts
     await updateAllTrackingStatuses();
 
@@ -214,6 +245,121 @@ export async function runHeartbeatFallback(): Promise<FallbackResult> {
   }
 
   return result;
+}
+
+/**
+ * Broadcast estimated PnL to socket rooms for trade cards in chat.
+ * Mirrors the broadcastTradePnl() function from ea.service.ts but uses estimated prices.
+ */
+async function broadcastEstimatedPnl(
+  tradeIds: string[],
+  priceMap: Map<string, number>,
+  mtProfitMap: Map<string, number>,
+): Promise<number> {
+  const io = getIO();
+  if (!io) return 0;
+
+  const trades = await db.trade.findMany({
+    where: { id: { in: tradeIds }, status: "OPEN" },
+    include: {
+      tradeCard: {
+        include: {
+          message: { select: { id: true, topicId: true, clanId: true } },
+        },
+      },
+    },
+  });
+
+  type PnlUpdate = {
+    tradeId: string;
+    messageId: string;
+    currentRR: number | null;
+    currentPrice: number;
+    targetRR: number | null;
+    riskStatus: string;
+    pricePnl: number;
+    mtProfit?: number;
+    clanId: string;
+    topicId: string;
+  };
+
+  const updates: PnlUpdate[] = [];
+
+  for (const trade of trades) {
+    const currentPrice = priceMap.get(trade.id);
+    if (!currentPrice) continue;
+
+    const card = trade.tradeCard;
+    if (!card?.message?.topicId) continue;
+
+    const entry = trade.initialEntry ?? card.entry;
+    const riskDistance = (trade.initialRiskAbs && trade.initialRiskAbs > 0)
+      ? trade.initialRiskAbs
+      : (card.stopLoss > 0 ? Math.abs(entry - card.stopLoss) : 0);
+
+    const dir = card.direction === "LONG" ? 1 : -1;
+    const pricePnl = dir * (currentPrice - entry);
+    const currentRR = riskDistance > 0
+      ? Math.round(((dir * (currentPrice - entry)) / riskDistance) * 100) / 100
+      : null;
+
+    const mtProfit = mtProfitMap.get(trade.id);
+
+    updates.push({
+      tradeId: trade.id,
+      messageId: card.message.id,
+      currentRR,
+      currentPrice,
+      targetRR: riskDistance > 0 ? calculateTargetRR(card.targets[0], entry, riskDistance) : null,
+      riskStatus: trade.riskStatus,
+      pricePnl,
+      mtProfit: mtProfit != null ? mtProfit : undefined,
+      clanId: card.message.clanId,
+      topicId: card.message.topicId,
+    });
+  }
+
+  if (updates.length === 0) return 0;
+
+  // Group by topic room and clan room, emit TRADE_PNL_UPDATE
+  const byRoom = new Map<string, PnlUpdate[]>();
+  const byClan = new Map<string, PnlUpdate[]>();
+  for (const update of updates) {
+    const room = `topic:${update.clanId}:${update.topicId}`;
+    const arr = byRoom.get(room) || [];
+    arr.push(update);
+    byRoom.set(room, arr);
+
+    const clanArr = byClan.get(update.clanId) || [];
+    clanArr.push(update);
+    byClan.set(update.clanId, clanArr);
+  }
+
+  const mapUpdate = (u: PnlUpdate) => ({
+    tradeId: u.tradeId,
+    messageId: u.messageId,
+    currentRR: u.currentRR,
+    currentPrice: u.currentPrice,
+    targetRR: u.targetRR,
+    riskStatus: u.riskStatus,
+    pricePnl: u.pricePnl,
+    ...(u.mtProfit != null ? { mtProfit: u.mtProfit } : {}),
+    isEstimated: true,
+  });
+
+  for (const [room, roomUpdates] of byRoom) {
+    io.to(room).emit(SOCKET_EVENTS.TRADE_PNL_UPDATE, {
+      updates: roomUpdates.map(mapUpdate),
+    });
+  }
+
+  for (const [clanId, clanUpdates] of byClan) {
+    io.to(`clan:${clanId}`).emit(SOCKET_EVENTS.TRADE_PNL_UPDATE, {
+      updates: clanUpdates.map(mapUpdate),
+    });
+  }
+
+  return updates.length;
 }
 
 /** Update tracking status for all active accounts (replaces external stale-check cron) */

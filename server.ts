@@ -112,9 +112,9 @@ app.prepare().then(() => {
         "@/services/heartbeat-fallback.service"
       );
       const fbResult = await runHeartbeatFallback();
-      if (fbResult.accountsProcessed > 0) {
+      if (fbResult.accountsProcessed > 0 || fbResult.errors > 0) {
         console.log(
-          `[HeartbeatFallback] accounts=${fbResult.accountsProcessed} prices=${fbResult.pricesResolved} snapshots=${fbResult.snapshotsCreated} rankings=${fbResult.rankingUpdates} errors=${fbResult.errors}`
+          `[HeartbeatFallback] accounts=${fbResult.accountsProcessed} prices=${fbResult.pricesResolved} snapshots=${fbResult.snapshotsCreated} pnl=${fbResult.pnlBroadcasts} rankings=${fbResult.rankingUpdates} errors=${fbResult.errors}`
         );
       }
     } catch (err) {
