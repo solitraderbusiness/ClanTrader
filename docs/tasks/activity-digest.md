@@ -1,21 +1,25 @@
-# Task: Activity Digest v2 — Cockpit Simplification & Live Risk UX
+# Task: Activity Digest — Complete Redesign for Live Trading Intelligence
 
-> Status: IN_PROGRESS
+> Status: TESTING
 > Started: 2026-03-11
-> Last updated: 2026-03-11
+> Last updated: 2026-03-12
 
 ## 1. Goal
 
-Transform the Activity Digest from a data display into a **live-market decision-support screen** that answers 5 core questions:
-1. Where do I stand right now? (State Engine)
-2. What changed since last check? (Delta Engine)
-3. What is dangerous? (Risk Severity Engine)
-4. What should I do first? (Action Queue Engine)
-5. Which member is causing the issue? (Impact Attribution Engine)
+Transform the Activity Digest from a data display into a **live trading intelligence panel** that feels like "a smart trading partner who just glanced at your positions and tells you the 3 things you need to know right now."
+
+Core principle: **Money first, context over raw numbers, insights over labels, dense but scannable.**
+
+### Design Target
+- 3-zone layout: Cockpit (above fold, no scroll) → Analysis (scrollable cards) → Details (positions + system health)
+- P/L is THE HERO — visible in under 5 seconds, with % of account equity context
+- Smart Actions replace system-maintenance actions — driven by trading intelligence
+- System health demoted to collapsible bottom section
+- Bloomberg terminal aesthetic, not admin dashboard
 
 ## 2. Background
 
-The v2 digest (feature-flagged behind `digest_v2`) already provides cockpit metrics, open trade health, attention queue, and member breakdowns. Phase 1 adds the 5 decision engines on top of this foundation.
+Phases 1-5a built the engine foundation: 12 pure-function engines (state, delta, severity, actions, impact, concentration, risk budget, trend, hints, entry quality, scaling pattern, concentration summary), scope-aware Trader/Clan split, account-aware attribution. Phase 6 is a complete visual/structural redesign on top of this foundation.
 
 ## 3. Decisions
 
@@ -26,6 +30,12 @@ The v2 digest (feature-flagged behind `digest_v2`) already provides cockpit metr
 - **Confidence score**: `round(100 * (0.40 * trackingCoverage + 0.35 * knownRiskCoverage + 0.25 * activeAccountCoverage))`
 - **Safety score**: `round(100 * (0.45 * protectionCoverage + 0.30 * safeUnknown + 0.25 * safeTracking))`
 - **Best-effort deltas**: Delta computation wrapped in try/catch — never fails the digest
+- **Phase 6 redesign direction**: Complete 3-zone layout — Cockpit (above fold) → Analysis (scrollable cards) → Details (positions + system health at bottom). P/L is the hero, not safety score. Smart Actions replace system-ops actions. System health demoted to collapsible bottom.
+- **Data availability assessment (2026-03-12)**:
+  - AVAILABLE: account equity/balance, per-trade floatingPnl, per-trade floatingR, hold duration (createdAt), SL/TP protection status, lots, openPrice, accountLabel
+  - NOT AVAILABLE: P/L timeline history (no snapshots), price range high/low (candle provider is stub), yesterday's low / weekly low, point value / tick value per symbol
+  - IMPLICATION: Profit Velocity sparkline, Market Context card, and what-if scenario calculations need either stub/placeholder UI or new data infrastructure
+- **Component decomposition**: Planned move from monolithic DigestSheetV2.tsx (~1500 lines) to modular card components. Each zone section becomes its own component for maintainability.
 
 ## 4. Scope
 
@@ -111,19 +121,61 @@ The v2 digest (feature-flagged behind `digest_v2`) already provides cockpit metr
 - [ ] Profit quality / drawdown path (deferred — no per-trade P/L history)
 - [ ] What-if downside scenarios (deferred — no pip value tables)
 
+### Phase 6: Complete Redesign — 3-Zone Trading Intelligence Panel (implemented)
+
+#### Zone 1: "The Cockpit" — Above the fold, no scrolling
+- [x] 1A. System Status Bar — slim inline indicator (green/amber/red dot + "Live"/"Tracking lost"/"Stale"), replaces giant hero card
+- [x] 1B. Money Line (THE HERO) — large P/L (3xl font), % of account equity, open R, SL risk, unknown risk count
+- [x] 1D. Smart Actions — 2-3 trade-intelligence actions with WHY context, replaces "Top Actions Now"
+  - Priority 1: No SL on profitable positions
+  - Priority 2: Position size anomaly (>40% deviation from avg)
+  - Priority 3: Single-asset concentration (>80% in one symbol)
+  - Priority 4: Wide entry spread (>10% of current price)
+  - Priority 5: No SL on non-profitable positions
+  - Priority 6: Extended hold without SL (>48h)
+- [ ] 1C. Profit Velocity Sparkline (DEFERRED — needs P/L history data)
+
+#### Zone 2: "The Analysis" — Scrollable intelligence cards
+- [x] 2A. Position Summary Card — grouped by symbol with stacked P/L bar, avg entry, total lots
+- [x] 2B. Risk Exposure Card — unprotected P/L total, no-SL count, SL risk R
+- [x] 2C. Entry Quality Card — cluster quality with avg entry, spread %, insight sentence
+- [x] 2D. Scaling Pattern Card — timeline visual with lot sizes and largest leg highlight
+- [x] 2E. Profit Attribution Card — P/L by trade with contribution bars and $/day efficiency
+- [x] 2G. Concentration Risk Card — risk level badge, stacked direction bar, warning text
+- [x] Delta Strip + Hints Block retained
+- [ ] 2F. Market Context Card (DEFERRED — needs candle data)
+
+#### Zone 3: "The Details" — Supporting data + System Health
+- [x] 3A. Enhanced position list — lots, entry price, hold duration, SL/TP status per row
+- [x] 3B. Period Results — conditional, hidden when no closed trades
+- [x] 3C. System Health — MOVED to bottom, collapsible, contains safety bar, risk budget, actions, attention queue
+
+#### Structural changes
+- [x] DigestSheetV2.tsx rewritten as modular sub-components (~1900 lines, all in one file for now)
+- [x] Smart Action Priority Engine (Engine 13) — pure function in digest-engines.ts
+- [x] System health demoted from hero position to collapsible bottom section
+- [x] Trader/Clan scope switcher and period tabs preserved
+- [x] Dense card spacing (Bloomberg terminal aesthetic)
+- [x] i18n: 37 new keys in en.json + fa.json for all Phase 6 components
+
+#### Data infrastructure needed (not in Phase 6)
+- [ ] P/L snapshot history per trade (for Profit Velocity, profit attribution by time)
+- [ ] Candle/OHLC provider (for Market Context, price ranges)
+- [ ] Point value per symbol (for exposure per point, what-if scenarios)
+
 ## 5. Files & Systems
 
 | File | Change |
 |------|--------|
-| `src/lib/digest-engines.ts` | 12 engines: state, delta, alerts, actions, impact, concentration, risk budget, member trend, predictive hints, entry quality, scaling pattern, concentration summary |
+| `src/lib/digest-engines.ts` | 13 engines: state, delta, alerts, actions, impact, concentration, risk budget, member trend, predictive hints, entry quality, scaling pattern, concentration summary, smart actions |
 | `src/lib/digest-constants.ts` | Snapshot prefix/TTL + risk budget thresholds |
 | `src/lib/digest-v2-schema.ts` | Schemas for all engine outputs + scope-aware fields + Phase 5 insight schemas |
 | `src/services/digest-v2.service.ts` | Wired all engines, equity data from MT accounts, account label construction, lots/openPrice pipeline |
 | `src/app/api/clans/[clanId]/digest/route.ts` | Enhanced per-user snapshots with member metrics, trends, hints + trader-scoped snapshot/delta |
-| `src/components/chat/DigestSheetV2.tsx` | Scope switcher, buildTraderView, scope-aware V2Content, My Positions, Phase 5 insight blocks, account labels |
-| `src/lib/__tests__/digest-engines.test.ts` | Unit tests for all 9 engines |
-| `src/locales/en.json` | ~100 digest keys |
-| `src/locales/fa.json` | ~100 Persian translations |
+| `src/components/chat/DigestSheetV2.tsx` | Complete 3-zone rewrite: SystemStatusBar, MoneyLine, SmartActions, PositionSummary, RiskExposure, ProfitAttribution, SystemHealth (collapsed) |
+| `src/lib/__tests__/digest-engines.test.ts` | Unit tests for all 13 engines |
+| `src/locales/en.json` | ~137 digest keys |
+| `src/locales/fa.json` | ~137 Persian translations |
 
 ## 6. Edge Cases
 
@@ -140,6 +192,18 @@ The v2 digest (feature-flagged behind `digest_v2`) already provides cockpit metr
 - Trader with 0 trades → SAFE state, empty sections (correct behavior)
 - One-member clan → Trader and Clan views nearly identical
 - Per-member realizedPnl not available → shows "—" in trader cockpit
+- Account equity null → Money Line shows P/L without % context, note "equity unavailable"
+- No floatingPnl on any trade → Money Line shows "—" or "No P/L data"
+- All trades have SL → smart action for "Set SL" not shown (correct behavior)
+- Single trade → scaling/entry quality sections hidden (need 2+ trades)
+- Position summary with multiple symbols → sort by total exposure descending
+- P/L history unavailable → Profit Velocity shows placeholder ("Tracking will start from next refresh")
+- Candle data unavailable → Market Context shows placeholder or is hidden
+- Zero equity on account → % of equity computation skipped
+- Smart Actions: system-ops actions (reconnect, restore) moved to System Health, NOT shown in Zone 1
+- Mobile view: Zone 1 must fit in ~400-450px vertical space
+- Period filter affects which card data is shown (today vs week vs month)
+- Profit attribution by trade: uses individual trade floatingPnl, sorted by contribution descending
 
 ## 7. Test Scenarios
 
@@ -159,6 +223,26 @@ See `docs/testing/activity-digest-test-plan.md`
 - Persian translations need native speaker review
 
 ## 10. Change Notes
+
+### 2026-03-12 (Phase 6 implemented: Complete 3-Zone Redesign)
+- Complete rewrite of DigestSheetV2.tsx into 3-zone layout (Cockpit / Analysis / Details)
+- Engine 13 added: Smart Action Priority Engine — 6 priority levels, top 3 shown
+- Zone 1: SystemStatusBar (slim dot), MoneyLine (P/L hero with % equity + R + SL risk), SmartActionsBlock
+- Zone 2: PositionSummaryCard (grouped by symbol), RiskExposureCard, EntryQualityCard, ScalingPatternCard, ProfitAttributionCard (per-trade $/day), ConcentrationCard, DeltaStrip, HintsBlock
+- Zone 3: My Positions / Member Breakdown, conditional Period Results, collapsible SystemHealthSection
+- System health demoted from hero to collapsible bottom section
+- 37 new i18n keys (en + fa) for smart actions, money line, position summary, risk exposure, system health, profit attribution, entry/scaling insights
+- Deferred: Profit Velocity sparkline (no P/L history), Market Context (no candle data)
+
+### 2026-03-12 (Phase 6 planning)
+- New design prompt received: 3-zone layout (Cockpit/Analysis/Details), P/L as hero, Smart Actions, system health demoted
+- Data availability assessment completed:
+  - AVAILABLE: account equity, per-trade P/L, hold duration, SL/TP status, lots, openPrice, accountLabel
+  - NOT AVAILABLE: P/L timeline history, candle data (high/low ranges), pip/point values
+- Phase 6 scope defined: 7 new/enhanced Zone 2 cards, Smart Action engine, Money Line hero, System Health demotion
+- Placeholder strategy: Profit Velocity and Market Context cards get placeholder UI until data infrastructure exists
+- Component decomposition planned: break DigestSheetV2.tsx (~1500 lines) into modular card components
+- Previous phases (1-5a) provide the engine foundation — Phase 6 is a structural/visual redesign on top
 
 ### 2026-03-11 (Phase 5a: Live Trading Intelligence)
 - Added 3 new pure-function engines: Entry Quality (Engine 10), Scaling Pattern (Engine 11), Concentration Summary (Engine 12)

@@ -1015,3 +1015,149 @@ export function computeConcentrationSummary(
     riskLevel,
   };
 }
+
+// ═══════════════════════════════════════════
+// ENGINE 13: SMART ACTIONS (Phase 6)
+// ═══════════════════════════════════════════
+
+export interface SmartActionInput {
+  positions: Array<{
+    floatingPnl: number | null;
+    protectionStatus: string;
+    lots: number | null;
+    instrument: string;
+    direction: string;
+    openPrice: number | null;
+    createdAt: string;
+  }>;
+  totalFloatingPnl: number | null;
+  entryInsights: EntryClusterInsight[];
+  scalingInsights: ScalingInsight[];
+  concentrationSummary: ConcentrationSummary | null;
+}
+
+export interface SmartAction {
+  priority: number;
+  icon: "risk" | "opportunity" | "analysis";
+  titleKey: string;
+  detailKey: string;
+  detailParams: Record<string, string | number>;
+}
+
+export function computeSmartActions(input: SmartActionInput): SmartAction[] {
+  const actions: SmartAction[] = [];
+  const { positions, entryInsights, scalingInsights, concentrationSummary } = input;
+
+  if (positions.length === 0) return actions;
+
+  // Priority 1: Unprotected profit — highest urgency
+  const unprotectedProfitable = positions.filter(
+    (p) => p.floatingPnl !== null && p.floatingPnl > 0 && p.protectionStatus === "UNPROTECTED"
+  );
+  if (unprotectedProfitable.length > 0) {
+    const totalUnprotectedPnl = unprotectedProfitable.reduce((s, p) => s + (p.floatingPnl ?? 0), 0);
+    const totalLots = unprotectedProfitable.reduce((s, p) => s + (p.lots ?? 0), 0);
+    actions.push({
+      priority: 1,
+      icon: "risk",
+      titleKey: "digest.smart.setStopLoss",
+      detailKey: "digest.smart.setStopLossDetail",
+      detailParams: {
+        pnl: Math.round(totalUnprotectedPnl),
+        count: unprotectedProfitable.length,
+        lots: Math.round(totalLots),
+      },
+    });
+  }
+
+  // Priority 2: Position size anomaly (last leg >40% larger than avg)
+  for (const s of scalingInsights) {
+    if (s.lastLegVsAvg > 1.4) {
+      const deviationPct = Math.round((s.lastLegVsAvg - 1) * 100);
+      actions.push({
+        priority: 2,
+        icon: "risk",
+        titleKey: "digest.smart.reviewSizing",
+        detailKey: "digest.smart.reviewSizingDetail",
+        detailParams: {
+          instrument: s.instrument,
+          deviationPct,
+          avgLots: s.avgLots,
+        },
+      });
+      break; // only show worst case
+    }
+  }
+
+  // Priority 3: Single-asset concentration (>80% in one symbol)
+  if (concentrationSummary && concentrationSummary.topSymbolShare > 0.8) {
+    const pct = Math.round(concentrationSummary.topSymbolShare * 100);
+    actions.push({
+      priority: 3,
+      icon: "risk",
+      titleKey: "digest.smart.concentration",
+      detailKey: concentrationSummary.singleDirectionExposure
+        ? "digest.smart.concentrationBoth"
+        : "digest.smart.concentrationSymbol",
+      detailParams: {
+        symbol: concentrationSummary.topSymbol ?? "?",
+        pct,
+      },
+    });
+  }
+
+  // Priority 4: Wide entry spread (>10% of current price)
+  for (const e of entryInsights) {
+    if (e.qualityLabel === "wide" && e.entrySpreadPct !== null && e.entrySpreadPct > 10) {
+      actions.push({
+        priority: 4,
+        icon: "analysis",
+        titleKey: "digest.smart.wideSpread",
+        detailKey: "digest.smart.wideSpreadDetail",
+        detailParams: {
+          instrument: e.instrument,
+          spreadPct: e.entrySpreadPct,
+          tradeCount: e.tradeCount,
+        },
+      });
+      break;
+    }
+  }
+
+  // Priority 5: No SL on non-profitable positions (if not already covered by P1)
+  if (!actions.some((a) => a.priority === 1)) {
+    const noSL = positions.filter(
+      (p) => p.protectionStatus === "UNPROTECTED" || p.protectionStatus === "UNKNOWN_RISK"
+    );
+    if (noSL.length > 0) {
+      actions.push({
+        priority: 5,
+        icon: "risk",
+        titleKey: "digest.smart.defineRisk",
+        detailKey: "digest.smart.defineRiskDetail",
+        detailParams: { count: noSL.length },
+      });
+    }
+  }
+
+  // Priority 6: Extended hold without SL (>48h)
+  const now = Date.now();
+  const extendedNoSL = positions.filter((p) => {
+    const age = now - new Date(p.createdAt).getTime();
+    return (
+      age > 48 * 3600 * 1000 &&
+      (p.protectionStatus === "UNPROTECTED" || p.protectionStatus === "UNKNOWN_RISK")
+    );
+  });
+  if (extendedNoSL.length > 0 && !actions.some((a) => a.priority === 1 || a.priority === 5)) {
+    actions.push({
+      priority: 6,
+      icon: "risk",
+      titleKey: "digest.smart.extendedNoSL",
+      detailKey: "digest.smart.extendedNoSLDetail",
+      detailParams: { count: extendedNoSL.length },
+    });
+  }
+
+  return actions.sort((a, b) => a.priority - b.priority).slice(0, 3);
+}

@@ -5,6 +5,32 @@ Newest entries first.
 
 ---
 
+## 2026-03-12 — Activity Digest Phase 6: Implementation Complete
+
+- **Task:** activity-digest
+- **Decision:** Implemented the 3-zone redesign. DigestSheetV2.tsx fully rewritten (~1900 lines). Engine 13 (Smart Actions) added to digest-engines.ts. Profit Velocity and Market Context deferred (no data). System health moved to collapsible bottom section. 37 new i18n keys added.
+- **Why:** Phase 6 planning was approved — this is the execution. P/L is now the hero element, Smart Actions show trade intelligence (not system ops), system health is demoted.
+- **Affected files/rules:** `DigestSheetV2.tsx` (complete rewrite), `digest-engines.ts` (+Smart Action engine), `en.json`/`fa.json` (+37 keys each)
+- **Needs SOURCE_OF_TRUTH update now?:** no — visual/structural redesign of existing feature
+- **Needs manual testing?:** yes — full visual review in Trader + Clan modes, all 3 zones, Smart Action accuracy, mobile layout, dark mode, RTL
+
+---
+
+## 2026-03-12 — Activity Digest Phase 6: Complete 3-Zone Redesign Direction
+
+- **Task:** activity-digest
+- **Decision:** Redesign the Activity Digest as a 3-zone live trading intelligence panel. Zone 1 (above fold): slim system status bar, Money Line P/L hero, Smart Actions. Zone 2 (scrollable): Position Summary, Risk Exposure, Entry Quality, Scaling Pattern, Profit Attribution, Market Context, Concentration Risk — all as dense card components. Zone 3: detailed positions + collapsible System Health at bottom. System health demoted from hero position. Smart Actions replace system-ops "Top Actions Now".
+- **Why:** Current digest leads with platform health/system status and generic labels. A trader should see live P/L, risk exposure, and actionable trading insights within 5 seconds. The redesign follows "money first, insights over labels, dense but scannable" principles.
+- **Affected files/rules:** `DigestSheetV2.tsx` (complete restructure into modular cards), `digest-engines.ts` (Smart Action engine needed), service/schema (mostly stable — reuse existing data pipeline)
+- **Data gaps identified:**
+  - NOT AVAILABLE: P/L timeline history (no per-trade snapshots), price range OHLC (candle provider is stub), point/pip value per symbol
+  - AVAILABLE: account equity/balance, per-trade floatingPnl, SL/TP status, lots, openPrice, hold duration
+  - Strategy: Implement Profit Velocity and Market Context as placeholder cards until data infra exists
+- **Needs SOURCE_OF_TRUTH update now?:** no — still the same Activity Digest feature, redesign is visual/structural
+- **Needs manual testing?:** yes — full visual review, Zone 1 above-fold fit, Smart Action accuracy, mobile layout
+
+---
+
 ## 2026-03-11 — Activity Digest Phase 5a: Live Trading Intelligence
 
 - **Task:** activity-digest

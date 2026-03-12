@@ -1,6 +1,6 @@
 # Test Plan: Activity Digest v2 — Decision Engines
 
-> Last updated: 2026-03-11
+> Last updated: 2026-03-12
 
 ## Manual Test Scenarios
 
@@ -149,6 +149,59 @@
 | 79 | Mobile view | Scope switcher fits cleanly on small screens | Not tested |
 | 80 | RTL layout for scope switcher | Icons and text properly aligned in RTL | Not tested |
 | 81 | Persian labels | Scope switcher shows Persian translations | Not tested |
+
+### Phase 6: Complete Redesign
+
+#### Zone 1 — The Cockpit (above fold)
+
+| # | Scenario | Expected | Status |
+|---|----------|----------|--------|
+| 82 | Money Line shows P/L as hero | Large font (28-32px), green if profit, red if loss | Not tested |
+| 83 | Money Line shows % of account equity | Equity from MT account, "X% of equity" next to P/L | Not tested |
+| 84 | Account equity unavailable | Shows P/L only, no % context | Not tested |
+| 85 | System status bar is slim | Max 36px height, small dot + "Live"/"Delayed"/"Disconnected" | Not tested |
+| 86 | System issues → slim banner | One-line amber/red banner replaces current giant hero card | Not tested |
+| 87 | Smart Actions show trade-intelligence actions | NOT system-ops (reconnect terminal), but "Set SL", "Review sizing" | Not tested |
+| 88 | Smart Action: unprotected profit | Shows "Set a stop loss: $X in profit is unprotected" | Not tested |
+| 89 | Smart Action: position size anomaly | Shows if last leg >40% deviation from avg lot size | Not tested |
+| 90 | Smart Action: concentration >80% one symbol | Shows concentration warning with detail | Not tested |
+| 91 | Only top 2-3 Smart Actions shown | Max 3, ordered by priority | Not tested |
+| 92 | Zone 1 fits without scrolling | All cockpit content visible in ~400-450px vertical space | Not tested |
+
+#### Zone 2 — Analysis Cards
+
+| # | Scenario | Expected | Status |
+|---|----------|----------|--------|
+| 93 | Position Summary groups by symbol | Shows symbol, direction, trade count, total lots, total P/L | Not tested |
+| 94 | Position Summary shows avg entry + distance | Weighted avg entry, current price, distance % | Not tested |
+| 95 | Position Summary stacked P/L bar | Each trade's contribution visible as bar segment | Not tested |
+| 96 | Risk Exposure card | Shows unprotected P/L total, # trades without SL | Not tested |
+| 97 | Entry Quality enhanced | Shows best/worst entry with lot sizes, insight sentence | Not tested |
+| 98 | Scaling Pattern timeline | Each leg as row with lots, price, date, largest marked | Not tested |
+| 99 | Profit Attribution by trade | Each trade's P/L contribution with bar and % | Not tested |
+| 100 | Market Context placeholder | Shows placeholder text when candle data unavailable | Not tested |
+| 101 | Concentration with stacked bars | Symbol/direction shares as visual bars | Not tested |
+
+#### Zone 3 — Details + System Health
+
+| # | Scenario | Expected | Status |
+|---|----------|----------|--------|
+| 102 | System Health at bottom | Connection/tracking details in collapsible section at bottom | Not tested |
+| 103 | System Health collapsed by default | If all healthy, section is collapsed | Not tested |
+| 104 | System Health expanded on issues | If tracking lost/stale, section auto-expanded or shows banner | Not tested |
+| 105 | Period Results hidden when empty | No section shown when 0 closed trades | Not tested |
+| 106 | Enhanced position rows | Show lots, entry price, hold duration, SL/TP status | Not tested |
+
+#### Cross-Cutting
+
+| # | Scenario | Expected | Status |
+|---|----------|----------|--------|
+| 107 | Trader/Clan scope still works | Scope switcher functions with new layout | Not tested |
+| 108 | Period tabs still work | Today/week/month filter works with all new cards | Not tested |
+| 109 | Mobile layout | Zone 1 fits on 375px screen without scroll | Not tested |
+| 110 | RTL layout | All new cards use logical CSS properties | Not tested |
+| 111 | Persian translations | All new cards have fa.json translations | Not tested |
+| 112 | Dense card spacing | 8-12px between cards, Bloomberg terminal feel | Not tested |
 
 ## Unit Test Coverage (Implemented)
 

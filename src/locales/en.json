@@ -1279,7 +1279,44 @@
     "insight.pattern.increasing": "Increasing",
     "insight.pattern.decreasing": "Decreasing",
     "insight.pattern.spike": "Spike",
-    "insight.pattern.unknown": "Unknown"
+    "insight.pattern.unknown": "Unknown",
+
+    "smart.setStopLoss": "Set a stop loss",
+    "smart.setStopLossDetail": "${pnl} in open profit is unprotected across {count} trades ({lots} lots)",
+    "smart.reviewSizing": "Review position sizing",
+    "smart.reviewSizingDetail": "Last entry on {instrument} was {deviationPct}% larger than avg leg ({avgLots} lots avg)",
+    "smart.concentration": "Position concentration risk",
+    "smart.concentrationBoth": "{pct}% in {symbol} — single symbol, single direction",
+    "smart.concentrationSymbol": "{pct}% in {symbol} — single symbol risk",
+    "smart.wideSpread": "Wide entry spread",
+    "smart.wideSpreadDetail": "{instrument} entries spread {spreadPct}% across {tradeCount} trades",
+    "smart.defineRisk": "Define your risk",
+    "smart.defineRiskDetail": "{count} trades have no stop loss",
+    "smart.extendedNoSL": "Extended hold without SL",
+    "smart.extendedNoSLDetail": "{count} trades open 48h+ with no stop loss",
+
+    "moneyLine.openPnl": "Open P/L",
+    "moneyLine.positions": "positions",
+    "moneyLine.ofEquity": "of equity",
+
+    "posSummary.title": "Position Summary",
+    "posSummary.avgEntry": "Avg Entry",
+
+    "riskExposure.title": "Risk Exposure",
+    "riskExposure.unprotectedPnl": "Unprotected P/L",
+    "riskExposure.noSL": "No SL",
+
+    "systemHealth.title": "System Health",
+    "status.live": "Live",
+    "status.trackingLost": "Tracking lost on {count} accounts",
+    "status.stale": "Stale data on {count} accounts",
+
+    "profitAttribution.title": "Profit Attribution",
+    "profitAttribution.day": "day",
+
+    "entryInsight.wideSpread": "{pct}% entry spread — averaging down, not planned scaling",
+    "scalingInsight.increasing": "Position size increasing — risk grows with each entry",
+    "scalingInsight.spike": "Largest leg is {pct}% of total — concentrated risk in one entry"
   },
   "landing": {
     "brandName": "ClanTrader",

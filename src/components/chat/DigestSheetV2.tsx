@@ -23,10 +23,11 @@ import {
   Wifi,
   WifiOff,
   Clock,
-  TrendingUp,
   TrendingDown,
   User,
   Users,
+  Target,
+  Activity,
 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -50,16 +51,16 @@ import {
   computeEntryInsights,
   computeScalingInsights,
   computeConcentrationSummary,
+  computeSmartActions,
   type SafetyBand,
   type ConfidenceBand,
   type DigestDelta,
   type ActionItem,
   type AlertMemberInput,
-  type ConcentrationCluster,
   type ConcentrationSummary,
   type EntryClusterInsight,
   type ScalingInsight,
-  type RiskBudget,
+  type SmartAction,
   type RiskBudgetBand,
   type MemberTrend,
   type PredictiveHint,
@@ -93,11 +94,11 @@ const SEVERITY_ACCENT: Record<AttentionSeverity, string> = {
   INFO: "border-s-blue-500",
 };
 
-const SAFETY_STYLES: Record<SafetyBand, { text: string; border: string; bar: string; heroBg: string }> = {
-  SAFE: { text: "text-green-600 dark:text-green-400", border: "border-green-500/30", bar: "bg-green-500", heroBg: "bg-green-500/15 dark:bg-green-500/10" },
-  WATCH: { text: "text-yellow-600 dark:text-yellow-400", border: "border-yellow-500/30", bar: "bg-yellow-500", heroBg: "bg-yellow-500/15 dark:bg-yellow-500/10" },
-  AT_RISK: { text: "text-orange-600 dark:text-orange-400", border: "border-orange-500/30", bar: "bg-orange-500", heroBg: "bg-orange-500/15 dark:bg-orange-500/10" },
-  CRITICAL: { text: "text-red-600 dark:text-red-400", border: "border-red-500/30", bar: "bg-red-500", heroBg: "bg-red-500/15 dark:bg-red-500/10" },
+const SAFETY_STYLES: Record<SafetyBand, { text: string; border: string; bar: string; dot: string }> = {
+  SAFE: { text: "text-green-600 dark:text-green-400", border: "border-green-500/30", bar: "bg-green-500", dot: "bg-green-500" },
+  WATCH: { text: "text-yellow-600 dark:text-yellow-400", border: "border-yellow-500/30", bar: "bg-yellow-500", dot: "bg-yellow-500" },
+  AT_RISK: { text: "text-orange-600 dark:text-orange-400", border: "border-orange-500/30", bar: "bg-orange-500", dot: "bg-orange-500" },
+  CRITICAL: { text: "text-red-600 dark:text-red-400", border: "border-red-500/30", bar: "bg-red-500", dot: "bg-red-500" },
 };
 
 const CONFIDENCE_STYLES: Record<ConfidenceBand, { text: string }> = {
@@ -128,9 +129,27 @@ function fmtR(v: number | null): string {
   return `${sign}${v.toFixed(2)}R`;
 }
 
+function fmtCurrency(v: number): string {
+  const sign = v >= 0 ? "+" : "";
+  if (Math.abs(v) >= 1000) {
+    return `${sign}$${v.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  }
+  return `${sign}$${v.toFixed(2)}`;
+}
+
 function pnlColor(v: number | null): string {
   if (v === null) return "text-muted-foreground";
   return v >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400";
+}
+
+function holdDuration(createdAt: string): string {
+  const ms = Date.now() - new Date(createdAt).getTime();
+  const hours = Math.floor(ms / 3600000);
+  if (hours < 1) return "<1h";
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  const remH = hours % 24;
+  return remH > 0 ? `${days}d ${remH}h` : `${days}d`;
 }
 
 function getAction(
@@ -149,73 +168,43 @@ function getAction(
   return null;
 }
 
-// ─── Group attention items ───
+// ─── Position Grouping ───
 
-interface GroupedItem {
-  type: "single" | "trackingGroup";
-  severity: AttentionSeverity;
-  userId: string;
-  username: string;
-  tradeId?: string;
-  instrument?: string;
-  messageKey?: string;
-  messageParams?: Record<string, string | number>;
-  kind?: string;
-  count?: number;
-  instruments?: string[];
+interface PositionGroup {
+  instrument: string;
+  direction: string;
+  positions: OpenPositionV2[];
+  totalLots: number;
+  totalPnl: number;
+  avgEntry: number | null;
 }
 
-function groupAttentionItems(
-  items: DigestV2Response["attentionQueue"]
-): GroupedItem[] {
-  const trackingByMember = new Map<
-    string,
-    { username: string; count: number; instruments: string[]; severity: AttentionSeverity }
-  >();
-  const others: GroupedItem[] = [];
-
-  for (const item of items) {
-    if (item.kind === "TRACKING_LOST_OPEN_RISK") {
-      const existing = trackingByMember.get(item.userId);
-      if (existing) {
-        existing.count++;
-        if (item.instrument) existing.instruments.push(item.instrument);
-      } else {
-        trackingByMember.set(item.userId, {
-          username: item.username,
-          count: 1,
-          instruments: item.instrument ? [item.instrument] : [],
-          severity: item.severity as AttentionSeverity,
-        });
-      }
-    } else {
-      others.push({
-        type: "single",
-        severity: item.severity as AttentionSeverity,
-        userId: item.userId,
-        username: item.username,
-        tradeId: item.tradeId,
-        instrument: item.instrument,
-        messageKey: item.messageKey,
-        messageParams: item.messageParams as Record<string, string | number>,
-        kind: item.kind,
-      });
+function groupPositionsBySymbol(positions: OpenPositionV2[]): PositionGroup[] {
+  const map = new Map<string, PositionGroup>();
+  for (const p of positions) {
+    const key = `${p.instrument}:${p.direction}`;
+    let g = map.get(key);
+    if (!g) {
+      g = { instrument: p.instrument, direction: p.direction, positions: [], totalLots: 0, totalPnl: 0, avgEntry: null };
+      map.set(key, g);
     }
+    g.positions.push(p);
+    g.totalLots += p.lots ?? 0;
+    g.totalPnl += p.floatingPnl ?? 0;
   }
-
-  const result: GroupedItem[] = [];
-  for (const [userId, data] of trackingByMember) {
-    result.push({
-      type: "trackingGroup",
-      severity: data.severity,
-      userId,
-      username: data.username,
-      count: data.count,
-      instruments: data.instruments,
-    });
+  // Compute weighted avg entry per group
+  for (const g of map.values()) {
+    let totalLotPrice = 0;
+    let totalLots = 0;
+    for (const p of g.positions) {
+      if (p.openPrice != null && p.lots != null && p.lots > 0) {
+        totalLotPrice += p.openPrice * p.lots;
+        totalLots += p.lots;
+      }
+    }
+    g.avgEntry = totalLots > 0 ? Math.round((totalLotPrice / totalLots) * 100000) / 100000 : null;
   }
-  result.push(...others);
-  return result;
+  return Array.from(map.values()).sort((a, b) => Math.abs(b.totalPnl) - Math.abs(a.totalPnl));
 }
 
 // ─── Scope Types ───
@@ -229,7 +218,6 @@ function buildTraderView(data: DigestV2Response): DigestV2Response | null {
   const myMember = data.members.find((m) => m.userId === myId);
   if (!myMember) return null;
 
-  // Trader state assessment from own positions only
   const hasActive = myMember.openPositions.some((p) => p.trackingStatus === "ACTIVE");
   const hasStale = myMember.openPositions.some((p) => p.trackingStatus === "STALE");
   const hasLost = myMember.openPositions.some((p) => p.trackingStatus === "TRACKING_LOST");
@@ -247,7 +235,6 @@ function buildTraderView(data: DigestV2Response): DigestV2Response | null {
     },
   });
 
-  // Trader cockpit from member-level aggregates
   const traderCockpit: DigestV2Response["cockpit"] = {
     totalFloatingPnl: myMember.memberFloatingPnl,
     totalFloatingR: myMember.memberFloatingR,
@@ -259,7 +246,7 @@ function buildTraderView(data: DigestV2Response): DigestV2Response | null {
     liveConfidence:
       traderState.confidenceBand === "HIGH" ? "HIGH" :
       traderState.confidenceBand === "MODERATE" ? "PARTIAL" : "LOW",
-    realizedPnl: null, // per-member realized PnL not available
+    realizedPnl: null,
     realizedR: myMember.closedTrades.length > 0 ? myMember.totalR : null,
     closedCount: myMember.closedTrades.length,
     officialWinRate: myMember.winRate > 0 ? myMember.winRate : null,
@@ -267,7 +254,6 @@ function buildTraderView(data: DigestV2Response): DigestV2Response | null {
     unofficialCount: myMember.closedTrades.filter((t) => !t.isOfficial).length,
   };
 
-  // Trader concentration from own positions only
   const traderConcentration = computeConcentration(
     myMember.openPositions.map((p) => ({
       instrument: p.instrument,
@@ -278,7 +264,6 @@ function buildTraderView(data: DigestV2Response): DigestV2Response | null {
     }))
   );
 
-  // Trader alerts from own issues only
   const traderMemberInput: AlertMemberInput = {
     userId: myMember.userId,
     name: myMember.name,
@@ -292,25 +277,21 @@ function buildTraderView(data: DigestV2Response): DigestV2Response | null {
   const traderAlerts = generateAlerts(traderState, [traderMemberInput], null, traderConcentration);
   const traderActions = generateActions(traderAlerts);
 
-  // Trader risk budget
   const traderRiskBudget = computeRiskBudget({
     currentOpenRiskR: myMember.memberRiskToSLR,
-    totalEquity: null,
+    totalEquity: data.riskBudget?.totalEquity ?? null,
     totalBalance: null,
     openTradeCount: myMember.openCount,
   });
 
-  // Trader attention queue (own items only)
   const traderAttention = data.attentionQueue.filter((a) => a.userId === myId);
 
-  // Trader tracking summary
   const traderTracking = {
     activeAccounts: hasActive ? 1 : 0,
     staleAccounts: hasStale ? 1 : 0,
     lostAccounts: hasLost ? 1 : 0,
   };
 
-  // Trader live health summary
   const traderLiveHealth: DigestV2Response["liveHealthSummary"] = {
     healthyPositions: myMember.openPositions.filter((p) => p.health.overall === "HEALTHY").length,
     needsReviewPositions: myMember.openPositions.filter((p) => p.health.overall === "NEEDS_REVIEW").length,
@@ -322,7 +303,6 @@ function buildTraderView(data: DigestV2Response): DigestV2Response | null {
     fragileWinnerPositions: myMember.openPositions.filter((p) => p.health.profitProtection === "FRAGILE_WINNER").length,
   };
 
-  // Trader summary
   const traderSummary: DigestV2Response["summary"] = {
     totalCards: myMember.signalCount + myMember.analysisCount,
     totalSignals: myMember.signalCount,
@@ -337,7 +317,6 @@ function buildTraderView(data: DigestV2Response): DigestV2Response | null {
     activeMemberCount: 1,
   };
 
-  // Trader entry insights
   const traderEntryInsights = computeEntryInsights(
     myMember.openPositions.map((p) => ({
       instrument: p.instrument,
@@ -349,7 +328,6 @@ function buildTraderView(data: DigestV2Response): DigestV2Response | null {
     }))
   );
 
-  // Trader scaling insights
   const traderScalingInsights = computeScalingInsights(
     myMember.openPositions.map((p) => ({
       instrument: p.instrument,
@@ -360,7 +338,6 @@ function buildTraderView(data: DigestV2Response): DigestV2Response | null {
     }))
   );
 
-  // Trader concentration summary
   const traderConcentrationSummary = computeConcentrationSummary(
     myMember.openPositions.map((p) => ({
       instrument: p.instrument,
@@ -536,7 +513,7 @@ export function DigestSheetV2({ open, onOpenChange, clanId }: DigestSheetV2Props
           ))}
         </div>
 
-        <div className="mt-4 flex-1 overflow-y-auto pb-4">
+        <div className="mt-3 flex-1 overflow-y-auto pb-4">
           {loading && (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -577,7 +554,9 @@ export function DigestSheetV2({ open, onOpenChange, clanId }: DigestSheetV2Props
   );
 }
 
-// ─── V2 Content — Modern Dashboard Layout ───
+// ════════════════════════════════════════════
+// V2 Content — 3-Zone Trading Intelligence
+// ════════════════════════════════════════════
 
 function V2Content({
   data,
@@ -598,212 +577,127 @@ function V2Content({
 }) {
   const c = data.cockpit;
   const ts = data.trackingSummary;
-  const hasTrackingIssue = ts.staleAccounts > 0 || ts.lostAccounts > 0;
-  const grouped = groupAttentionItems(data.attentionQueue);
   const sa = data.stateAssessment;
+  const hasTrackingIssue = ts.staleAccounts > 0 || ts.lostAccounts > 0;
   const hasOpenPositions = data.summary.openCount > 0;
-  const hasClosedResults = c.closedCount > 0 || data.summary.totalCards > 0;
+  const hasClosedResults = c.closedCount > 0;
+
+  const nowMs = new Date(data.generatedAt).getTime();
+
+  // Flatten all positions for analysis
+  const allPositions = useMemo(() =>
+    data.members.flatMap((m) => m.openPositions),
+    [data.members]
+  );
+
+  // Group positions by symbol
+  const positionGroups = useMemo(() =>
+    groupPositionsBySymbol(allPositions),
+    [allPositions]
+  );
+
+  // Smart actions (trade intelligence)
+  const smartActions = useMemo(() =>
+    computeSmartActions({
+      positions: allPositions.map((p) => ({
+        floatingPnl: p.floatingPnl,
+        protectionStatus: p.health.protectionStatus,
+        lots: p.lots ?? null,
+        instrument: p.instrument,
+        direction: p.direction,
+        openPrice: p.openPrice ?? null,
+        createdAt: p.createdAt,
+      })),
+      totalFloatingPnl: c.totalFloatingPnl,
+      entryInsights: data.entryInsights ?? [],
+      scalingInsights: data.scalingInsights ?? [],
+      concentrationSummary: data.concentrationSummary ?? null,
+    }),
+    [allPositions, c.totalFloatingPnl, data.entryInsights, data.scalingInsights, data.concentrationSummary]
+  );
+
+  // Unprotected count for risk exposure
+  const unprotectedCount = allPositions.filter(
+    (p) => p.health.protectionStatus === "UNPROTECTED" || p.health.protectionStatus === "UNKNOWN_RISK"
+  ).length;
 
   return (
-    <div className="space-y-6">
-      {/* ═══ ZONE 1: State Overview ═══ */}
-      <div className="space-y-3">
-        <HeroStatusCard assessment={sa} t={t} />
-        <DeltaStrip deltas={data.deltas} t={t} />
-      </div>
+    <div className="space-y-2">
+      {/* ═══ ZONE 1: THE COCKPIT — Above the fold ═══ */}
 
-      {/* ═══ ZONE 2: Actions & Warnings ═══ */}
-      {(data.actions.length > 0 || (data.hints && data.hints.length > 0)) && (
-        <div className="space-y-3">
-          {data.actions.length > 0 && (
-            <TopActionsBlock actions={data.actions} t={t} />
-          )}
-          {data.hints && data.hints.length > 0 && (
-            <HintsBlock hints={data.hints} t={t} />
-          )}
-        </div>
+      {/* 1A. System Status Bar — slim inline */}
+      <SystemStatusBar
+        tracking={ts}
+        assessment={sa}
+        hasTrackingIssue={hasTrackingIssue}
+        generatedAt={data.generatedAt}
+        t={t}
+      />
+
+      {/* 1B. The Money Line — P/L Hero */}
+      {hasOpenPositions && (
+        <MoneyLine
+          cockpit={c}
+          equity={data.riskBudget?.totalEquity ?? null}
+          openCount={data.summary.openCount}
+          t={t}
+        />
       )}
 
-      {/* ═══ ZONE 3: Key Metrics ═══ */}
-      {(hasOpenPositions || hasClosedResults) && (
-        <div className="space-y-3">
-          {hasOpenPositions && (
-            <div>
-              <SectionHeader
-                icon={<TrendingUp className="h-3.5 w-3.5" />}
-                label={t("digest.cockpit.rightNow")}
-              />
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <MetricCard
-                  label={t("digest.cockpit.openPnl")}
-                  value={fmtPnl(c.totalFloatingPnl)}
-                  color={pnlColor(c.totalFloatingPnl)}
-                />
-                <MetricCard
-                  label={t("digest.cockpit.openR")}
-                  value={fmtR(c.totalFloatingR)}
-                  color={pnlColor(c.totalFloatingR)}
-                />
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                <span>
-                  {t("digest.cockpit.slRisk")}:{" "}
-                  <span className="font-mono text-orange-600 dark:text-orange-400">{fmtR(c.currentOpenRiskR)}</span>
-                </span>
-                {c.tradesNeedingAction > 0 && (
-                  <span className="text-red-600 dark:text-red-400">
-                    {c.tradesNeedingAction} {t("digest.cockpit.needAction")}
-                  </span>
-                )}
-                {c.unknownRiskCount > 0 && (
-                  <span>{c.unknownRiskCount} {t("digest.cockpit.unknownRisk")}</span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {hasClosedResults && (
-            <div>
-              <SectionHeader
-                icon={<TrendingDown className="h-3.5 w-3.5" />}
-                label={t("digest.cockpit.periodResults")}
-              />
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <MetricCard
-                  label={t("digest.cockpit.realizedPnl")}
-                  value={fmtPnl(c.realizedPnl)}
-                  color={pnlColor(c.realizedPnl)}
-                />
-                <MetricCard
-                  label={t("digest.cockpit.realizedR")}
-                  value={fmtR(c.realizedR)}
-                  color={pnlColor(c.realizedR)}
-                />
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                <span>{c.closedCount} {t("digest.cockpit.closed")}</span>
-                {c.officialWinRate !== null && (
-                  <span>WR: <span className="font-mono text-green-600 dark:text-green-400">{c.officialWinRate}%</span></span>
-                )}
-                <span className="flex gap-1.5">
-                  <span className="text-green-600 dark:text-green-400">TP:{data.summary.tpHit}</span>
-                  <span className="text-red-600 dark:text-red-400">SL:{data.summary.slHit}</span>
-                  {data.summary.be > 0 && (
-                    <span className="text-yellow-600 dark:text-yellow-400">BE:{data.summary.be}</span>
-                  )}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {data.riskBudget && (
-            <RiskBudgetBar budget={data.riskBudget} t={t} />
-          )}
-        </div>
+      {/* 1D. Smart Actions — trade intelligence */}
+      {smartActions.length > 0 && (
+        <SmartActionsBlock actions={smartActions} t={t} />
       )}
 
-      {/* ═══ ZONE 4: Position Overview ═══ */}
-      {(data.concentration.length > 0 || (ts.activeAccounts + ts.staleAccounts + ts.lostAccounts) > 0) && (
-        <div className="space-y-3">
-          {data.concentration.length > 0 && (
-            <ConcentrationBlock clusters={data.concentration} t={t} />
-          )}
+      {/* ═══ ZONE 2: THE ANALYSIS — Scrollable cards ═══ */}
 
-          {(ts.activeAccounts + ts.staleAccounts + ts.lostAccounts) > 0 && (
-            <div className={cn(
-              "flex items-center gap-2 rounded-lg px-3 py-2 text-xs",
-              hasTrackingIssue ? "bg-yellow-500/5" : "bg-green-500/5"
-            )}>
-              {hasTrackingIssue ? (
-                <WifiOff className="h-3.5 w-3.5 shrink-0 text-yellow-500" />
-              ) : (
-                <Wifi className="h-3.5 w-3.5 shrink-0 text-green-500" />
-              )}
-              <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-                {ts.activeAccounts > 0 && (
-                  <span className="text-green-600 dark:text-green-400">
-                    {ts.activeAccounts} {t("digest.tracking.active")}
-                  </span>
-                )}
-                {ts.staleAccounts > 0 && (
-                  <span className="text-yellow-600 dark:text-yellow-400">
-                    {ts.staleAccounts} {t("digest.tracking.stale")}
-                  </span>
-                )}
-                {ts.lostAccounts > 0 && (
-                  <span className="text-red-600 dark:text-red-400">
-                    {ts.lostAccounts} {t("digest.tracking.lost")}
-                  </span>
-                )}
-              </div>
-              <span className="ms-auto text-[10px] text-muted-foreground">
-                <Clock className="me-0.5 inline h-2.5 w-2.5" />
-                {new Date(data.generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-              </span>
-            </div>
-          )}
-        </div>
+      {/* 2A. Position Summary */}
+      {positionGroups.length > 0 && (
+        <PositionSummaryCard groups={positionGroups} totalPnl={c.totalFloatingPnl ?? 0} t={t} />
       )}
 
-      {/* ═══ ZONE 4b: Live Intelligence Insights ═══ */}
-      {(data.concentrationSummary || (data.entryInsights && data.entryInsights.length > 0) || (data.scalingInsights && data.scalingInsights.length > 0)) && (
-        <div className="space-y-3">
-          {data.concentrationSummary && (
-            <ConcentrationSummaryBlock summary={data.concentrationSummary} t={t} />
-          )}
-          {data.entryInsights && data.entryInsights.length > 0 && (
-            <EntryInsightBlock insights={data.entryInsights} t={t} />
-          )}
-          {data.scalingInsights && data.scalingInsights.length > 0 && (
-            <ScalingInsightBlock insights={data.scalingInsights} t={t} />
-          )}
-        </div>
+      {/* 2B. Risk Exposure */}
+      {hasOpenPositions && unprotectedCount > 0 && (
+        <RiskExposureCard
+          totalPnl={c.totalFloatingPnl}
+          totalRisk={c.currentOpenRiskR}
+          unprotectedCount={unprotectedCount}
+          totalPositions={allPositions.length}
+          t={t}
+        />
       )}
 
-      {/* ═══ ZONE 5: Attention Queue ═══ */}
-      {grouped.length > 0 && (
-        <div>
-          <SectionHeader
-            icon={<AlertTriangle className="h-3.5 w-3.5 text-orange-500" />}
-            label={`${t("digest.attention.title")} (${grouped.length})`}
-          />
-          <div className="mt-2 space-y-1.5">
-            {grouped.map((item, i) => (
-              <div
-                key={`${item.userId}-${i}`}
-                className={cn(
-                  "rounded-lg border-s-2 bg-muted/30 px-3 py-2 text-xs",
-                  SEVERITY_ACCENT[item.severity]
-                )}
-              >
-                {item.type === "trackingGroup" ? (
-                  <div className="flex items-center gap-2">
-                    <WifiOff className="h-3 w-3 shrink-0 text-red-400" />
-                    <span className="font-semibold">{item.username}</span>
-                    <span className="text-muted-foreground">
-                      {t("digest.cockpit.trackingLostGroup", { count: item.count ?? 0 })}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold">{item.username}</span>
-                    {item.instrument && (
-                      <span className="font-mono text-muted-foreground">{item.instrument}</span>
-                    )}
-                    {item.messageKey && (
-                      <span className="text-muted-foreground">
-                        — {t(item.messageKey, item.messageParams)}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* 2C. Entry Quality */}
+      {data.entryInsights && data.entryInsights.length > 0 && (
+        <EntryQualityCard insights={data.entryInsights} t={t} />
       )}
 
-      {/* ═══ ZONE 6: Member Breakdown / My Positions ═══ */}
+      {/* 2D. Scaling Pattern */}
+      {data.scalingInsights && data.scalingInsights.length > 0 && (
+        <ScalingPatternCard insights={data.scalingInsights} positions={allPositions} t={t} />
+      )}
+
+      {/* 2E. Profit Attribution */}
+      {allPositions.length > 1 && allPositions.some((p) => p.floatingPnl !== null) && (
+        <ProfitAttributionCard positions={allPositions} nowMs={nowMs} t={t} />
+      )}
+
+      {/* 2G. Concentration */}
+      {data.concentrationSummary && (
+        <ConcentrationCard summary={data.concentrationSummary} t={t} />
+      )}
+
+      {/* Delta Strip */}
+      <DeltaStrip deltas={data.deltas} t={t} />
+
+      {/* Hints */}
+      {data.hints && data.hints.length > 0 && (
+        <HintsBlock hints={data.hints} t={t} />
+      )}
+
+      {/* ═══ ZONE 3: THE DETAILS ═══ */}
+
+      {/* 3A/3B. Positions or Member Breakdown */}
       {scope === "clan" ? (
         <div>
           <SectionHeader label={t("digest.memberBreakdown")} />
@@ -851,73 +745,579 @@ function V2Content({
           )}
         </div>
       ) : null}
+
+      {/* Period Results — only when there are actual results */}
+      {hasClosedResults && (
+        <PeriodResultsCard cockpit={c} summary={data.summary} t={t} />
+      )}
+
+      {/* 3C. System Health — collapsed at bottom */}
+      <SystemHealthSection
+        tracking={ts}
+        assessment={sa}
+        attention={data.attentionQueue}
+        actions={data.actions}
+        riskBudget={data.riskBudget}
+        generatedAt={data.generatedAt}
+        t={t}
+      />
     </div>
   );
 }
 
-// ─── Hero Status Card ───
+// ════════════════════════════════════════════
+// ZONE 1 COMPONENTS
+// ════════════════════════════════════════════
 
-function HeroStatusCard({
+// ─── 1A. System Status Bar ───
+
+function SystemStatusBar({
+  tracking,
   assessment,
+  hasTrackingIssue,
+  generatedAt,
   t,
 }: {
+  tracking: DigestV2Response["trackingSummary"];
   assessment: DigestV2Response["stateAssessment"];
+  hasTrackingIssue: boolean;
+  generatedAt: string;
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
-  const m = assessment.metrics;
-  if (m.openTradeCount === 0) return null;
-
   const safety = SAFETY_STYLES[assessment.safetyBand as SafetyBand];
-  const conf = CONFIDENCE_STYLES[assessment.confidenceBand as ConfidenceBand];
+  const totalAccounts = tracking.activeAccounts + tracking.staleAccounts + tracking.lostAccounts;
 
-  const reasons: string[] = [];
-  if (m.unprotectedCount > 0) reasons.push(t("digest.state.reason.unprotected", { count: m.unprotectedCount }));
-  if (m.unknownRiskCount > 0) reasons.push(t("digest.state.reason.unknownRisk", { count: m.unknownRiskCount }));
-  if (m.trackingLostTradeCount > 0) reasons.push(t("digest.confidence.reason.trackingLost", { count: m.trackingLostTradeCount }));
-  if (m.needActionCount > 0) reasons.push(t("digest.state.reason.needAction", { count: m.needActionCount }));
+  // Slim banner for issues
+  if (hasTrackingIssue) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 px-3 py-1.5">
+        <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" />
+        <span className="flex-1 text-xs text-amber-600 dark:text-amber-400">
+          {tracking.lostAccounts > 0
+            ? t("digest.status.trackingLost", { count: tracking.lostAccounts })
+            : t("digest.status.stale", { count: tracking.staleAccounts })}
+        </span>
+        <span className="text-[10px] text-muted-foreground">
+          {new Date(generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        </span>
+      </div>
+    );
+  }
+
+  // Slim healthy bar
+  if (totalAccounts > 0) {
+    return (
+      <div className="flex items-center gap-2 px-1 py-0.5">
+        <span className={cn("h-2 w-2 shrink-0 rounded-full", safety.dot)} />
+        <span className="text-[10px] text-muted-foreground">{t("digest.status.live")}</span>
+        <span className="ms-auto text-[10px] text-muted-foreground">
+          {new Date(generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        </span>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// ─── 1B. Money Line ───
+
+function MoneyLine({
+  cockpit,
+  equity,
+  openCount,
+  t,
+}: {
+  cockpit: DigestV2Response["cockpit"];
+  equity: number | null;
+  openCount: number;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  const pnl = cockpit.totalFloatingPnl;
+  const pnlPct = equity && equity > 0 && pnl !== null ? (pnl / equity) * 100 : null;
 
   return (
-    <div className={cn(
-      "relative overflow-hidden rounded-xl border p-4",
-      safety.heroBg, safety.border
-    )}>
-      <div className="flex items-start justify-between">
-        <div className="min-w-0 flex-1">
-          <p className={cn("text-xl font-black tracking-tight sm:text-2xl", safety.text)}>
-            {t(`digest.state.${assessment.safetyBand.toLowerCase()}`)}
-          </p>
-          {reasons.length > 0 && assessment.safetyBand !== "SAFE" && (
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              {reasons.slice(0, 3).join(" · ")}
-            </p>
+    <div className="rounded-xl bg-muted/20 px-4 py-3">
+      <div className="flex items-baseline justify-between">
+        <span className={cn("text-3xl font-black tabular-nums tracking-tight", pnlColor(pnl))}>
+          {pnl !== null ? fmtCurrency(pnl) : "—"}
+        </span>
+        {pnlPct !== null && (
+          <span className={cn("text-lg font-bold tabular-nums", pnlColor(pnl))}>
+            {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%
+          </span>
+        )}
+      </div>
+      <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
+        <span>{t("digest.moneyLine.openPnl")} · {openCount} {t("digest.moneyLine.positions")}</span>
+        {pnlPct !== null && <span>{t("digest.moneyLine.ofEquity")}</span>}
+      </div>
+      {/* Secondary metrics row */}
+      <div className="mt-2 flex items-center gap-3 text-xs">
+        {cockpit.totalFloatingR !== null && (
+          <span className={cn("font-mono font-semibold", pnlColor(cockpit.totalFloatingR))}>
+            {fmtR(cockpit.totalFloatingR)}
+          </span>
+        )}
+        {cockpit.currentOpenRiskR !== null && (
+          <span className="font-mono text-orange-600 dark:text-orange-400">
+            {t("digest.cockpit.slRisk")}: {fmtR(cockpit.currentOpenRiskR)}
+          </span>
+        )}
+        {cockpit.unknownRiskCount > 0 && (
+          <span className="text-muted-foreground">
+            {cockpit.unknownRiskCount} {t("digest.cockpit.unknownRisk")}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── 1D. Smart Actions ───
+
+const SMART_ICON_MAP: Record<SmartAction["icon"], typeof AlertTriangle> = {
+  risk: AlertTriangle,
+  opportunity: Target,
+  analysis: Activity,
+};
+
+const SMART_ICON_COLORS: Record<SmartAction["icon"], string> = {
+  risk: "text-red-500",
+  opportunity: "text-green-500",
+  analysis: "text-blue-500",
+};
+
+function SmartActionsBlock({
+  actions,
+  t,
+}: {
+  actions: SmartAction[];
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      {actions.map((action, i) => {
+        const Icon = SMART_ICON_MAP[action.icon];
+        const iconColor = SMART_ICON_COLORS[action.icon];
+        return (
+          <div
+            key={`smart-${i}`}
+            className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5"
+          >
+            <div className="flex items-start gap-2.5">
+              <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", iconColor)} />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-foreground">
+                  {t(action.titleKey)}
+                </p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                  {t(action.detailKey, action.detailParams)}
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════
+// ZONE 2 COMPONENTS
+// ════════════════════════════════════════════
+
+// ─── 2A. Position Summary Card ───
+
+function PositionSummaryCard({
+  groups,
+  totalPnl,
+  t,
+}: {
+  groups: PositionGroup[];
+  totalPnl: number;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  return (
+    <div>
+      <SectionHeader label={t("digest.posSummary.title")} />
+      <div className="mt-1.5 space-y-1.5">
+        {groups.map((g) => {
+          const absPnl = Math.abs(g.totalPnl);
+          const barWidth = totalPnl !== 0 ? Math.min((absPnl / Math.abs(totalPnl)) * 100, 100) : 0;
+
+          return (
+            <div key={`${g.instrument}:${g.direction}`} className="rounded-lg bg-muted/20 px-3 py-2">
+              <div className="flex items-center gap-2 text-xs">
+                <DirectionBadge direction={g.direction as "LONG" | "SHORT"} />
+                <span className="font-mono font-semibold">{g.instrument}</span>
+                <span className="text-muted-foreground">
+                  {g.positions.length} {t("digest.insight.trades")} · {g.totalLots} {t("digest.insight.lots")}
+                </span>
+                <span className={cn("ms-auto font-mono font-bold", pnlColor(g.totalPnl))}>
+                  {fmtCurrency(g.totalPnl)}
+                </span>
+              </div>
+              {/* P/L contribution bar */}
+              <div className="mt-1.5 h-1.5 rounded-full bg-muted/50">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all",
+                    g.totalPnl >= 0 ? "bg-green-500/60" : "bg-red-500/60"
+                  )}
+                  style={{ width: `${barWidth}%` }}
+                />
+              </div>
+              {g.avgEntry !== null && (
+                <div className="mt-1 flex gap-3 text-[10px] text-muted-foreground">
+                  <span>{t("digest.posSummary.avgEntry")}: <span className="font-mono">{g.avgEntry}</span></span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── 2B. Risk Exposure Card ───
+
+function RiskExposureCard({
+  totalPnl,
+  totalRisk,
+  unprotectedCount,
+  totalPositions,
+  t,
+}: {
+  totalPnl: number | null;
+  totalRisk: number | null;
+  unprotectedCount: number;
+  totalPositions: number;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  return (
+    <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2.5">
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-red-600 dark:text-red-400">
+          {t("digest.riskExposure.title")}
+        </p>
+        <ShieldOff className="h-3.5 w-3.5 text-red-500/60" />
+      </div>
+      <div className="mt-2 space-y-1 text-xs">
+        {totalPnl !== null && totalPnl > 0 && (
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">{t("digest.riskExposure.unprotectedPnl")}</span>
+            <span className="font-mono font-semibold text-red-600 dark:text-red-400">{fmtCurrency(totalPnl)}</span>
+          </div>
+        )}
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">{t("digest.riskExposure.noSL")}</span>
+          <span className="font-mono">{unprotectedCount}/{totalPositions} {t("digest.insight.trades")}</span>
+        </div>
+        {totalRisk !== null && (
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">{t("digest.cockpit.slRisk")}</span>
+            <span className="font-mono text-orange-600 dark:text-orange-400">{fmtR(totalRisk)}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── 2C. Entry Quality Card ───
+
+const ENTRY_QUALITY_STYLES: Record<EntryClusterInsight["qualityLabel"], { text: string; bg: string }> = {
+  tight: { text: "text-green-600 dark:text-green-400", bg: "bg-green-500/10" },
+  spread: { text: "text-yellow-600 dark:text-yellow-400", bg: "bg-yellow-500/10" },
+  wide: { text: "text-red-600 dark:text-red-400", bg: "bg-red-500/10" },
+  unknown: { text: "text-muted-foreground", bg: "bg-muted/30" },
+};
+
+function EntryQualityCard({
+  insights,
+  t,
+}: {
+  insights: EntryClusterInsight[];
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  return (
+    <div>
+      <SectionHeader label={t("digest.insight.entryQuality")} />
+      <div className="mt-1.5 space-y-1.5">
+        {insights.slice(0, 3).map((ins) => {
+          const qStyle = ENTRY_QUALITY_STYLES[ins.qualityLabel];
+          return (
+            <div key={`${ins.instrument}:${ins.direction}`} className="rounded-lg bg-muted/20 px-3 py-2">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="font-mono font-semibold">{ins.instrument}</span>
+                <DirectionBadge direction={ins.direction as "LONG" | "SHORT"} />
+                <span className={cn("ms-auto rounded-full px-2 py-0.5 text-[10px] font-semibold", qStyle.text, qStyle.bg)}>
+                  {t(`digest.insight.quality.${ins.qualityLabel}`)}
+                </span>
+              </div>
+              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+                {ins.weightedAvgEntry !== null && (
+                  <span>{t("digest.insight.avgEntry")}: <span className="font-mono">{ins.weightedAvgEntry}</span></span>
+                )}
+                {ins.entrySpreadPct !== null && (
+                  <span>{t("digest.insight.entrySpread")}: <span className="font-mono">{ins.entrySpreadPct}%</span></span>
+                )}
+                <span>{ins.tradeCount} {t("digest.insight.trades")}</span>
+              </div>
+              {/* Insight sentence */}
+              {ins.qualityLabel === "wide" && ins.entrySpreadPct !== null && ins.entrySpreadPct > 5 && (
+                <p className="mt-1 text-[10px] text-orange-600 dark:text-orange-400">
+                  {t("digest.entryInsight.wideSpread", { pct: ins.entrySpreadPct })}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── 2D. Scaling Pattern Card ───
+
+const SCALING_PATTERN_STYLES: Record<ScalingInsight["pattern"], { text: string; bg: string }> = {
+  balanced: { text: "text-green-600 dark:text-green-400", bg: "bg-green-500/10" },
+  increasing: { text: "text-orange-600 dark:text-orange-400", bg: "bg-orange-500/10" },
+  decreasing: { text: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10" },
+  spike: { text: "text-red-600 dark:text-red-400", bg: "bg-red-500/10" },
+  unknown: { text: "text-muted-foreground", bg: "bg-muted/30" },
+};
+
+function ScalingPatternCard({
+  insights,
+  positions,
+  t,
+}: {
+  insights: ScalingInsight[];
+  positions: OpenPositionV2[];
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  return (
+    <div>
+      <SectionHeader label={t("digest.insight.scalingPattern")} />
+      <div className="mt-1.5 space-y-1.5">
+        {insights.slice(0, 3).map((ins) => {
+          const pStyle = SCALING_PATTERN_STYLES[ins.pattern];
+          const lastVsAvgPct = Math.round((ins.lastLegVsAvg - 1) * 100);
+          const largestPct = Math.round(ins.largestLegShare * 100);
+
+          // Get individual legs for this cluster
+          const clusterPositions = positions
+            .filter((p) => p.instrument === ins.instrument && p.direction === ins.direction && p.lots != null && p.lots > 0)
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+          return (
+            <div key={`${ins.instrument}:${ins.direction}`} className="rounded-lg bg-muted/20 px-3 py-2">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="font-mono font-semibold">{ins.instrument}</span>
+                <DirectionBadge direction={ins.direction as "LONG" | "SHORT"} />
+                <span className={cn("ms-auto rounded-full px-2 py-0.5 text-[10px] font-semibold", pStyle.text, pStyle.bg)}>
+                  {t(`digest.insight.pattern.${ins.pattern}`)}
+                </span>
+              </div>
+              {/* Entry timeline */}
+              {clusterPositions.length > 0 && (
+                <div className="mt-2 space-y-0.5">
+                  {clusterPositions.map((p) => {
+                    const isLargest = p.lots === ins.largestLegLots;
+                    return (
+                      <div key={p.tradeId} className="flex items-center gap-2 text-[10px]">
+                        <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", isLargest ? "bg-orange-500" : "bg-muted-foreground/40")} />
+                        <span className={cn("w-14 font-mono", isLargest ? "font-bold text-foreground" : "text-muted-foreground")}>
+                          {p.lots} {t("digest.insight.lots")}
+                        </span>
+                        {p.openPrice != null && (
+                          <span className="font-mono text-muted-foreground">@ {p.openPrice}</span>
+                        )}
+                        <span className="ms-auto text-muted-foreground/60">
+                          {new Date(p.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}
+                        </span>
+                        {isLargest && (
+                          <span className="text-[9px] text-orange-500">←</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+                <span>{ins.legCount} {t("digest.insight.legs")} · {ins.totalLots} {t("digest.insight.lots")}</span>
+                <span>{t("digest.insight.largestLeg")}: {largestPct}%</span>
+                {lastVsAvgPct !== 0 && (
+                  <span className={lastVsAvgPct > 50 ? "text-orange-600 dark:text-orange-400" : ""}>
+                    {t("digest.insight.lastLeg")}: {lastVsAvgPct > 0 ? "+" : ""}{lastVsAvgPct}% {t("digest.insight.vsAvg")}
+                  </span>
+                )}
+              </div>
+              {/* Insight sentence for dangerous patterns */}
+              {ins.pattern === "increasing" && ins.lastLegVsAvg > 1.4 && (
+                <p className="mt-1 text-[10px] text-orange-600 dark:text-orange-400">
+                  {t("digest.scalingInsight.increasing")}
+                </p>
+              )}
+              {ins.pattern === "spike" && ins.largestLegShare > 0.5 && (
+                <p className="mt-1 text-[10px] text-orange-600 dark:text-orange-400">
+                  {t("digest.scalingInsight.spike", { pct: largestPct })}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── 2E. Profit Attribution Card ───
+
+function ProfitAttributionCard({
+  positions,
+  nowMs,
+  t,
+}: {
+  positions: OpenPositionV2[];
+  nowMs: number;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  const sorted = [...positions]
+    .filter((p) => p.floatingPnl !== null)
+    .sort((a, b) => Math.abs(b.floatingPnl ?? 0) - Math.abs(a.floatingPnl ?? 0));
+
+  if (sorted.length === 0) return null;
+
+  const totalPnl = sorted.reduce((s, p) => s + (p.floatingPnl ?? 0), 0);
+  const maxAbsPnl = Math.max(...sorted.map((p) => Math.abs(p.floatingPnl ?? 0)));
+
+  return (
+    <div>
+      <SectionHeader label={t("digest.profitAttribution.title")} />
+      <div className="mt-1.5 space-y-1">
+        {sorted.slice(0, 6).map((p) => {
+          const pnl = p.floatingPnl ?? 0;
+          const pct = totalPnl !== 0 ? (pnl / totalPnl) * 100 : 0;
+          const barWidth = maxAbsPnl > 0 ? (Math.abs(pnl) / maxAbsPnl) * 100 : 0;
+          const days = Math.max(1, (nowMs - new Date(p.createdAt).getTime()) / 86400000);
+          const perDay = pnl / days;
+
+          return (
+            <div key={p.tradeId} className="rounded-lg bg-muted/20 px-3 py-1.5">
+              <div className="flex items-center gap-2 text-[11px]">
+                <DirectionBadge direction={p.direction as "LONG" | "SHORT"} />
+                <span className="font-mono text-xs">{p.instrument}</span>
+                {p.lots != null && (
+                  <span className="text-muted-foreground">{p.lots}L</span>
+                )}
+                {p.openPrice != null && (
+                  <span className="text-muted-foreground">@{p.openPrice}</span>
+                )}
+                <span className={cn("ms-auto font-mono font-semibold", pnlColor(pnl))}>
+                  {fmtCurrency(pnl)}
+                </span>
+                <span className="w-10 text-end text-[10px] text-muted-foreground">
+                  {pct.toFixed(0)}%
+                </span>
+              </div>
+              <div className="mt-1 flex items-center gap-2">
+                <div className="h-1 flex-1 rounded-full bg-muted/50">
+                  <div
+                    className={cn("h-full rounded-full", pnl >= 0 ? "bg-green-500/50" : "bg-red-500/50")}
+                    style={{ width: `${barWidth}%` }}
+                  />
+                </div>
+                <span className="shrink-0 text-[9px] text-muted-foreground">
+                  {fmtCurrency(perDay)}/{t("digest.profitAttribution.day")}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── 2G. Concentration Card ───
+
+const CONCENTRATION_RISK_STYLES: Record<ConcentrationSummary["riskLevel"], { bg: string; text: string; border: string }> = {
+  low: { bg: "bg-green-500/5", text: "text-green-600 dark:text-green-400", border: "border-green-500/20" },
+  moderate: { bg: "bg-yellow-500/5", text: "text-yellow-600 dark:text-yellow-400", border: "border-yellow-500/20" },
+  high: { bg: "bg-orange-500/5", text: "text-orange-600 dark:text-orange-400", border: "border-orange-500/20" },
+  critical: { bg: "bg-red-500/5", text: "text-red-600 dark:text-red-400", border: "border-red-500/20" },
+};
+
+function ConcentrationCard({
+  summary,
+  t,
+}: {
+  summary: ConcentrationSummary;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  const style = CONCENTRATION_RISK_STYLES[summary.riskLevel];
+  const topPct = Math.round(summary.topSymbolShare * 100);
+  const longPct = Math.round(summary.longShare * 100);
+  const shortPct = Math.round(summary.shortShare * 100);
+
+  return (
+    <div className={cn("rounded-xl border p-3", style.bg, style.border)}>
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("digest.insight.concentrationRisk")}
+        </p>
+        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", style.text, style.bg)}>
+          {t(`digest.insight.risk.${summary.riskLevel}`)}
+        </span>
+      </div>
+
+      {/* Symbol bar */}
+      {summary.topSymbol && (
+        <div className="mt-2">
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="text-muted-foreground">{summary.topSymbol}</span>
+            <span className={cn("font-mono font-semibold", style.text)}>{topPct}%</span>
+          </div>
+          <div className="mt-0.5 h-1.5 rounded-full bg-muted/30">
+            <div className={cn("h-full rounded-full", style.text.replace("text-", "bg-").replace(" dark:text-", " dark:bg-").split(" ")[0] + "/40")} style={{ width: `${topPct}%` }} />
+          </div>
+        </div>
+      )}
+
+      {/* Direction bar */}
+      <div className="mt-2">
+        <div className="flex items-center justify-between text-[10px]">
+          <span className="text-muted-foreground">{t("digest.insight.directionBalance")}</span>
+          {summary.singleDirectionExposure ? (
+            <span className={style.text}>100% {longPct === 100 ? "LONG" : "SHORT"}</span>
+          ) : (
+            <span className="font-mono">
+              <span className="text-green-600 dark:text-green-400">{longPct}%L</span>
+              {" / "}
+              <span className="text-red-600 dark:text-red-400">{shortPct}%S</span>
+            </span>
           )}
         </div>
-        <div className="shrink-0 text-end ps-4">
-          <p className={cn("text-3xl font-black tabular-nums leading-none", safety.text)}>
-            {assessment.safetyScore}
-          </p>
-          <p className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-            {t("digest.state.title")}
-          </p>
+        <div className="mt-0.5 flex h-1.5 overflow-hidden rounded-full bg-muted/30">
+          <div className="h-full bg-green-500/50" style={{ width: `${longPct}%` }} />
+          <div className="h-full bg-red-500/50" style={{ width: `${shortPct}%` }} />
         </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-3">
-        <div className="h-1.5 flex-1 rounded-full bg-black/10 dark:bg-white/10">
-          <div
-            className={cn("h-full rounded-full transition-all", safety.bar)}
-            style={{ width: `${Math.min(assessment.safetyScore, 100)}%` }}
-          />
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <span className={cn("text-sm font-bold tabular-nums", conf.text)}>
-            {assessment.confidenceScore}
-          </span>
-          <span className="text-[10px] text-muted-foreground">
-            {t(`digest.confidence.${assessment.confidenceBand.toLowerCase()}`)}
-          </span>
-        </div>
-      </div>
+      {/* Warning */}
+      {(summary.singleSymbolExposure || summary.singleDirectionExposure) && summary.riskLevel !== "low" && (
+        <p className={cn("mt-2 text-[10px] leading-relaxed", style.text)}>
+          {summary.singleSymbolExposure && summary.singleDirectionExposure
+            ? t("digest.insight.concentrationWarnBoth", { symbol: summary.topSymbol ?? "?" })
+            : summary.singleSymbolExposure
+              ? t("digest.insight.concentrationWarnSymbol", { symbol: summary.topSymbol ?? "?" })
+              : t("digest.insight.concentrationWarnDirection")}
+        </p>
+      )}
     </div>
   );
 }
@@ -974,135 +1374,6 @@ function DeltaStrip({
   );
 }
 
-// ─── Top Actions Block ───
-
-function TopActionsBlock({
-  actions,
-  t,
-}: {
-  actions: ActionItem[];
-  t: (key: string, params?: Record<string, string | number>) => string;
-}) {
-  return (
-    <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-orange-600 dark:text-orange-400">
-        {t("digest.actions.title")}
-      </p>
-      <div className="mt-2 space-y-2">
-        {actions.map((action, i) => {
-          const alertKey = `digest.actions.${action.alertType}`;
-          const params: Record<string, string | number> = { count: action.issueCount };
-          if (action.affectedMember) params.member = action.affectedMember;
-
-          return (
-            <div key={`${action.alertId}-${i}`} className="flex items-start gap-2.5">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500/20 text-[10px] font-bold text-orange-600 dark:text-orange-400">
-                {i + 1}
-              </span>
-              <span className="text-xs leading-relaxed text-foreground/90">
-                {t(alertKey, params)}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── Metric Card ───
-
-function MetricCard({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <div className="rounded-xl bg-muted/30 p-3">
-      <p className={cn("text-lg font-bold tabular-nums", color)}>{value}</p>
-      <p className="mt-0.5 text-[10px] text-muted-foreground">{label}</p>
-    </div>
-  );
-}
-
-// ─── Risk Budget Bar ───
-
-function RiskBudgetBar({
-  budget,
-  t,
-}: {
-  budget: RiskBudget;
-  t: (key: string, params?: Record<string, string | number>) => string;
-}) {
-  const style = RISK_BUDGET_STYLES[budget.riskBudgetBand];
-  const barWidth = Math.min(Math.abs(budget.totalOpenRiskR) * 10, 100);
-
-  return (
-    <div className="rounded-xl bg-muted/30 px-3 py-2.5">
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-medium text-muted-foreground">{t("digest.riskBudget.title")}</span>
-        <span className={cn("font-mono font-bold", style.text)}>
-          {fmtR(budget.totalOpenRiskR)}
-        </span>
-      </div>
-      <div className="mt-1.5 h-1.5 rounded-full bg-black/10 dark:bg-white/10">
-        <div
-          className={cn("h-full rounded-full transition-all", style.bar)}
-          style={{ width: `${barWidth}%` }}
-        />
-      </div>
-      <div className="mt-1 flex justify-between text-[9px] text-muted-foreground">
-        <span>{t(`digest.riskBudget.${budget.riskBudgetBand.toLowerCase()}`)}</span>
-        {budget.riskPctOfEquity !== null && (
-          <span>{t("digest.riskBudget.equityImpact", { pct: budget.riskPctOfEquity })}</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Concentration Block ───
-
-function ConcentrationBlock({
-  clusters,
-  t,
-}: {
-  clusters: ConcentrationCluster[];
-  t: (key: string, params?: Record<string, string | number>) => string;
-}) {
-  const maxTrades = Math.max(...clusters.map((c) => c.tradeCount), 1);
-
-  return (
-    <div>
-      <SectionHeader label={t("digest.concentration.title")} />
-      <div className="mt-2 space-y-1.5">
-        {clusters.slice(0, 5).map((c) => (
-          <div
-            key={`${c.instrument}:${c.direction}`}
-            className="flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-2"
-          >
-            <span className="w-16 shrink-0 font-mono text-sm font-semibold">{c.instrument}</span>
-            <DirectionBadge direction={c.direction as "LONG" | "SHORT"} />
-            <div className="flex-1 px-1">
-              <div className="h-1 rounded-full bg-orange-500/15">
-                <div
-                  className="h-full rounded-full bg-orange-500/60"
-                  style={{ width: `${(c.tradeCount / maxTrades) * 100}%` }}
-                />
-              </div>
-            </div>
-            <span className="shrink-0 text-[11px] text-muted-foreground">
-              {t("digest.concentration.trades", { count: c.tradeCount })}
-              {c.memberCount > 1 && ` · ${t("digest.concentration.members", { count: c.memberCount })}`}
-            </span>
-            {c.totalRiskToSLR !== null && (
-              <span className="shrink-0 font-mono text-xs text-orange-600 dark:text-orange-400">
-                {fmtR(c.totalRiskToSLR)}
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ─── Hints Block ───
 
 function HintsBlock({
@@ -1132,197 +1403,200 @@ function HintsBlock({
   );
 }
 
-// ─── Concentration Summary Block ───
+// ════════════════════════════════════════════
+// ZONE 3 COMPONENTS
+// ════════════════════════════════════════════
 
-const CONCENTRATION_RISK_STYLES: Record<ConcentrationSummary["riskLevel"], { bg: string; text: string; border: string }> = {
-  low: { bg: "bg-green-500/5", text: "text-green-600 dark:text-green-400", border: "border-green-500/20" },
-  moderate: { bg: "bg-yellow-500/5", text: "text-yellow-600 dark:text-yellow-400", border: "border-yellow-500/20" },
-  high: { bg: "bg-orange-500/5", text: "text-orange-600 dark:text-orange-400", border: "border-orange-500/20" },
-  critical: { bg: "bg-red-500/5", text: "text-red-600 dark:text-red-400", border: "border-red-500/20" },
-};
+// ─── Period Results Card ───
 
-function ConcentrationSummaryBlock({
+function PeriodResultsCard({
+  cockpit,
   summary,
   t,
 }: {
-  summary: ConcentrationSummary;
+  cockpit: DigestV2Response["cockpit"];
+  summary: DigestV2Response["summary"];
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
-  const style = CONCENTRATION_RISK_STYLES[summary.riskLevel];
-  const topPct = Math.round(summary.topSymbolShare * 100);
-  const longPct = Math.round(summary.longShare * 100);
-  const shortPct = Math.round(summary.shortShare * 100);
-
   return (
-    <div className={cn("rounded-xl border p-3", style.bg, style.border)}>
-      <div className="flex items-center justify-between">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("digest.insight.concentrationRisk")}
-        </p>
-        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", style.text, style.bg)}>
-          {t(`digest.insight.risk.${summary.riskLevel}`)}
+    <div>
+      <SectionHeader
+        icon={<TrendingDown className="h-3.5 w-3.5" />}
+        label={t("digest.cockpit.periodResults")}
+      />
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-muted/20 px-3 py-2 text-xs">
+        <span>{cockpit.closedCount} {t("digest.cockpit.closed")}</span>
+        {cockpit.realizedR !== null && (
+          <span className={cn("font-mono font-semibold", pnlColor(cockpit.realizedR))}>
+            {fmtR(cockpit.realizedR)}
+          </span>
+        )}
+        {cockpit.officialWinRate !== null && (
+          <span>WR: <span className="font-mono text-green-600 dark:text-green-400">{cockpit.officialWinRate}%</span></span>
+        )}
+        <span className="flex gap-1.5">
+          <span className="text-green-600 dark:text-green-400">TP:{summary.tpHit}</span>
+          <span className="text-red-600 dark:text-red-400">SL:{summary.slHit}</span>
+          {summary.be > 0 && <span className="text-yellow-600 dark:text-yellow-400">BE:{summary.be}</span>}
         </span>
       </div>
-      <div className="mt-2 space-y-1.5 text-xs">
-        {summary.topSymbol && (
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">{t("digest.insight.topSymbol")}</span>
-            <span className="font-mono font-semibold">
-              {summary.topSymbol} <span className={style.text}>{topPct}%</span>
-            </span>
-          </div>
-        )}
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">{t("digest.insight.directionBalance")}</span>
-          <span className="font-mono text-xs">
-            {summary.singleDirectionExposure ? (
-              <span className={style.text}>
-                100% {longPct === 100 ? "LONG" : "SHORT"}
-              </span>
-            ) : (
-              <span>
-                <span className="text-green-600 dark:text-green-400">{longPct}%L</span>
-                {" / "}
-                <span className="text-red-600 dark:text-red-400">{shortPct}%S</span>
+    </div>
+  );
+}
+
+// ─── System Health Section (collapsible, at bottom) ───
+
+function SystemHealthSection({
+  tracking,
+  assessment,
+  attention,
+  actions,
+  riskBudget,
+  generatedAt,
+  t,
+}: {
+  tracking: DigestV2Response["trackingSummary"];
+  assessment: DigestV2Response["stateAssessment"];
+  attention: DigestV2Response["attentionQueue"];
+  actions: ActionItem[];
+  riskBudget: DigestV2Response["riskBudget"];
+  generatedAt: string;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const hasIssues = tracking.staleAccounts > 0 || tracking.lostAccounts > 0 || attention.length > 0;
+  const sa = assessment;
+  const safety = SAFETY_STYLES[sa.safetyBand as SafetyBand];
+  const conf = CONFIDENCE_STYLES[sa.confidenceBand as ConfidenceBand];
+
+  return (
+    <div className="rounded-xl border border-border/30 bg-muted/10">
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 px-3 py-2 text-start text-xs"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <Wifi className={cn("h-3.5 w-3.5 shrink-0", hasIssues ? "text-yellow-500" : "text-green-500")} />
+        <span className="font-medium">{t("digest.systemHealth.title")}</span>
+        <span className={cn("ms-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold", safety.text)}>
+          {sa.safetyScore}
+        </span>
+        <span className={cn("rounded-full px-1.5 py-0.5 text-[9px]", conf.text)}>
+          {t(`digest.confidence.${sa.confidenceBand.toLowerCase()}`)}
+        </span>
+        <span className="ms-auto text-muted-foreground">
+          {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="space-y-2 border-t border-border/30 px-3 pb-3 pt-2">
+          {/* Tracking status */}
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+            {tracking.activeAccounts > 0 && (
+              <span className="text-green-600 dark:text-green-400">
+                {tracking.activeAccounts} {t("digest.tracking.active")}
               </span>
             )}
-          </span>
-        </div>
-        {summary.accountCount > 0 && (
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">{t("digest.insight.accounts")}</span>
-            <span className="font-mono">{summary.accountCount}</span>
+            {tracking.staleAccounts > 0 && (
+              <span className="text-yellow-600 dark:text-yellow-400">
+                {tracking.staleAccounts} {t("digest.tracking.stale")}
+              </span>
+            )}
+            {tracking.lostAccounts > 0 && (
+              <span className="text-red-600 dark:text-red-400">
+                {tracking.lostAccounts} {t("digest.tracking.lost")}
+              </span>
+            )}
           </div>
-        )}
-      </div>
-      {(summary.singleSymbolExposure || summary.singleDirectionExposure) && summary.riskLevel !== "low" && (
-        <p className={cn("mt-2 text-[10px] leading-relaxed", style.text)}>
-          {summary.singleSymbolExposure && summary.singleDirectionExposure
-            ? t("digest.insight.concentrationWarnBoth", { symbol: summary.topSymbol ?? "?" })
-            : summary.singleSymbolExposure
-              ? t("digest.insight.concentrationWarnSymbol", { symbol: summary.topSymbol ?? "?" })
-              : t("digest.insight.concentrationWarnDirection")}
-        </p>
+
+          {/* Safety bar */}
+          <div>
+            <div className="flex items-center justify-between text-[10px]">
+              <span className="text-muted-foreground">{t("digest.state.title")}</span>
+              <span className={cn("font-semibold", safety.text)}>
+                {t(`digest.state.${sa.safetyBand.toLowerCase()}`)} ({sa.safetyScore})
+              </span>
+            </div>
+            <div className="mt-0.5 h-1 rounded-full bg-muted/30">
+              <div className={cn("h-full rounded-full", safety.bar)} style={{ width: `${Math.min(sa.safetyScore, 100)}%` }} />
+            </div>
+          </div>
+
+          {/* Risk budget */}
+          {riskBudget && (
+            <div>
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-muted-foreground">{t("digest.riskBudget.title")}</span>
+                <span className={cn("font-mono font-semibold", RISK_BUDGET_STYLES[riskBudget.riskBudgetBand].text)}>
+                  {fmtR(riskBudget.totalOpenRiskR)}
+                </span>
+              </div>
+              <div className="mt-0.5 h-1 rounded-full bg-muted/30">
+                <div
+                  className={cn("h-full rounded-full", RISK_BUDGET_STYLES[riskBudget.riskBudgetBand].bar)}
+                  style={{ width: `${Math.min(Math.abs(riskBudget.totalOpenRiskR) * 10, 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* System actions (reconnect, restore) */}
+          {actions.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {t("digest.actions.title")}
+              </p>
+              {actions.map((action, i) => {
+                const alertKey = `digest.actions.${action.alertType}`;
+                const params: Record<string, string | number> = { count: action.issueCount };
+                if (action.affectedMember) params.member = action.affectedMember;
+                return (
+                  <div key={`${action.alertId}-${i}`} className="flex items-start gap-2 text-[11px] text-muted-foreground">
+                    <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-orange-500" />
+                    <span>{t(alertKey, params)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Attention queue */}
+          {attention.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {t("digest.attention.title")} ({attention.length})
+              </p>
+              {attention.slice(0, 5).map((item, i) => (
+                <div
+                  key={`${item.userId}-${i}`}
+                  className={cn("rounded-md border-s-2 px-2 py-1 text-[11px]", SEVERITY_ACCENT[item.severity as AttentionSeverity])}
+                >
+                  <span className="font-semibold">{item.username}</span>
+                  {item.instrument && <span className="ms-1 font-mono text-muted-foreground">{item.instrument}</span>}
+                  {item.messageKey && (
+                    <span className="ms-1 text-muted-foreground">
+                      — {t(item.messageKey, item.messageParams as Record<string, string | number>)}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex justify-end text-[9px] text-muted-foreground">
+            <Clock className="me-0.5 inline h-2.5 w-2.5" />
+            {new Date(generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-// ─── Entry Insight Block ───
-
-const ENTRY_QUALITY_STYLES: Record<EntryClusterInsight["qualityLabel"], { text: string; bg: string }> = {
-  tight: { text: "text-green-600 dark:text-green-400", bg: "bg-green-500/10" },
-  spread: { text: "text-yellow-600 dark:text-yellow-400", bg: "bg-yellow-500/10" },
-  wide: { text: "text-red-600 dark:text-red-400", bg: "bg-red-500/10" },
-  unknown: { text: "text-muted-foreground", bg: "bg-muted/30" },
-};
-
-function EntryInsightBlock({
-  insights,
-  t,
-}: {
-  insights: EntryClusterInsight[];
-  t: (key: string, params?: Record<string, string | number>) => string;
-}) {
-  return (
-    <div>
-      <SectionHeader label={t("digest.insight.entryQuality")} />
-      <div className="mt-2 space-y-1.5">
-        {insights.slice(0, 4).map((ins) => {
-          const qStyle = ENTRY_QUALITY_STYLES[ins.qualityLabel];
-          return (
-            <div
-              key={`${ins.instrument}:${ins.direction}`}
-              className="rounded-lg bg-muted/20 px-3 py-2"
-            >
-              <div className="flex items-center gap-2 text-xs">
-                <span className="font-mono font-semibold">{ins.instrument}</span>
-                <DirectionBadge direction={ins.direction as "LONG" | "SHORT"} />
-                <span className={cn("ms-auto rounded-full px-2 py-0.5 text-[10px] font-semibold", qStyle.text, qStyle.bg)}>
-                  {t(`digest.insight.quality.${ins.qualityLabel}`)}
-                </span>
-              </div>
-              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
-                {ins.weightedAvgEntry !== null && (
-                  <span>
-                    {t("digest.insight.avgEntry")}: <span className="font-mono">{ins.weightedAvgEntry}</span>
-                  </span>
-                )}
-                {ins.entrySpreadPct !== null && (
-                  <span>
-                    {t("digest.insight.entrySpread")}: <span className="font-mono">{ins.entrySpreadPct}%</span>
-                  </span>
-                )}
-                <span>{ins.tradeCount} {t("digest.insight.trades")}</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── Scaling Insight Block ───
-
-const SCALING_PATTERN_STYLES: Record<ScalingInsight["pattern"], { text: string; bg: string }> = {
-  balanced: { text: "text-green-600 dark:text-green-400", bg: "bg-green-500/10" },
-  increasing: { text: "text-orange-600 dark:text-orange-400", bg: "bg-orange-500/10" },
-  decreasing: { text: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10" },
-  spike: { text: "text-red-600 dark:text-red-400", bg: "bg-red-500/10" },
-  unknown: { text: "text-muted-foreground", bg: "bg-muted/30" },
-};
-
-function ScalingInsightBlock({
-  insights,
-  t,
-}: {
-  insights: ScalingInsight[];
-  t: (key: string, params?: Record<string, string | number>) => string;
-}) {
-  return (
-    <div>
-      <SectionHeader label={t("digest.insight.scalingPattern")} />
-      <div className="mt-2 space-y-1.5">
-        {insights.slice(0, 4).map((ins) => {
-          const pStyle = SCALING_PATTERN_STYLES[ins.pattern];
-          const lastVsAvgPct = Math.round((ins.lastLegVsAvg - 1) * 100);
-          const largestPct = Math.round(ins.largestLegShare * 100);
-
-          return (
-            <div
-              key={`${ins.instrument}:${ins.direction}`}
-              className="rounded-lg bg-muted/20 px-3 py-2"
-            >
-              <div className="flex items-center gap-2 text-xs">
-                <span className="font-mono font-semibold">{ins.instrument}</span>
-                <DirectionBadge direction={ins.direction as "LONG" | "SHORT"} />
-                <span className={cn("ms-auto rounded-full px-2 py-0.5 text-[10px] font-semibold", pStyle.text, pStyle.bg)}>
-                  {t(`digest.insight.pattern.${ins.pattern}`)}
-                </span>
-              </div>
-              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
-                <span>
-                  {ins.legCount} {t("digest.insight.legs")} · {ins.totalLots} {t("digest.insight.lots")}
-                </span>
-                <span>
-                  {t("digest.insight.largestLeg")}: <span className="font-mono">{largestPct}%</span>
-                </span>
-                {ins.legCount >= 2 && lastVsAvgPct !== 0 && (
-                  <span className={lastVsAvgPct > 50 ? "text-orange-600 dark:text-orange-400" : ""}>
-                    {t("digest.insight.lastLeg")}: <span className="font-mono">{lastVsAvgPct > 0 ? "+" : ""}{lastVsAvgPct}%</span> {t("digest.insight.vsAvg")}
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── Section Header ───
+// ════════════════════════════════════════════
+// SHARED COMPONENTS
+// ════════════════════════════════════════════
 
 function SectionHeader({ icon, label }: { icon?: React.ReactNode; label: string }) {
   return (
@@ -1333,7 +1607,7 @@ function SectionHeader({ icon, label }: { icon?: React.ReactNode; label: string 
   );
 }
 
-// ─── Member Card ───
+// ─── Member Card (Clan mode) ───
 
 function MemberCard({
   member,
@@ -1351,20 +1625,11 @@ function MemberCard({
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
   return (
-    <div className={cn(
-      "rounded-xl transition-colors",
-      expanded ? "bg-muted/30" : "bg-muted/20"
-    )}>
-      <button
-        type="button"
-        className="flex w-full items-center gap-3 p-3 text-start"
-        onClick={onToggle}
-      >
+    <div className={cn("rounded-xl transition-colors", expanded ? "bg-muted/30" : "bg-muted/20")}>
+      <button type="button" className="flex w-full items-center gap-3 p-3 text-start" onClick={onToggle}>
         <Avatar className="h-9 w-9 shrink-0">
           {member.avatar && <AvatarImage src={member.avatar} />}
-          <AvatarFallback className="text-sm font-medium">
-            {member.name.charAt(0).toUpperCase()}
-          </AvatarFallback>
+          <AvatarFallback className="text-sm font-medium">{member.name.charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
@@ -1379,36 +1644,21 @@ function MemberCard({
             )}
           </div>
           <div className="mt-0.5 flex items-center gap-2.5 text-xs text-muted-foreground">
-            {member.openCount > 0 && (
-              <span>{member.openCount} {t("digest.open")}</span>
-            )}
+            {member.openCount > 0 && <span>{member.openCount} {t("digest.open")}</span>}
             {member.openCount > 0 && member.memberFloatingR !== null && (
-              <span className={cn("font-mono", pnlColor(member.memberFloatingR))}>
-                {fmtR(member.memberFloatingR)}
-              </span>
+              <span className={cn("font-mono", pnlColor(member.memberFloatingR))}>{fmtR(member.memberFloatingR)}</span>
             )}
             {member.memberActionsNeeded > 0 && (
-              <span className="text-red-600 dark:text-red-400">
-                {member.memberActionsNeeded} {t("digest.cockpit.needAction")}
-              </span>
+              <span className="text-red-600 dark:text-red-400">{member.memberActionsNeeded} {t("digest.cockpit.needAction")}</span>
             )}
           </div>
         </div>
         <div className="shrink-0 text-end">
-          <p className={cn(
-            "text-base font-bold tabular-nums",
-            member.totalR >= 0
-              ? "text-green-600 dark:text-green-400"
-              : "text-red-600 dark:text-red-400"
-          )}>
+          <p className={cn("text-base font-bold tabular-nums", member.totalR >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400")}>
             {member.totalR >= 0 ? "+" : ""}{member.totalR}R
           </p>
         </div>
-        {expanded ? (
-          <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-        )}
+        {expanded ? <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />}
       </button>
 
       {expanded && (
@@ -1424,14 +1674,10 @@ function MemberCard({
           {member.openCount > 0 && (member.memberFloatingPnl !== null || member.memberRiskToSLR !== null) && (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-muted/30 px-2.5 py-1.5 text-xs font-mono">
               {member.memberFloatingPnl !== null && (
-                <span className={pnlColor(member.memberFloatingPnl)}>
-                  P/L: {fmtPnl(member.memberFloatingPnl)}
-                </span>
+                <span className={pnlColor(member.memberFloatingPnl)}>P/L: {fmtPnl(member.memberFloatingPnl)}</span>
               )}
               {member.memberRiskToSLR !== null && (
-                <span className="text-orange-600 dark:text-orange-400">
-                  SL: {fmtR(member.memberRiskToSLR)}
-                </span>
+                <span className="text-orange-600 dark:text-orange-400">SL: {fmtR(member.memberRiskToSLR)}</span>
               )}
             </div>
           )}
@@ -1443,13 +1689,7 @@ function MemberCard({
               </p>
               <div className="space-y-1">
                 {member.openPositions.map((pos) => (
-                  <OpenTradeRow
-                    key={pos.tradeId}
-                    position={pos}
-                    expanded={expandedTrades.has(pos.tradeId)}
-                    onToggle={() => onToggleTrade(pos.tradeId)}
-                    t={t}
-                  />
+                  <OpenTradeRow key={pos.tradeId} position={pos} expanded={expandedTrades.has(pos.tradeId)} onToggle={() => onToggleTrade(pos.tradeId)} t={t} />
                 ))}
               </div>
             </div>
@@ -1492,101 +1732,73 @@ function OpenTradeRow({
 
   return (
     <div className={cn("rounded-lg", isBad ? "bg-red-500/5" : "bg-muted/20")}>
-      <button
-        type="button"
-        className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-xs text-start"
-        onClick={onToggle}
-      >
+      <button type="button" className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-xs text-start" onClick={onToggle}>
         <DirectionBadge direction={position.direction as "LONG" | "SHORT"} />
         <span className="font-mono font-medium">{position.instrument}</span>
+        {position.lots != null && position.lots > 0 && (
+          <span className="text-[10px] text-muted-foreground">{position.lots}L</span>
+        )}
         {position.accountLabel && (
-          <span className="truncate text-[9px] text-muted-foreground">{position.accountLabel}</span>
+          <span className="hidden truncate text-[9px] text-muted-foreground sm:inline">{position.accountLabel}</span>
         )}
         <span className="ms-auto flex items-center gap-2 font-mono">
           {position.floatingPnl !== null && (
-            <span className={cn("font-medium", pnlColor(position.floatingPnl))}>
-              {fmtPnl(position.floatingPnl)}
-            </span>
+            <span className={cn("font-medium", pnlColor(position.floatingPnl))}>{fmtPnl(position.floatingPnl)}</span>
           )}
           {position.rComputable && position.floatingR !== null ? (
-            <span className={cn("font-medium", pnlColor(position.floatingR))}>
-              {fmtR(position.floatingR)}
-            </span>
+            <span className={cn("font-medium", pnlColor(position.floatingR))}>{fmtR(position.floatingR)}</span>
           ) : (
             <span className="text-[10px] text-muted-foreground">R?</span>
           )}
         </span>
-        {expanded ? (
-          <ChevronUp className="h-3 w-3 shrink-0 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
-        )}
+        {expanded ? <ChevronUp className="h-3 w-3 shrink-0 text-muted-foreground" /> : <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />}
       </button>
 
       {expanded && (
         <div className="space-y-1 border-t border-border/30 px-2.5 py-1.5">
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px]">
-            {position.lots != null && position.lots > 0 && (
-              <span className="text-muted-foreground">
-                {position.lots} {t("digest.insight.lots")}
-              </span>
-            )}
             {position.openPrice != null && (
-              <span className="text-muted-foreground">
-                @ {position.openPrice}
-              </span>
+              <span className="text-muted-foreground">@ {position.openPrice}</span>
             )}
+            <span className="text-muted-foreground">{holdDuration(position.createdAt)}</span>
             {position.riskToSLR !== null && (
-              <span className="text-orange-600 dark:text-orange-400">
-                {t("digest.cockpit.slRisk")}: {fmtR(position.riskToSLR)}
-              </span>
+              <span className="text-orange-600 dark:text-orange-400">{t("digest.cockpit.slRisk")}: {fmtR(position.riskToSLR)}</span>
             )}
-            <span className={cn(
-              "rounded-full px-1.5 py-0.5 text-[9px] font-semibold",
-              healthColors.bg, healthColors.text
-            )}>
+            <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold", healthColors.bg, healthColors.text)}>
               {t(`digest.health.${position.health.overall.toLowerCase()}`)}
             </span>
             {position.health.protectionStatus === "UNPROTECTED" && (
               <span className="flex items-center gap-0.5 text-red-600 dark:text-red-400">
-                <ShieldOff className="h-2.5 w-2.5" />
-                {t("digest.protection.unprotected")}
+                <ShieldOff className="h-2.5 w-2.5" />{t("digest.protection.unprotected")}
               </span>
             )}
             {position.health.protectionStatus === "BREAKEVEN_LOCKED" && (
               <span className="flex items-center gap-0.5 text-green-600 dark:text-green-400">
-                <Shield className="h-2.5 w-2.5" />
-                {t("digest.protection.breakevenLocked")}
+                <Shield className="h-2.5 w-2.5" />{t("digest.protection.breakevenLocked")}
               </span>
             )}
             {position.health.protectionStatus === "PROTECTED" && (
               <span className="flex items-center gap-0.5 text-green-600 dark:text-green-400">
-                <Shield className="h-2.5 w-2.5" />
-                {t("digest.protection.protected")}
-              </span>
-            )}
-            {position.health.protectionStatus === "UNKNOWN_RISK" && (
-              <span className="text-muted-foreground">
-                {t("digest.protection.unknownRisk")}
+                <Shield className="h-2.5 w-2.5" />{t("digest.protection.protected")}
               </span>
             )}
             {position.trackingStatus === "TRACKING_LOST" && (
               <span className="flex items-center gap-0.5 text-red-400">
-                <WifiOff className="h-2.5 w-2.5" />
-                {t("digest.tracking.lost")}
+                <WifiOff className="h-2.5 w-2.5" />{t("digest.tracking.lost")}
               </span>
             )}
             {position.trackingStatus === "STALE" && (
               <span className="flex items-center gap-0.5 text-yellow-400">
-                <Clock className="h-2.5 w-2.5" />
-                {t("digest.tracking.stale")}
+                <Clock className="h-2.5 w-2.5" />{t("digest.tracking.stale")}
               </span>
             )}
           </div>
+          {position.accountLabel && (
+            <div className="text-[10px] text-muted-foreground sm:hidden">{position.accountLabel}</div>
+          )}
           {action && (
             <div className="flex items-center gap-1 text-[10px] text-orange-600 dark:text-orange-400">
-              <AlertTriangle className="h-2.5 w-2.5" />
-              {action}
+              <AlertTriangle className="h-2.5 w-2.5" />{action}
             </div>
           )}
         </div>
@@ -1604,9 +1816,7 @@ function ClosedTradeRow({ trade, t }: { trade: ClosedTradeV2; t: (key: string) =
       <span className="font-mono font-medium">{trade.instrument}</span>
       <StatusBadge status={trade.status} />
       {trade.isOfficial && (
-        <span title={t("digest.official")}>
-          <Shield className="h-3 w-3 text-blue-500" />
-        </span>
+        <span title={t("digest.official")}><Shield className="h-3 w-3 text-blue-500" /></span>
       )}
       {trade.r !== null ? (
         <span className={cn("ms-auto font-mono font-medium", pnlColor(trade.r))}>
@@ -1639,7 +1849,9 @@ function MemberTrendBadge({ trend, t }: { trend: MemberTrend; t: (key: string) =
   return null;
 }
 
-// ─── V1 Fallback Content ───
+// ════════════════════════════════════════════
+// V1 FALLBACK
+// ════════════════════════════════════════════
 
 function V1Content({
   data,
@@ -1658,16 +1870,8 @@ function V1Content({
         <SummaryCard label={t("digest.signals")} value={data.summary.totalSignals} />
         <SummaryCard label={t("digest.analysis")} value={data.summary.totalAnalysis} />
         <SummaryCard label={t("digest.winRate")} value={`${data.summary.winRate}%`} />
-        <SummaryCard
-          label={t("digest.totalR")}
-          value={data.summary.totalR}
-          color={data.summary.totalR >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}
-        />
-        <SummaryCard
-          label={t("digest.avgR")}
-          value={data.summary.avgR}
-          color={data.summary.avgR >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}
-        />
+        <SummaryCard label={t("digest.totalR")} value={data.summary.totalR} color={data.summary.totalR >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"} />
+        <SummaryCard label={t("digest.avgR")} value={data.summary.avgR} color={data.summary.avgR >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"} />
         <SummaryCard label={t("digest.activeMembers")} value={data.summary.activeMemberCount} />
       </div>
 
@@ -1736,8 +1940,6 @@ function V1Content({
     </div>
   );
 }
-
-// ─── Shared Components ───
 
 function SummaryCard({ label, value, color }: { label: string; value: string | number; color?: string }) {
   return (

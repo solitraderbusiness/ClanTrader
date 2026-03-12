@@ -1279,7 +1279,44 @@
     "insight.pattern.increasing": "افزایشی",
     "insight.pattern.decreasing": "کاهشی",
     "insight.pattern.spike": "جهش",
-    "insight.pattern.unknown": "نامشخص"
+    "insight.pattern.unknown": "نامشخص",
+
+    "smart.setStopLoss": "حد ضرر تعیین کنید",
+    "smart.setStopLossDetail": "${pnl} سود باز بدون محافظت در {count} معامله ({lots} لات)",
+    "smart.reviewSizing": "بررسی حجم معامله",
+    "smart.reviewSizingDetail": "آخرین ورود روی {instrument} {deviationPct}% بزرگ‌تر از میانگین ({avgLots} لات)",
+    "smart.concentration": "ریسک تمرکز پوزیشن",
+    "smart.concentrationBoth": "{pct}% روی {symbol} — یک نماد، یک جهت",
+    "smart.concentrationSymbol": "{pct}% روی {symbol} — ریسک تک‌نماد",
+    "smart.wideSpread": "پراکندگی ورود بالا",
+    "smart.wideSpreadDetail": "ورودهای {instrument} {spreadPct}% پراکنده در {tradeCount} معامله",
+    "smart.defineRisk": "ریسک خود را مشخص کنید",
+    "smart.defineRiskDetail": "{count} معامله بدون حد ضرر",
+    "smart.extendedNoSL": "معامله طولانی بدون حد ضرر",
+    "smart.extendedNoSLDetail": "{count} معامله بیش از ۴۸ ساعت بدون حد ضرر",
+
+    "moneyLine.openPnl": "سود/زیان باز",
+    "moneyLine.positions": "پوزیشن",
+    "moneyLine.ofEquity": "از اکوئیتی",
+
+    "posSummary.title": "خلاصه پوزیشن‌ها",
+    "posSummary.avgEntry": "میانگین ورود",
+
+    "riskExposure.title": "ریسک اکسپوژر",
+    "riskExposure.unprotectedPnl": "سود/زیان بدون محافظت",
+    "riskExposure.noSL": "بدون حد ضرر",
+
+    "systemHealth.title": "سلامت سیستم",
+    "status.live": "زنده",
+    "status.trackingLost": "ردیابی قطع در {count} حساب",
+    "status.stale": "داده قدیمی در {count} حساب",
+
+    "profitAttribution.title": "توزیع سود",
+    "profitAttribution.day": "روز",
+
+    "entryInsight.wideSpread": "پراکندگی ورود {pct}% — میانگین‌گیری نزولی، نه مقیاس‌بندی برنامه‌ریزی شده",
+    "scalingInsight.increasing": "حجم پوزیشن در حال افزایش — ریسک با هر ورود بیشتر می‌شود",
+    "scalingInsight.spike": "بزرگ‌ترین پا {pct}% از کل — ریسک متمرکز در یک ورود"
   },
   "landing": {
     "brandName": "ClanTrader",
