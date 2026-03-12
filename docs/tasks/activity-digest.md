@@ -260,6 +260,15 @@ See `docs/testing/activity-digest-test-plan.md`
 
 ## 10. Change Notes
 
+### 2026-03-12 (Heartbeat fallback + estimated data indicators)
+- Equity chart now renders estimated data points as dashed line segments (60% opacity)
+- "Estimated" badge (yellow pill) shown on chart title when any estimated data present
+- Tooltip shows "Estimated" label when hovering on estimated data points
+- Stats section shows "Dashed segments are estimated" hint when estimated data present
+- `normalizeEquityData()` now passes through `isEstimated` from input to output
+- 3 new i18n keys: estimated, estimatedTooltip, equity.estimatedSegment (en + fa)
+- Integrates with heartbeat-fallback.service.ts (separate task)
+
 ### 2026-03-12 (Phase 9 implemented: v2.3 Equity Chart Normalization + Interactivity)
 - Equity chart Y-axis normalized: shows $ change from period start, not absolute values
 - Added `normalizeEquityData()` engine: baseline from first snapshot's balance, both equity and balance relative to same baseline
