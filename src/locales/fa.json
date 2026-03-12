@@ -1305,6 +1305,25 @@
     "profile.best": "بهترین",
     "profile.entrySpread": "پراکندگی ورود",
 
+    "total": "مجموع",
+
+    "equity.title": "اکوئیتی و بالانس",
+    "equity.equity": "اکوئیتی",
+    "equity.balance": "بالانس",
+    "equity.peak": "بیشترین",
+    "equity.low": "کمترین",
+    "equity.floating": "شناور",
+    "equity.collecting": "در حال جمع‌آوری داده‌های اکوئیتی...",
+    "equity.collectingHint": "نمودار پس از چند ساعت معاملات متصل ظاهر می‌شود.",
+
+    "insight.lotDominant": "یک معامله {pct}% از حجم کل را دارد — بزرگترین شرط و بزرگترین ریسک شما.",
+    "insight.lotEven": "حجم یکنواخت — مدیریت منظم پوزیشن.",
+    "insight.profitConcentrated": "معامله شماره ۱ حامل {pct}% از سود کل است. {n} ورود دیگر فقط {rest} اضافه کرده‌اند.",
+    "insight.spreadTight": "ورودهای فشرده ({pct}%) — اطمینان ثابت.",
+    "insight.spreadModerate": "پراکندگی متوسط ({pct}%) — کمی ساخت پوزیشن.",
+    "insight.spreadWide": "پراکندگی زیاد ({pct}%) — میانگین‌گیری رو به پایین در محدوده {range}. زیر {breakeven} تمام سود از بین می‌رود.",
+    "insight.spreadVeryWide": "پراکندگی بسیار زیاد ({pct}%) — میانگین‌گیری تهاجمی. ریسک بالا در صورت برگشت روند.",
+
     "moneyLine.openPnl": "سود/زیان باز",
     "moneyLine.positions": "پوزیشن",
     "moneyLine.ofEquity": "از اکوئیتی",

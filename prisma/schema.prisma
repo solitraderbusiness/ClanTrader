@@ -959,12 +959,24 @@ model MtAccount {
   maxDrawdownMoney  Float?
 
   trades         MtTrade[]
-  statements     TradingStatement[]
-  pendingActions EaPendingAction[]
+  statements       TradingStatement[]
+  pendingActions   EaPendingAction[]
+  equitySnapshots  EquitySnapshot[]
 
   @@unique([accountNumber, broker])
   @@index([userId])
   @@index([apiKey])
+}
+
+model EquitySnapshot {
+  id          String    @id @default(cuid())
+  mtAccountId String
+  mtAccount   MtAccount @relation(fields: [mtAccountId], references: [id], onDelete: Cascade)
+  timestamp   DateTime  @default(now())
+  balance     Float
+  equity      Float
+
+  @@index([mtAccountId, timestamp])
 }
 
 model MtTrade {

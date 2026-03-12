@@ -121,6 +121,29 @@ Phases 1-5a built the engine foundation: 12 pure-function engines (state, delta,
 - [ ] Profit quality / drawdown path (deferred — no per-trade P/L history)
 - [ ] What-if downside scenarios (deferred — no pip value tables)
 
+### Phase 7: v2 Visual Redesign — Price Ladder, Position Profile, Hero Stats (implemented)
+- [x] Engine 14: Price Ladder computation — levels (Current, Half Profit, Breakeven, -10%/-20%/-50%, SL levels)
+- [x] HeroStats component — 36-40px P/L with % of equity, context line
+- [x] PriceLadderCard component — SVG vertical thermometer with gradient zones
+- [x] PositionProfileCard component — SVG donut (lots), stacked bar (profit), entry gauge
+- [x] CollapsibleSection component — reusable collapsible wrapper
+- [x] CompactPositionRow component — single-line position row
+- [x] "If all SLs hit" smart action (P4 priority)
+- [x] Schema: currentPrice, currentSL, currentTP on open positions
+- [x] Service: carry currentPrice/currentSL/currentTP through openHealthResults array
+- [x] Removed text-heavy v1 sections (PositionSummary, RiskExposure, EntryQuality, ScalingPattern, ProfitAttribution, Concentration, HintsBlock, PeriodResultsCard)
+- [x] i18n: ladder.title, profile.*, smart.allSLHit keys (en + fa)
+
+### Phase 8: v2.1 Fixes + Equity Curve (IN PROGRESS)
+- [ ] FIX 1: Price Ladder — derive pointValue from real trade data (not hardcoded)
+- [ ] FIX 2: Hero — show $/pt fallback when no equity, better % display
+- [ ] FIX 3: Position Profile — actionable insight sentences instead of raw metrics
+- [ ] NEW: Equity & Balance Curve — SVG chart, equity snapshots table, EA recording
+- [ ] FIX 4A: Smart Actions — separators between items
+- [ ] FIX 4B: Price Ladder — improved collision handling
+- [ ] FIX 4C: Position List — total row when expanded
+- [ ] FIX 4D: Price Ladder height / non-linear scale
+
 ### Phase 6: Complete Redesign — 3-Zone Trading Intelligence Panel (implemented)
 
 #### Zone 1: "The Cockpit" — Above the fold, no scrolling
@@ -167,7 +190,7 @@ Phases 1-5a built the engine foundation: 12 pure-function engines (state, delta,
 
 | File | Change |
 |------|--------|
-| `src/lib/digest-engines.ts` | 13 engines: state, delta, alerts, actions, impact, concentration, risk budget, member trend, predictive hints, entry quality, scaling pattern, concentration summary, smart actions |
+| `src/lib/digest-engines.ts` | 14 engines: state, delta, alerts, actions, impact, concentration, risk budget, member trend, predictive hints, entry quality, scaling pattern, concentration summary, smart actions, price ladder |
 | `src/lib/digest-constants.ts` | Snapshot prefix/TTL + risk budget thresholds |
 | `src/lib/digest-v2-schema.ts` | Schemas for all engine outputs + scope-aware fields + Phase 5 insight schemas |
 | `src/services/digest-v2.service.ts` | Wired all engines, equity data from MT accounts, account label construction, lots/openPrice pipeline |
@@ -223,6 +246,22 @@ See `docs/testing/activity-digest-test-plan.md`
 - Persian translations need native speaker review
 
 ## 10. Change Notes
+
+### 2026-03-12 (Phase 7 implemented: v2 Visual Redesign)
+- Added Price Ladder (Engine 14): SVG thermometer showing Current Price, Half Profit, Breakeven, -10%/-20%/-50% Account, SL levels
+- Hero Stats: 36-40px P/L with % of equity + context line ("5 positions · 250L UKBRENT · 5 unprotected")
+- Position Profile: SVG donut (lot distribution) + stacked bar (profit contribution) + entry spread gauge
+- "If all SLs hit" smart action added as P4 priority
+- Removed 8 text-heavy v1 components; replaced with 5 visual-first components
+- Schema + service updated: currentPrice/currentSL/currentTP passed through to frontend
+- Fixed service bug: currentPrice/currentSL/mt were out-of-scope in position push (carried through openHealthResults array)
+
+### 2026-03-12 (Phase 8 started: v2.1 Fixes + Equity Curve)
+- FIX 1: Price Ladder pointValue hardcoded at 100, should be ~10 for UKBRENT. Fix: derive from real trade data (PL / lots / priceChange)
+- FIX 2: Hero shows "—%" when no equity — fallback to "$X/pt" (dollarsPerPoint = totalLots × derivedPointValue)
+- FIX 3: Position Profile raw labels ("Spread: 14.47%") → actionable insight sentences ("Wide spread — averaging down")
+- NEW: Equity & Balance Curve — SVG dual-line chart, equity_snapshots table, EA heartbeat recording
+- FIX 4: Visual polish — smart action separators, position list total row, ladder collision handling
 
 ### 2026-03-12 (Phase 6 implemented: Complete 3-Zone Redesign)
 - Complete rewrite of DigestSheetV2.tsx into 3-zone layout (Cockpit / Analysis / Details)

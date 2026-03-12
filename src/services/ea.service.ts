@@ -240,6 +240,18 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
   // Update equity drawdown tracking
   updateEquityDrawdown(account.id, data.equity).catch(() => {});
 
+  // Record equity snapshot for equity curve chart (throttled: max 1 per 5 minutes)
+  if (data.equity > 0 && data.balance > 0) {
+    const snapKey = `eq-snap:${account.id}`;
+    const lastSnap = await redis.get(snapKey);
+    if (!lastSnap) {
+      await redis.set(snapKey, "1", "EX", 300); // 5 min throttle
+      db.equitySnapshot.create({
+        data: { mtAccountId: account.id, balance: data.balance, equity: data.equity },
+      }).catch(() => {});
+    }
+  }
+
   // Upsert open trades with signal change detection
   const linkedTrades: { matchedTradeId: string; currentPrice: number; mtProfit?: number }[] = [];
 

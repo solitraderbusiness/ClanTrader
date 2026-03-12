@@ -52,6 +52,7 @@ import {
   computeConcentrationSummary,
   computeSmartActions,
   computePriceLadder,
+  computeEquityCurveStats,
   type SafetyBand,
   type ConfidenceBand,
   type DigestDelta,
@@ -63,6 +64,7 @@ import {
   type MemberTrend,
   type PriceLadderData,
   type PriceLadderLevel,
+  type EquityDataPoint,
 } from "@/lib/digest-engines";
 
 interface DigestSheetV2Props {
@@ -636,6 +638,19 @@ function V2Content({
     [allPositions, equity]
   );
 
+  // Derive dollarsPerPoint for hero fallback from top price ladder
+  const heroDollarsPerPoint = useMemo(() => {
+    if (priceLadders.length === 0) return null;
+    return priceLadders.reduce((sum, l) => sum + l.dollarsPerPoint, 0);
+  }, [priceLadders]);
+
+  // Equity curve stats
+  const equityCurveData = useMemo(() => data.equityCurve ?? [], [data.equityCurve]);
+  const equityCurveStats = useMemo(
+    () => computeEquityCurveStats(equityCurveData),
+    [equityCurveData]
+  );
+
   // Context line: "5 positions · 250 lots UKBRENT LONG · 5 unprotected"
   const unprotectedCount = allPositions.filter(
     (p) => p.health.protectionStatus === "UNPROTECTED" || p.health.protectionStatus === "UNKNOWN_RISK"
@@ -663,9 +678,9 @@ function V2Content({
         t={t}
       />
 
-      {/* Hero: P/L + % of equity */}
+      {/* Hero: P/L + % of equity (or $/pt fallback) */}
       {hasOpenPositions && (
-        <HeroStats pnl={c.totalFloatingPnl} equity={equity} contextLine={contextLine} />
+        <HeroStats pnl={c.totalFloatingPnl} equity={equity} dollarsPerPoint={heroDollarsPerPoint} contextLine={contextLine} />
       )}
 
       {/* ═══ SECTION 2: SMART ACTIONS ═══ */}
@@ -673,7 +688,10 @@ function V2Content({
         <SmartActionsBlock actions={smartActions} t={t} />
       )}
 
-      {/* ═══ SECTION 3: PRICE LADDER ═══ */}
+      {/* ═══ SECTION 3: EQUITY & BALANCE CURVE ═══ */}
+      <EquityCurveCard data={equityCurveData} stats={equityCurveStats} t={t} />
+
+      {/* ═══ SECTION 4: PRICE LADDER ═══ */}
       {priceLadders.length > 0 && priceLadders.map((ladder) => (
         <PriceLadderCard key={`${ladder.symbol}-${ladder.direction}`} ladder={ladder} t={t} />
       ))}
@@ -722,6 +740,21 @@ function V2Content({
             {allPositions.map((pos) => (
               <CompactPositionRow key={pos.tradeId} position={pos} />
             ))}
+            {/* Total row */}
+            <div className="mt-1 flex items-center gap-1.5 border-t border-border/30 pt-1.5 text-[11px] font-semibold">
+              <span className="text-muted-foreground">{t("digest.total")}</span>
+              <span className="text-muted-foreground">
+                {allPositions.reduce((s, p) => s + (p.lots ?? 0), 0)}L
+              </span>
+              <span className={cn("ms-auto font-mono", pnlColor(c.totalFloatingPnl))}>
+                {c.totalFloatingPnl !== null ? fmtCurrency(c.totalFloatingPnl) : "—"}
+              </span>
+              {unprotectedCount > 0 && (
+                <span className="flex items-center gap-0.5 text-red-500">
+                  {unprotectedCount}/{allPositions.length} <ShieldOff className="h-3 w-3" />
+                </span>
+              )}
+            </div>
           </div>
         </CollapsibleSection>
       ) : null}
@@ -795,10 +828,12 @@ function SystemStatusBar({
 function HeroStats({
   pnl,
   equity,
+  dollarsPerPoint,
   contextLine,
 }: {
   pnl: number | null;
   equity: number | null;
+  dollarsPerPoint: number | null;
   contextLine: string;
 }) {
   const pnlPct = equity && equity > 0 && pnl !== null ? (pnl / equity) * 100 : null;
@@ -812,6 +847,10 @@ function HeroStats({
         {pnlPct !== null ? (
           <span className={cn("text-xl font-bold tabular-nums", pnlColor(pnl))}>
             {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%
+          </span>
+        ) : dollarsPerPoint !== null && dollarsPerPoint > 0 ? (
+          <span className="text-sm font-semibold text-muted-foreground">
+            ${dollarsPerPoint.toLocaleString("en-US", { maximumFractionDigits: 0 })}/pt
           </span>
         ) : (
           <span className="text-sm text-muted-foreground">—%</span>
@@ -839,28 +878,41 @@ function PriceLadderCard({
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
   const levels = ladder.levels;
-  if (levels.length < 2) return null;
 
-  const maxPrice = levels[0].price;
-  const minPrice = levels[levels.length - 1].price;
-  const range = maxPrice - minPrice;
-  if (range <= 0) return null;
-
-  const BAR_HEIGHT = 280;
+  const BAR_HEIGHT = 300;
   const BAR_WIDTH = 32;
   const LEFT_MARGIN = 60;
   const RIGHT_MARGIN = 180;
   const SVG_WIDTH = LEFT_MARGIN + BAR_WIDTH + RIGHT_MARGIN + 10;
-  const SVG_HEIGHT = BAR_HEIGHT + 40;
   const TOP_PAD = 20;
+  const MIN_LABEL_GAP = 22;
+
+  // Resolve label collisions: ensure min gap between consecutive labels
+  const { resolvedY, minPrice, range, bePct } = useMemo(() => {
+    if (levels.length < 2) return { resolvedY: [], minPrice: 0, range: 0, bePct: 50 };
+    const mn = levels[levels.length - 1].price;
+    const r = levels[0].price - mn;
+    if (r <= 0) return { resolvedY: [], minPrice: mn, range: 0, bePct: 50 };
+
+    const rawY = levels.map((l) => TOP_PAD + (1 - (l.price - mn) / r) * BAR_HEIGHT);
+    const resolved = [...rawY];
+    for (let i = 1; i < resolved.length; i++) {
+      if (resolved[i] - resolved[i - 1] < MIN_LABEL_GAP) {
+        resolved[i] = resolved[i - 1] + MIN_LABEL_GAP;
+      }
+    }
+    const beLevel = levels.find((l) => l.label === "Breakeven");
+    const bp = beLevel ? ((beLevel.price - mn) / r) * 100 : 50;
+    return { resolvedY: resolved, minPrice: mn, range: r, bePct: bp };
+  }, [levels]);
+
+  if (levels.length < 2 || range <= 0) return null;
 
   function priceToY(price: number): number {
     return TOP_PAD + (1 - (price - minPrice) / range) * BAR_HEIGHT;
   }
 
-  // Find breakeven Y for gradient split
-  const beLevel = levels.find((l) => l.label === "Breakeven");
-  const bePct = beLevel ? ((beLevel.price - minPrice) / range) * 100 : 50;
+  const SVG_HEIGHT = Math.max(BAR_HEIGHT + 40, (resolvedY[resolvedY.length - 1] ?? BAR_HEIGHT) + 30);
 
   return (
     <div className="rounded-xl border border-border/30 bg-muted/10 p-3">
@@ -894,17 +946,13 @@ function PriceLadderCard({
         {/* Level markers */}
         {levels.map((level, i) => {
           const y = priceToY(level.price);
+          const labelY = resolvedY[i];
           const color = ZONE_COLORS[level.zone];
           const isCurrent = level.isCurrent;
 
-          // Avoid overlapping labels: offset if too close to previous
-          const prevY = i > 0 ? priceToY(levels[i - 1].price) : -100;
-          const tooClose = Math.abs(y - prevY) < 16;
-          const labelY = tooClose ? y + (y > prevY ? 8 : -8) : y;
-
           return (
             <g key={`${level.label}-${i}`}>
-              {/* Horizontal tick line */}
+              {/* Horizontal tick line at actual price position */}
               <line
                 x1={LEFT_MARGIN}
                 y1={y}
@@ -914,6 +962,19 @@ function PriceLadderCard({
                 className={isCurrent ? "text-white" : "text-white/30"}
                 strokeWidth={isCurrent ? 2 : 1}
               />
+
+              {/* Connector line from tick to offset label if needed */}
+              {Math.abs(y - labelY) > 2 && (
+                <line
+                  x1={LEFT_MARGIN + BAR_WIDTH + 2}
+                  y1={y}
+                  x2={LEFT_MARGIN + BAR_WIDTH + 6}
+                  y2={labelY}
+                  stroke="currentColor"
+                  className="text-white/10"
+                  strokeWidth={0.5}
+                />
+              )}
 
               {/* Current price marker */}
               {isCurrent && (
@@ -981,7 +1042,10 @@ function PositionProfileCard({
   const DONUT_GREENS = ["#22c55e", "#16a34a", "#15803d", "#166534", "#14532d"];
 
   // All memoized computations
-  const { donutArcs, profitSegments, topInsight, totalLots, maxShare, withLotsCount } = useMemo(() => {
+  const {
+    donutArcs, profitSegments, topInsight, totalLots, withLotsCount,
+    donutInsight, profitInsight, spreadInsight,
+  } = useMemo(() => {
     const wLots = positions.filter((p) => p.lots != null && p.lots > 0);
     const wPnl = positions.filter((p) => p.floatingPnl !== null);
     const tLots = wLots.reduce((s, p) => s + (p.lots ?? 0), 0);
@@ -1013,15 +1077,61 @@ function PositionProfileCard({
         openPrice: p.openPrice ?? 0,
       }));
 
+    const tInsight = entryInsights.length > 0 ? entryInsights[0] : null;
+
+    // Donut insight sentence
+    let dInsight: string | null = null;
+    const mxSharePct = Math.round(mxShare * 100);
+    if (mxSharePct > 40 && wLots.length > 1) {
+      dInsight = t("digest.insight.lotDominant", { pct: mxSharePct });
+    } else if (wLots.length > 1) {
+      dInsight = t("digest.insight.lotEven");
+    }
+
+    // Profit insight sentence
+    let pInsight: string | null = null;
+    if (pSegs.length > 1 && pSegs[0]) {
+      const topPct = Math.round(Math.abs(pSegs[0].pct));
+      const restPnl = tPnl - pSegs[0].pnl;
+      if (topPct > 50) {
+        pInsight = t("digest.insight.profitConcentrated", {
+          pct: topPct,
+          rest: fmtCurrency(restPnl),
+          n: pSegs.length - 1,
+        });
+      }
+    }
+
+    // Entry spread insight sentence
+    let sInsight: string | null = null;
+    if (tInsight?.entrySpreadPct != null && tInsight.weightedAvgEntry != null && tInsight.entrySpread != null) {
+      const sp = tInsight.entrySpreadPct;
+      if (sp < 3) {
+        sInsight = t("digest.insight.spreadTight", { pct: sp.toFixed(1) });
+      } else if (sp < 8) {
+        sInsight = t("digest.insight.spreadModerate", { pct: sp.toFixed(1) });
+      } else if (sp < 15) {
+        sInsight = t("digest.insight.spreadWide", {
+          pct: sp.toFixed(1),
+          range: tInsight.entrySpread.toFixed(2),
+          breakeven: tInsight.weightedAvgEntry.toFixed(2),
+        });
+      } else {
+        sInsight = t("digest.insight.spreadVeryWide", { pct: sp.toFixed(1) });
+      }
+    }
+
     return {
       donutArcs: arcs,
       profitSegments: pSegs,
-      topInsight: entryInsights.length > 0 ? entryInsights[0] : null,
+      topInsight: tInsight,
       totalLots: tLots,
-      maxShare: mxShare,
       withLotsCount: wLots.length,
+      donutInsight: dInsight,
+      profitInsight: pInsight,
+      spreadInsight: sInsight,
     };
-  }, [positions, entryInsights, circumference]);
+  }, [positions, entryInsights, circumference, t]);
 
   return (
     <div className="rounded-xl border border-border/30 bg-muted/10 p-3">
@@ -1058,9 +1168,6 @@ function PositionProfileCard({
                 {Math.round(totalLots)}
               </text>
             </svg>
-            <span className="mt-0.5 text-[10px] text-muted-foreground">
-              {t("digest.profile.largestLeg")}: {Math.round(maxShare * 100)}%
-            </span>
           </div>
         )}
 
@@ -1082,22 +1189,23 @@ function PositionProfileCard({
                 );
               })}
             </div>
-            {profitSegments[0] && (
-              <p className="mt-1 text-[10px] text-muted-foreground">
-                {t("digest.profile.best")}: {profitSegments[0].lots}L @{profitSegments[0].openPrice}{" "}
-                <span className="font-mono text-green-600 dark:text-green-400">
-                  {fmtCurrency(profitSegments[0].pnl)}
-                </span>
-              </p>
-            )}
           </div>
+        )}
+      </div>
+
+      {/* Insight sentences */}
+      <div className="mt-2 space-y-1">
+        {donutInsight && (
+          <p className="text-[11px] leading-relaxed text-muted-foreground">{donutInsight}</p>
+        )}
+        {profitInsight && (
+          <p className="text-[11px] leading-relaxed text-muted-foreground">{profitInsight}</p>
         )}
       </div>
 
       {/* Entry spread gauge */}
       {topInsight && topInsight.weightedAvgEntry !== null && topInsight.entrySpreadPct !== null && (
         <div className="mt-3">
-          <p className="mb-1 text-[10px] text-muted-foreground">{t("digest.profile.entrySpread")}</p>
           <div className="relative h-3 rounded-full bg-muted/30">
             {/* Range bar */}
             <div className="absolute inset-y-0 rounded-full bg-blue-500/30" style={{ left: "5%", right: "5%" }} />
@@ -1108,12 +1216,126 @@ function PositionProfileCard({
               title={`Avg: ${topInsight.weightedAvgEntry}`}
             />
           </div>
-          <div className="mt-0.5 flex justify-between text-[9px] text-muted-foreground">
-            <span>{topInsight.instrument}</span>
-            <span className="font-mono">
-              {t("digest.insight.entrySpread")}: {topInsight.entrySpreadPct}%
-            </span>
-          </div>
+          {spreadInsight && (
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{spreadInsight}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Section 3: Equity & Balance Curve ───
+
+function EquityCurveCard({
+  data,
+  stats,
+  t,
+}: {
+  data: EquityDataPoint[];
+  stats: ReturnType<typeof computeEquityCurveStats>;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  if (data.length < 2) {
+    return (
+      <div className="rounded-xl border border-border/30 bg-muted/10 p-3">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("digest.equity.title")}
+        </p>
+        <div className="flex flex-col items-center justify-center py-6 text-center">
+          <Activity className="mb-2 h-6 w-6 text-muted-foreground/50" />
+          <p className="text-xs text-muted-foreground">{t("digest.equity.collecting")}</p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground/70">{t("digest.equity.collectingHint")}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const WIDTH = 340;
+  const HEIGHT = 130;
+  const PAD = { top: 8, bottom: 20, left: 0, right: 0 };
+  const chartW = WIDTH - PAD.left - PAD.right;
+  const chartH = HEIGHT - PAD.top - PAD.bottom;
+
+  const allVals = data.flatMap((d) => [d.balance, d.equity]);
+  const minVal = Math.min(...allVals) * 0.999;
+  const maxVal = Math.max(...allVals) * 1.001;
+  const valRange = maxVal - minVal || 1;
+  const timeMin = new Date(data[0].timestamp).getTime();
+  const timeMax = new Date(data[data.length - 1].timestamp).getTime();
+  const timeRange = timeMax - timeMin || 1;
+
+  const scaleX = (ts: string) => PAD.left + ((new Date(ts).getTime() - timeMin) / timeRange) * chartW;
+  const scaleY = (v: number) => PAD.top + (1 - (v - minVal) / valRange) * chartH;
+
+  const equityPath = data.map((d, i) => `${i === 0 ? "M" : "L"}${scaleX(d.timestamp).toFixed(1)},${scaleY(d.equity).toFixed(1)}`).join(" ");
+  const balancePath = data.map((d, i) => `${i === 0 ? "M" : "L"}${scaleX(d.timestamp).toFixed(1)},${scaleY(d.balance).toFixed(1)}`).join(" ");
+  const fillPath = equityPath + " " + data.slice().reverse().map((d) => `L${scaleX(d.timestamp).toFixed(1)},${scaleY(d.balance).toFixed(1)}`).join(" ") + " Z";
+
+  const isAbove = stats ? stats.currentEquity >= stats.currentBalance : true;
+  const fillColor = isAbove ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)";
+  const lineColor = isAbove ? "#22c55e" : "#ef4444";
+
+  // Time labels (up to 5 evenly spaced)
+  const labelCount = Math.min(5, data.length);
+  const labelStep = Math.max(1, Math.floor(data.length / labelCount));
+  const timeLabels: Array<{ x: number; label: string }> = [];
+  for (let i = 0; i < data.length; i += labelStep) {
+    const d = data[i];
+    const date = new Date(d.timestamp);
+    timeLabels.push({
+      x: scaleX(d.timestamp),
+      label: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    });
+  }
+
+  return (
+    <div className="rounded-xl border border-border/30 bg-muted/10 p-3">
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {t("digest.equity.title")}
+      </p>
+
+      {/* Equity / Balance values */}
+      {stats && (
+        <div className="mb-2 flex items-baseline gap-4 text-xs">
+          <span className="font-mono font-semibold" style={{ color: lineColor }}>
+            ${stats.currentEquity.toLocaleString("en-US", { maximumFractionDigits: 0 })} <span className="text-[10px] font-normal text-muted-foreground">{t("digest.equity.equity")}</span>
+          </span>
+          <span className="font-mono font-semibold text-white/40">
+            ${stats.currentBalance.toLocaleString("en-US", { maximumFractionDigits: 0 })} <span className="text-[10px] font-normal text-muted-foreground">{t("digest.equity.balance")}</span>
+          </span>
+        </div>
+      )}
+
+      {/* SVG Chart */}
+      <svg width="100%" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="overflow-visible">
+        {/* Fill between lines */}
+        <path d={fillPath} fill={fillColor} />
+        {/* Balance line (muted, behind) */}
+        <path d={balancePath} stroke="rgba(255,255,255,0.3)" strokeWidth={1.5} fill="none" />
+        {/* Equity line (bold, in front) */}
+        <path d={equityPath} stroke={lineColor} strokeWidth={2} fill="none" />
+        {/* Time labels */}
+        {timeLabels.map((tl, i) => (
+          <text key={i} x={tl.x} y={HEIGHT - 2} textAnchor="middle" className="fill-current text-[8px] text-muted-foreground">
+            {tl.label}
+          </text>
+        ))}
+      </svg>
+
+      {/* Stats below chart */}
+      {stats && (
+        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+          <span>
+            {t("digest.equity.peak")}: ${stats.peakEquity.toLocaleString("en-US", { maximumFractionDigits: 0 })} @{new Date(stats.peakTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </span>
+          <span>
+            {t("digest.equity.low")}: ${stats.lowEquity.toLocaleString("en-US", { maximumFractionDigits: 0 })} @{new Date(stats.lowTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            {stats.maxDrawdownPct < 0 && ` (${stats.maxDrawdownPct.toFixed(1)}%)`}
+          </span>
+          <span className={cn("font-mono font-semibold", pnlColor(stats.floatingPL))}>
+            {t("digest.equity.floating")}: {fmtCurrency(stats.floatingPL)} ({stats.floatingPct >= 0 ? "+" : ""}{stats.floatingPct.toFixed(1)}%)
+          </span>
         </div>
       )}
     </div>
@@ -1196,15 +1418,12 @@ function SmartActionsBlock({
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className="rounded-lg border border-border/50 bg-muted/20 divide-y divide-white/[0.06]">
       {actions.map((action, i) => {
         const Icon = SMART_ICON_MAP[action.icon];
         const iconColor = SMART_ICON_COLORS[action.icon];
         return (
-          <div
-            key={`smart-${i}`}
-            className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5"
-          >
+          <div key={`smart-${i}`} className="px-3 py-2.5">
             <div className="flex items-start gap-2.5">
               <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", iconColor)} />
               <div className="min-w-0 flex-1">

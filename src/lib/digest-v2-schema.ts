@@ -186,6 +186,14 @@ export const concentrationSummarySchema = z.object({
   riskLevel: z.enum(["low", "moderate", "high", "critical"]),
 });
 
+// ─── Equity Curve Data Point (Phase 8) ───
+
+export const equityDataPointSchema = z.object({
+  timestamp: z.string(),
+  balance: z.number(),
+  equity: z.number(),
+});
+
 // ─── Predictive Hints (Phase 3) ───
 
 export const predictiveHintSchema = z.object({
@@ -352,6 +360,8 @@ export const digestV2ResponseSchema = z.object({
   entryInsights: z.array(entryClusterInsightSchema).optional(),
   scalingInsights: z.array(scalingInsightSchema).optional(),
   concentrationSummary: concentrationSummarySchema.nullable().optional(),
+  // Phase 8: Equity curve data
+  equityCurve: z.array(equityDataPointSchema).optional(),
   // Scope-aware fields (added by route, optional for service)
   currentUserId: z.string().optional(),
   traderDeltas: z.array(digestDeltaSchema).nullable().optional(),

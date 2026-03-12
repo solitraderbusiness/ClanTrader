@@ -762,6 +762,27 @@ export async function getClanDigestV2(
     }))
   );
 
+  // ─── Equity Curve Snapshots ───
+  const accountIds = Array.from(seenAccounts.keys());
+  let equityCurve: Array<{ timestamp: string; balance: number; equity: number }> = [];
+  if (accountIds.length > 0) {
+    try {
+      const snapshots = await db.equitySnapshot.findMany({
+        where: {
+          mtAccountId: { in: accountIds },
+          timestamp: { gte: periodStart },
+        },
+        orderBy: { timestamp: "asc" },
+        select: { timestamp: true, balance: true, equity: true },
+      });
+      equityCurve = snapshots.map((s) => ({
+        timestamp: s.timestamp.toISOString(),
+        balance: s.balance,
+        equity: s.equity,
+      }));
+    } catch { /* continue without equity curve */ }
+  }
+
   const result: DigestV2Response = {
     version: 2,
     period,
@@ -794,6 +815,7 @@ export async function getClanDigestV2(
     entryInsights: entryInsights.length > 0 ? entryInsights : undefined,
     scalingInsights: scalingInsights.length > 0 ? scalingInsights : undefined,
     concentrationSummary,
+    equityCurve: equityCurve.length > 0 ? equityCurve : undefined,
     _memberSnapshotData: memberSnapshotData,
   } as DigestV2Response & { _memberSnapshotData: Record<string, MemberSnapshotData> };
 

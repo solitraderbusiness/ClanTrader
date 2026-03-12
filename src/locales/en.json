@@ -1305,6 +1305,25 @@
     "profile.best": "Best",
     "profile.entrySpread": "Entry spread",
 
+    "total": "TOTAL",
+
+    "equity.title": "Equity & Balance",
+    "equity.equity": "equity",
+    "equity.balance": "balance",
+    "equity.peak": "Peak",
+    "equity.low": "Low",
+    "equity.floating": "Floating",
+    "equity.collecting": "Collecting equity data...",
+    "equity.collectingHint": "Chart will appear after a few hours of connected trading.",
+
+    "insight.lotDominant": "One trade holds {pct}% of total size — your biggest bet and biggest risk.",
+    "insight.lotEven": "Even sizing — disciplined position management.",
+    "insight.profitConcentrated": "Trade #1 carries {pct}% of total profit. The other {n} entries combined add only {rest}.",
+    "insight.spreadTight": "Tight entries ({pct}%) — consistent conviction.",
+    "insight.spreadModerate": "Moderate spread ({pct}%) — some position building.",
+    "insight.spreadWide": "Wide spread ({pct}%) — averaging down over {range}. Below {breakeven}, all gains erased.",
+    "insight.spreadVeryWide": "Very wide spread ({pct}%) — aggressive averaging. High risk if trend reverses.",
+
     "moneyLine.openPnl": "Open P/L",
     "moneyLine.positions": "positions",
     "moneyLine.ofEquity": "of equity",

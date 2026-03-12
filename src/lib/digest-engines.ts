@@ -1168,33 +1168,75 @@ export function computeSmartActions(input: SmartActionInput): SmartAction[] {
 // ENGINE 14: PRICE LADDER (Phase 7)
 // ═══════════════════════════════════════════
 
-/** Lookup table: dollar P/L per 1.0 price move per 1 standard lot */
-const POINT_VALUES: Record<string, number> = {
-  // Oil (1 lot = 100 barrels for most brokers)
-  UKBRENT: 100, UKOIL: 100, BRENT: 100,
-  USOIL: 100, USCRUDE: 100, XTIUSD: 100, WTI: 100, CL: 100,
-  // Gold/Silver
+/** Conservative fallback table — ONLY used when derivation from real data fails */
+const DEFAULT_POINT_VALUES: Record<string, number> = {
+  UKBRENT: 10, UKOIL: 10, BRENT: 10,
+  USOIL: 10, USCRUDE: 10, XTIUSD: 10, WTI: 10, CL: 10,
   XAUUSD: 100, GOLD: 100,
   XAGUSD: 5000,
-  // Major FX (1 lot = 100k units, pip = 0.0001 for most)
   EURUSD: 100000, GBPUSD: 100000, AUDUSD: 100000, NZDUSD: 100000,
   USDCHF: 100000, USDCAD: 100000, USDJPY: 100000,
   GBPJPY: 100000, EURJPY: 100000, EURGBP: 100000,
-  // Indices (contract sizes vary)
   US30: 1, DJ30: 1, USTEC: 1, NAS100: 1, US500: 1, SPX500: 1,
   DE40: 1, UK100: 1, JP225: 1,
-  // Crypto (1 lot = 1 coin for most)
   BTCUSD: 1, BTCUSDT: 1, ETHUSD: 1, ETHUSDT: 1,
 };
 
-export function getSymbolPointValue(symbol: string): number {
+function getDefaultPointValue(symbol: string): number {
   const key = symbol.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-  if (POINT_VALUES[key]) return POINT_VALUES[key];
-  // Fuzzy match: check if symbol contains any known key
-  for (const [k, v] of Object.entries(POINT_VALUES)) {
+  if (DEFAULT_POINT_VALUES[key]) return DEFAULT_POINT_VALUES[key];
+  for (const [k, v] of Object.entries(DEFAULT_POINT_VALUES)) {
     if (key.includes(k) || k.includes(key)) return v;
   }
-  return 1; // fallback: 1:1 price-to-PL ratio
+  return 1;
+}
+
+/**
+ * Derive pointValue per lot from real trade data:
+ *   pointValue = |P/L| / (lots × |priceChange|)
+ *
+ * Picks the trade with the largest price move (most numerically stable).
+ * Falls back to a conservative lookup table only when no usable trades exist.
+ */
+export function derivePointValue(
+  positions: Array<{
+    openPrice: number | null;
+    lots: number | null;
+    floatingPnl: number | null;
+    currentPrice: number | null;
+    instrument?: string;
+  }>,
+): number {
+  const usable = positions.filter((p) => {
+    if (!p.openPrice || !p.lots || !p.currentPrice || p.floatingPnl == null) return false;
+    const move = Math.abs(p.currentPrice - p.openPrice);
+    return move > 0.01 && Math.abs(p.floatingPnl) > 0.01 && p.lots > 0;
+  });
+
+  if (usable.length === 0) {
+    return getDefaultPointValue(positions[0]?.instrument ?? "");
+  }
+
+  // Pick the position with the largest price move for numerical stability
+  const best = usable.reduce((a, b) =>
+    Math.abs((a.currentPrice ?? 0) - (a.openPrice ?? 0)) > Math.abs((b.currentPrice ?? 0) - (b.openPrice ?? 0)) ? a : b
+  );
+
+  const priceChange = (best.currentPrice ?? 0) - (best.openPrice ?? 0);
+  const derived = Math.abs(best.floatingPnl! / ((best.lots ?? 1) * priceChange));
+
+  // Sanity check: if derived value is wildly off (>100x or <0.01x of default), use default
+  const fallback = getDefaultPointValue(best.instrument ?? "");
+  if (derived > fallback * 100 || derived < fallback * 0.01) {
+    return fallback;
+  }
+
+  return derived;
+}
+
+/** @deprecated Use derivePointValue() for accurate results */
+export function getSymbolPointValue(symbol: string): number {
+  return getDefaultPointValue(symbol);
 }
 
 export type PriceLadderZone = "profit" | "warning" | "danger" | "catastrophic";
@@ -1215,6 +1257,7 @@ export interface PriceLadderData {
   avgEntry: number;
   totalLots: number;
   totalPnl: number;
+  dollarsPerPoint: number;
 }
 
 export interface PriceLadderInput {
@@ -1248,7 +1291,13 @@ export function computePriceLadder(input: PriceLadderInput): PriceLadderData[] {
   for (const [key, group] of groups) {
     const [symbol, dir] = key.split("|");
     const isLong = dir === "LONG";
-    const pv = getSymbolPointValue(symbol);
+    const pv = derivePointValue(group.map((p) => ({
+      openPrice: p.openPrice,
+      lots: p.lots,
+      floatingPnl: p.floatingPnl,
+      currentPrice: p.currentPrice,
+      instrument: p.instrument,
+    })));
     const totalLots = group.reduce((s, p) => s + (p.lots ?? 0), 0);
     if (totalLots <= 0) continue;
 
@@ -1357,6 +1406,7 @@ export function computePriceLadder(input: PriceLadderInput): PriceLadderData[] {
       avgEntry,
       totalLots,
       totalPnl,
+      dollarsPerPoint: totalLots * pv,
     });
   }
 
@@ -1364,4 +1414,52 @@ export function computePriceLadder(input: PriceLadderInput): PriceLadderData[] {
   ladders.sort((a, b) => Math.abs(b.totalPnl) - Math.abs(a.totalPnl));
 
   return ladders.slice(0, 2); // top 2 symbols by exposure
+}
+
+// ════════════════════════════════════════════
+// Engine 15: Equity Curve Stats
+// ════════════════════════════════════════════
+
+export interface EquityDataPoint {
+  timestamp: string; // ISO string
+  balance: number;
+  equity: number;
+}
+
+export interface EquityCurveStats {
+  currentEquity: number;
+  currentBalance: number;
+  peakEquity: number;
+  peakTime: string;
+  lowEquity: number;
+  lowTime: string;
+  floatingPL: number;
+  floatingPct: number;
+  maxDrawdownPct: number;
+}
+
+export function computeEquityCurveStats(data: EquityDataPoint[]): EquityCurveStats | null {
+  if (data.length === 0) return null;
+
+  const current = data[data.length - 1];
+  const peak = data.reduce((max, d) => (d.equity > max.equity ? d : max), data[0]);
+  const low = data.reduce((min, d) => (d.equity < min.equity ? d : min), data[0]);
+  const floating = current.equity - current.balance;
+  const peakTime = new Date(peak.timestamp).getTime();
+  const lowTime = new Date(low.timestamp).getTime();
+  const maxDrawdownPct = lowTime > peakTime && peak.equity > 0
+    ? ((low.equity - peak.equity) / peak.equity) * 100
+    : 0;
+
+  return {
+    currentEquity: current.equity,
+    currentBalance: current.balance,
+    peakEquity: peak.equity,
+    peakTime: peak.timestamp,
+    lowEquity: low.equity,
+    lowTime: low.timestamp,
+    floatingPL: floating,
+    floatingPct: current.balance > 0 ? (floating / current.balance) * 100 : 0,
+    maxDrawdownPct,
+  };
 }

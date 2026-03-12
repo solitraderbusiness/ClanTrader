@@ -5,6 +5,28 @@ Newest entries first.
 
 ---
 
+## 2026-03-12 — Activity Digest v2.1: Critical pointValue fix + Equity Curve
+
+- **Task:** activity-digest
+- **Decision:** (1) Derive point value from real trade data instead of hardcoded lookup table — formula: `PL / (lots × priceChange)`. Fallback to conservative defaults only when no usable trades exist. (2) Add equity/balance curve as new Section 3. (3) Create `EquitySnapshot` model to record balance+equity every EA heartbeat. (4) Replace raw Position Profile metrics with actionable insight sentences. (5) Show `$X/pt` as hero fallback when account equity unavailable.
+- **Why:** Hardcoded pointValue=100 for UKBRENT when real is ~10 caused all Price Ladder levels to be 10x compressed. Equity curve provides temporal context MT cannot show. Raw metrics without implications are noise.
+- **Affected files/rules:** `digest-engines.ts` (derivePointValue, computePriceLadder rewrite), `DigestSheetV2.tsx` (HeroStats, PositionProfileCard, EquityCurveCard), `schema.prisma` (EquitySnapshot model), `ea.service.ts` (snapshot recording), `digest-v2.service.ts` (equity curve data query)
+- **Needs SOURCE_OF_TRUTH update now?:** no — enhancements within existing Activity Digest feature
+- **Needs manual testing?:** yes — verify Price Ladder levels against real trade math, equity curve rendering, insight sentence accuracy
+
+---
+
+## 2026-03-12 — Activity Digest Phase 7: v2 Visual Redesign
+
+- **Task:** activity-digest
+- **Decision:** Replaced text-heavy v1 sections with visual-first components: SVG Price Ladder thermometer, SVG donut (lot distribution), stacked bar (profit contribution), entry spread gauge. Added Price Ladder engine (Engine 14) with symbol point value lookup. Added "If all SLs hit" smart action. Positions collapsed by default.
+- **Why:** v1 was too vertical, too much text, repeated what MT already shows. Price Ladder is the killer feature — shows cross-position breakeven/loss levels MT never computes.
+- **Affected files/rules:** `DigestSheetV2.tsx` (5 new components, 8 old removed), `digest-engines.ts` (Engine 14 + POINT_VALUES + updated smart actions), `digest-v2-schema.ts` (currentPrice/currentSL/currentTP), `digest-v2.service.ts` (carry price data through), i18n (10+ new keys)
+- **Needs SOURCE_OF_TRUTH update now?:** no
+- **Needs manual testing?:** yes — SVG rendering, price ladder level accuracy, donut chart, stacked bar, mobile layout
+
+---
+
 ## 2026-03-12 — Activity Digest Phase 6: Implementation Complete
 
 - **Task:** activity-digest
