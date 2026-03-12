@@ -283,7 +283,7 @@ function buildTraderView(data: DigestV2Response): DigestV2Response | null {
   const traderRiskBudget = computeRiskBudget({
     currentOpenRiskR: myMember.memberRiskToSLR,
     totalEquity: data.riskBudget?.totalEquity ?? null,
-    totalBalance: null,
+    totalBalance: data.riskBudget?.totalBalance ?? null,
     openTradeCount: myMember.openCount,
   });
 
@@ -359,6 +359,7 @@ function buildTraderView(data: DigestV2Response): DigestV2Response | null {
     actions: traderActions,
     concentration: traderConcentration,
     riskBudget: traderRiskBudget,
+    accountBalance: data.accountBalance ?? null,
     trackingSummary: traderTracking,
     liveHealthSummary: traderLiveHealth,
     summary: traderSummary,
@@ -599,6 +600,7 @@ function V2Content({
   );
 
   const equity = data.riskBudget?.totalEquity ?? null;
+  const balance = data.accountBalance ?? data.riskBudget?.totalBalance ?? null;
 
   // Smart actions (trade intelligence)
   const smartActions = useMemo(() =>
@@ -640,18 +642,35 @@ function V2Content({
     [allPositions, equity]
   );
 
-  // Derive dollarsPerPoint for hero fallback from top price ladder
-  const heroDollarsPerPoint = useMemo(() => {
-    if (priceLadders.length === 0) return null;
-    return priceLadders.reduce((sum, l) => sum + l.dollarsPerPoint, 0);
-  }, [priceLadders]);
 
-  // Equity curve stats
+  // Equity curve stats — override "current" values with live data from cockpit
   const equityCurveData = useMemo(() => data.equityCurve ?? [], [data.equityCurve]);
-  const equityCurveStats = useMemo(
-    () => computeEquityCurveStats(equityCurveData),
-    [equityCurveData]
-  );
+  const equityCurveStats = useMemo(() => {
+    const snapshotStats = computeEquityCurveStats(equityCurveData);
+    if (!snapshotStats || balance === null || c.totalFloatingPnl === null) return snapshotStats;
+    const liveEquity = balance + c.totalFloatingPnl;
+    const liveEqChange = liveEquity - snapshotStats.baselineBalance;
+    const liveBalChange = balance - snapshotStats.baselineBalance;
+    return {
+      ...snapshotStats,
+      currentEquityChange: liveEqChange,
+      currentEquityChangePct: (liveEqChange / snapshotStats.baselineBalance) * 100,
+      currentBalanceChange: liveBalChange,
+      currentBalanceChangePct: (liveBalChange / snapshotStats.baselineBalance) * 100,
+      floatingPL: c.totalFloatingPnl,
+      floatingPct: balance > 0 ? (c.totalFloatingPnl / balance) * 100 : 0,
+      // Update peak if live is new peak
+      peakEquityChange: Math.max(snapshotStats.peakEquityChange, liveEqChange),
+      peakEquityChangePct: liveEqChange > snapshotStats.peakEquityChange
+        ? (liveEqChange / snapshotStats.baselineBalance) * 100
+        : snapshotStats.peakEquityChangePct,
+      // Update low if live is new low
+      lowEquityChange: Math.min(snapshotStats.lowEquityChange, liveEqChange),
+      lowEquityChangePct: liveEqChange < snapshotStats.lowEquityChange
+        ? (liveEqChange / snapshotStats.baselineBalance) * 100
+        : snapshotStats.lowEquityChangePct,
+    };
+  }, [equityCurveData, balance, c.totalFloatingPnl]);
 
   // Context line: "5 positions · 250 lots UKBRENT LONG · 5 unprotected"
   const unprotectedCount = allPositions.filter(
@@ -682,7 +701,7 @@ function V2Content({
 
       {/* Hero: P/L + % of equity (or $/pt fallback) */}
       {hasOpenPositions && (
-        <HeroStats pnl={c.totalFloatingPnl} equity={equity} dollarsPerPoint={heroDollarsPerPoint} contextLine={contextLine} />
+        <HeroStats pnl={c.totalFloatingPnl} balance={balance} contextLine={contextLine} />
       )}
 
       {/* ═══ SECTION 2: SMART ACTIONS ═══ */}
@@ -829,16 +848,14 @@ function SystemStatusBar({
 
 function HeroStats({
   pnl,
-  equity,
-  dollarsPerPoint,
+  balance,
   contextLine,
 }: {
   pnl: number | null;
-  equity: number | null;
-  dollarsPerPoint: number | null;
+  balance: number | null;
   contextLine: string;
 }) {
-  const pnlPct = equity && equity > 0 && pnl !== null ? (pnl / equity) * 100 : null;
+  const pnlPct = balance && balance > 0 && pnl !== null ? (pnl / balance) * 100 : null;
 
   return (
     <div className="px-1">
@@ -849,10 +866,6 @@ function HeroStats({
         {pnlPct !== null ? (
           <span className={cn("text-xl font-bold tabular-nums", pnlColor(pnl))}>
             {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%
-          </span>
-        ) : dollarsPerPoint !== null && dollarsPerPoint > 0 ? (
-          <span className="text-sm font-semibold text-muted-foreground">
-            ${dollarsPerPoint.toLocaleString("en-US", { maximumFractionDigits: 0 })}/pt
           </span>
         ) : (
           <span className="text-sm text-muted-foreground">—%</span>
@@ -1311,12 +1324,49 @@ function EquityCurveCard({
   const sy = (v: number) => PAD.top + (1 - (v - yMin) / yRange) * chartH;
   const zeroY = sy(0);
 
-  // Paths
-  const equityPath = normalized.map((d, i) => `${i === 0 ? "M" : "L"}${sx(d.timestamp).toFixed(1)},${sy(d.equityChange).toFixed(1)}`).join(" ");
-  const balancePath = normalized.map((d, i) => `${i === 0 ? "M" : "L"}${sx(d.timestamp).toFixed(1)},${sy(d.balanceChange).toFixed(1)}`).join(" ");
+  // Check if any data is estimated
+  const hasEstimated = normalized.some((d) => d.isEstimated);
+
+  // Build equity path segments (solid for real, dashed for estimated)
+  type PathSeg = { d: string; estimated: boolean };
+  const equitySegments: PathSeg[] = [];
+  const balanceSegments: PathSeg[] = [];
+  let eqSeg = "";
+  let balSeg = "";
+  let curEstimated = normalized[0].isEstimated ?? false;
+  for (let i = 0; i < normalized.length; i++) {
+    const pt = normalized[i];
+    const ex = sx(pt.timestamp).toFixed(1);
+    const eqY = sy(pt.equityChange).toFixed(1);
+    const balY = sy(pt.balanceChange).toFixed(1);
+    const est = pt.isEstimated ?? false;
+    if (i === 0) {
+      eqSeg = `M${ex},${eqY}`;
+      balSeg = `M${ex},${balY}`;
+      curEstimated = est;
+    } else if (est !== curEstimated) {
+      // Close current segment (include this point as end)
+      eqSeg += ` L${ex},${eqY}`;
+      balSeg += ` L${ex},${balY}`;
+      equitySegments.push({ d: eqSeg, estimated: curEstimated });
+      balanceSegments.push({ d: balSeg, estimated: curEstimated });
+      // Start new segment from this point
+      eqSeg = `M${ex},${eqY}`;
+      balSeg = `M${ex},${balY}`;
+      curEstimated = est;
+    } else {
+      eqSeg += ` L${ex},${eqY}`;
+      balSeg += ` L${ex},${balY}`;
+    }
+  }
+  equitySegments.push({ d: eqSeg, estimated: curEstimated });
+  balanceSegments.push({ d: balSeg, estimated: curEstimated });
+
+  // Full equity path for fill area
+  const fullEquityPath = normalized.map((d, i) => `${i === 0 ? "M" : "L"}${sx(d.timestamp).toFixed(1)},${sy(d.equityChange).toFixed(1)}`).join(" ");
 
   // Fill between equity and zero line
-  const fillAbove = equityPath + ` L${sx(normalized[normalized.length - 1].timestamp).toFixed(1)},${zeroY.toFixed(1)} L${sx(normalized[0].timestamp).toFixed(1)},${zeroY.toFixed(1)} Z`;
+  const fillAbove = fullEquityPath + ` L${sx(normalized[normalized.length - 1].timestamp).toFixed(1)},${zeroY.toFixed(1)} L${sx(normalized[0].timestamp).toFixed(1)},${zeroY.toFixed(1)} Z`;
 
   const isAbove = stats ? stats.currentEquityChange >= 0 : true;
   const lineColor = isAbove ? "#22c55e" : "#ef4444";
@@ -1344,9 +1394,16 @@ function EquityCurveCard({
 
   return (
     <div className="rounded-xl border border-border/30 bg-muted/10 p-3">
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {t("digest.equity.title")}
-      </p>
+      <div className="mb-2 flex items-center gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("digest.equity.title")}
+        </p>
+        {hasEstimated && (
+          <span className="rounded-full bg-yellow-500/15 px-1.5 py-0.5 text-[9px] font-medium text-yellow-500" title={t("digest.estimatedTooltip")}>
+            {t("digest.estimated")}
+          </span>
+        )}
+      </div>
 
       {/* Header values — normalized change from period start */}
       {stats && (
@@ -1414,14 +1471,64 @@ function EquityCurveCard({
             </g>
           ))}
 
+          {/* Peak equity dashed line */}
+          {stats && stats.peakEquityChange > stats.currentEquityChange && (
+            <g>
+              <line
+                x1={PAD.left}
+                y1={sy(stats.peakEquityChange)}
+                x2={EQ_W - PAD.right}
+                y2={sy(stats.peakEquityChange)}
+                stroke="rgba(34,197,94,0.35)"
+                strokeWidth={1}
+                strokeDasharray="3,3"
+              />
+              <text
+                x={EQ_W - PAD.right + 2}
+                y={sy(stats.peakEquityChange) + 3}
+                className="fill-current text-[7px] text-green-500/60"
+              >
+                peak
+              </text>
+            </g>
+          )}
+
+          {/* Low equity dashed line */}
+          {stats && stats.lowEquityChange < stats.currentEquityChange && stats.lowEquityChange < 0 && (
+            <g>
+              <line
+                x1={PAD.left}
+                y1={sy(stats.lowEquityChange)}
+                x2={EQ_W - PAD.right}
+                y2={sy(stats.lowEquityChange)}
+                stroke="rgba(239,68,68,0.35)"
+                strokeWidth={1}
+                strokeDasharray="3,3"
+              />
+              <text
+                x={EQ_W - PAD.right + 2}
+                y={sy(stats.lowEquityChange) + 3}
+                className="fill-current text-[7px] text-red-500/60"
+              >
+                low
+              </text>
+            </g>
+          )}
+
           {/* Fill between equity and zero */}
           <path d={fillAbove} fill={fillColor} />
 
-          {/* Balance line (muted, behind) */}
-          <path d={balancePath} stroke="rgba(255,255,255,0.3)" strokeWidth={1.5} fill="none" />
+          {/* Balance line segments (muted, behind) */}
+          {balanceSegments.map((seg, i) => (
+            <path key={`bal-${i}`} d={seg.d} stroke="rgba(255,255,255,0.3)" strokeWidth={1.5} fill="none"
+              strokeDasharray={seg.estimated ? "4,3" : undefined} />
+          ))}
 
-          {/* Equity line (bold, in front) */}
-          <path d={equityPath} stroke={lineColor} strokeWidth={2} fill="none" />
+          {/* Equity line segments (bold, in front — dashed for estimated) */}
+          {equitySegments.map((seg, i) => (
+            <path key={`eq-${i}`} d={seg.d} stroke={lineColor} strokeWidth={2} fill="none"
+              strokeDasharray={seg.estimated ? "4,3" : undefined} strokeOpacity={seg.estimated ? 0.6 : 1} />
+          ))}
 
           {/* Crosshair + dots on hover */}
           {hoverIdx !== null && hoverPoint && (
@@ -1470,8 +1577,11 @@ function EquityCurveCard({
           <div className="pointer-events-none absolute end-0 top-0 z-10 hidden rounded-lg border border-white/10 bg-[rgba(20,20,30,0.95)] px-3 py-2 text-[11px] backdrop-blur-sm sm:block"
             style={{ minWidth: 170 }}
           >
-            <p className="mb-1 text-[10px] text-muted-foreground">
-              {new Date(hoverPoint.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            <p className="mb-1 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+              <span>{new Date(hoverPoint.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+              {hoverPoint.isEstimated && (
+                <span className="rounded bg-yellow-500/20 px-1 text-[8px] text-yellow-400">{t("digest.estimated")}</span>
+              )}
             </p>
             <div className="flex justify-between gap-4">
               <span className="text-muted-foreground">{t("digest.equity.equity")}</span>
@@ -1511,6 +1621,11 @@ function EquityCurveCard({
           <span className={cn("font-mono font-semibold", pnlColor(stats.floatingPL))}>
             {t("digest.equity.floating")}: {fmtCurrency(stats.floatingPL)} ({stats.floatingPct >= 0 ? "+" : ""}{stats.floatingPct.toFixed(1)}%)
           </span>
+          {hasEstimated && (
+            <span className="text-[9px] text-yellow-500/70">
+              {t("digest.equity.estimatedSegment")}
+            </span>
+          )}
         </div>
       )}
     </div>

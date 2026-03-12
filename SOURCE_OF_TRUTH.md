@@ -52,7 +52,7 @@
 - PM2 process management
 - Deploy scripts (pack, staging, promote-to-prod)
 - Price pool (5-layer Redis cache, source-aware, verification-grade)
-- Activity Digest v2 (trading cockpit: floating P/L, R, risk-to-SL, actions needed, attention queue — feature-flagged behind `digest_v2`)
+- Activity Digest v2 (3-zone trading intelligence: hero P/L, smart actions, price ladder, position profile, equity curve with normalized chart + interactive hover/touch, 14 pure-function engines)
 - Channel posts (backend API — no UI yet)
 - Onboarding (minimal modal)
 
@@ -144,6 +144,8 @@ See Section 6.
 - Multiple MT accounts per user supported
 - Rate limit: 1 heartbeat per 10s per account
 - Trade sync: up to 5000 closed trades per batch (every 5 min)
+- EquitySnapshot recording: balance + equity every 5 min per account (Redis-throttled) from heartbeat data
+- **Known vulnerability — heartbeat loss**: When EA stops, 6 systems degrade (equity snapshots, live P/L, effective rank, digest, socket broadcasts, ranking). Price pool has data from other EAs but is not used as fallback yet. Planned fix: background estimation from price pool. See task `heartbeat-fallback`.
 
 ### Signal Qualification
 **Status: LIVE**
@@ -325,6 +327,7 @@ See Section 6.
 5. Stale-check cron must be configured externally (or moved to in-process interval)
 6. Digest scripts not auto-scheduled
 7. No APM/metrics collection
+8. **Heartbeat fallback not implemented** — when EA disconnects, 6 systems degrade (equity snapshots, live P/L, effective rank, digest, socket broadcasts, ranking) even though price pool has data from other EAs. Task `heartbeat-fallback` planned.
 
 ---
 
@@ -406,7 +409,7 @@ Enforced rules verified from code. For full evidence, see `SITE_RULES_AUDIT_REPO
 - Journal: separate tabs for official (verified signal) and analysis trades
 
 ### EA Bridge
-- Heartbeat: full snapshot every 30s, rate limited to 1/10s per account, includes floatingProfit + tradeAllowed
+- Heartbeat: full snapshot every 30s, rate limited to 1/10s per account, includes floatingProfit + tradeAllowed. Records `EquitySnapshot` (balance + equity) every 5 min per account (Redis-throttled).
 - Login: sends extended account data (accountName, currency, leverage, stopoutLevel, stopoutMode, isDemo)
 - Close detection: DB open trades missing from heartbeat = closed
 - Close price: same-source fallback only (never cross-broker)
@@ -434,16 +437,19 @@ Enforced rules verified from code. For full evidence, see `SITE_RULES_AUDIT_REPO
 
 ### Activity Digest
 **Status: LIVE** (v2 default, v1 fallback with `v=1`)
-- v2 (default): Scope-aware trading dashboard with 9 decision engines
+- v2 (default): Scope-aware trading intelligence dashboard with 14+ pure-function engines
   - **Scope switcher**: Trader (default) / Clan modes — switches entire digest meaning
   - **Trader mode**: Personal risk/performance/actions from own positions only
   - **Clan mode**: Clan-wide monitoring with member breakdown and attribution
-  - **9 engines** (pure functions in `digest-engines.ts`): state assessment, delta, alerts, actions, impact, concentration, risk budget, member trend, predictive hints
+  - **14 engines** (pure functions in `digest-engines.ts`): state assessment, delta, alerts, actions, impact, concentration, risk budget, member trend, predictive hints, entry quality, scaling pattern, concentration summary, smart actions, price ladder + equity normalization
+  - **3-zone layout**: Cockpit (above fold: hero P/L, smart actions) → Analysis (scrollable cards: price ladder, position profile) → Details (positions, system health collapsed)
+  - **Equity & Balance Curve**: SVG chart with normalized Y-axis ($ change from period start, not absolute). Interactive hover (desktop crosshair + tooltip) and touch scrub (mobile fixed info bar). Data from `EquitySnapshot` model recorded by EA heartbeat (5-min Redis throttle).
+  - **Price Ladder**: SVG thermometer showing current price, half profit, breakeven, SL levels, account-impact levels. Point value derived from real trade data.
   - Per-trade: floating P/L, floating R, `riskToSLR`, health dimensions, actions needed
   - Per-member aggregates: floating P/L, floating R, total risk-to-SL, action count, impact score
   - Scope-aware deltas: separate Redis snapshots for trader vs clan (`:trader` suffix key)
+  - Smart actions: 6 priority levels (no SL on profit, size anomaly, concentration, wide spread, extended hold)
   - Attention queue: severity-ordered, grouped tracking-lost by member
-  - Premium dashboard UX: hero status card, pill selectors, delta strip, concentration bars
 - v1 (legacy): Per-member aggregates — accessible with `v=1` query param
 - API: `GET /api/clans/[clanId]/digest?period=today|week|month&tz=N&v=2`
 - Redis cached: 90s TTL per clan/period/timezone; 24h TTL per-user delta snapshots
@@ -609,6 +615,8 @@ Newest first. Append-only.
 
 | Date | Change | Reason | Affected Files |
 |------|--------|--------|----------------|
+| 2026-03-12 | Documented heartbeat-loss vulnerability + planned fallback | Deep research: 13 systems depend on heartbeat, 6 can use price pool as fallback. Task created, board task added (HIGH/TODO), SOT updated with known vulnerability. Inferred from code analysis. | SOURCE_OF_TRUTH.md, docs/tasks/heartbeat-fallback.md, docs/testing/heartbeat-fallback-test-plan.md, DECISION_LOG.md |
+| 2026-03-12 | Activity Digest v2.1–v2.3: Equity curve, price ladder, chart normalization, interactive hover | Major digest enhancements: EquitySnapshot DB model + EA recording (5-min throttle), SVG equity chart with normalized Y-axis ($ change from period start), interactive crosshair tooltip (desktop) + touch scrub (mobile), price ladder with derived point values, 14 engines total. Verified in code — 644 tests pass, build clean. | digest-engines.ts, DigestSheetV2.tsx, schema.prisma (EquitySnapshot), ea.service.ts, digest-v2.service.ts, digest-v2-schema.ts, en.json, fa.json |
 | 2026-03-11 | Activity Digest Phase 4: Scope-Aware Trader/Clan split | Digest now has Trader/Clan scope switcher (default: Trader). Trader mode shows personal-only state/deltas/actions/concentration/alerts. Clan mode preserves clan-wide view with member breakdown. Server computes trader-scoped deltas with separate Redis key. Client derives trader view from clan data using pure engine functions (no refetch on scope switch). 9 decision engines, premium dashboard UX. Verified in code — 644 tests pass, build clean. | DigestSheetV2.tsx, route.ts, digest-v2-schema.ts, en.json, fa.json, DECISION_LOG.md, docs/tasks/activity-digest.md |
 | 2026-03-11 | Founder workflow system | Added 4 workflow skills (my-rules, task-start, task-update, weekly-pm), FOUNDER_LOOP.md, DECISION_LOG.md, docs/tasks/ and docs/testing/ directories. Internal tooling — no product/scope/rule change. | .claude/FOUNDER_LOOP.md, .claude/skills/*, docs/DECISION_LOG.md, docs/tasks/, docs/testing/ |
 | 2026-03-11 | Activity Digest v2 cockpit refactor | Refactored v2 from health-taxonomy to trading cockpit. Primary metrics now: floating P/L, floating R, risk-to-SL, actions needed, realized P/L/R. Health model demoted to expandable detail. Attention queue groups tracking-lost by member. Per-trade `riskToSLR`. Per-member cockpit aggregates. Daily Snapshot Layer deferred (BACKLOG). Verified in code. | src/lib/digest-v2-schema.ts, src/services/digest-v2.service.ts, src/components/chat/DigestSheetV2.tsx, src/locales/en.json, src/locales/fa.json |

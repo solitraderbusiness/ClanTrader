@@ -95,6 +95,35 @@ app.prepare().then(() => {
     }
   }, 30_000);
 
+  // Heartbeat fallback + stale-check — runs every 30s, gated by feature flag
+  let fallbackRunning = false;
+
+  setInterval(async () => {
+    if (fallbackRunning) return;
+    try {
+      const { db: flagDb } = await import("@/lib/db");
+      const flag = await flagDb.featureFlag.findUnique({
+        where: { key: "heartbeat_fallback" },
+      });
+      if (!flag?.enabled) return;
+
+      fallbackRunning = true;
+      const { runHeartbeatFallback } = await import(
+        "@/services/heartbeat-fallback.service"
+      );
+      const fbResult = await runHeartbeatFallback();
+      if (fbResult.accountsProcessed > 0) {
+        console.log(
+          `[HeartbeatFallback] accounts=${fbResult.accountsProcessed} prices=${fbResult.pricesResolved} snapshots=${fbResult.snapshotsCreated} rankings=${fbResult.rankingUpdates} errors=${fbResult.errors}`
+        );
+      }
+    } catch (err) {
+      console.error("[HeartbeatFallback] error:", err);
+    } finally {
+      fallbackRunning = false;
+    }
+  }, 30_000);
+
   httpServer.listen(port, hostname, () => {
     console.log(`> Ready on http://${hostname}:${port}`);
   });

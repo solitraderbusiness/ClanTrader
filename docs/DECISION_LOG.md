@@ -5,6 +5,28 @@ Newest entries first.
 
 ---
 
+## 2026-03-12 — Heartbeat Fallback: Use Price Pool for Background Estimation
+
+- **Task:** heartbeat-fallback
+- **Decision:** When a user's EA heartbeat is lost, the system should use the price pool (fed by all other connected EAs) to continue computing estimated equity, floating P/L, equity snapshots, and live risk data. Estimated data must be clearly labeled (`isEstimated` flag on snapshots, visual indicator in UI, PROVISIONAL ranking status). This does NOT affect signal qualification (strict 20s window), integrity contract, or statement eligibility — those remain heartbeat-only.
+- **Why:** Deep research identified 13 systems affected by heartbeat loss. 6 of them (equity snapshots, live risk, effective rank, digest cockpit, socket broadcasts, ranking status) can be served by the price pool — the data exists from other users' EAs but isn't used. Users shouldn't lose data just because their personal MT connection dropped.
+- **Affected files/rules:** `ea.service.ts`, `live-risk.service.ts`, `price-pool.service.ts`, `digest-v2.service.ts`, `ranking.service.ts`, `server.ts` (new background job), `schema.prisma` (EquitySnapshot.isEstimated)
+- **Needs SOURCE_OF_TRUTH update now?:** yes — new system capability, affects EA bridge and live risk sections
+- **Needs manual testing?:** yes — full test plan at `docs/testing/heartbeat-fallback-test-plan.md`
+
+---
+
+## 2026-03-12 — Activity Digest v2.3: Equity Chart Normalization + Interactive Hover
+
+- **Task:** activity-digest
+- **Decision:** Normalize equity chart Y-axis to show dollar change from period start instead of absolute values. Both equity and balance lines normalized relative to starting balance (not starting equity). Added interactive vertical crosshair + tooltip on desktop hover and fixed info bar with touch scrub on mobile.
+- **Why:** Absolute values make the chart useless on large accounts — a $25K swing on a $1M account looks like a flat line. Normalized view makes the actual day's story visible regardless of account size. Interactivity lets users explore exact values at any point in time.
+- **Affected files/rules:** `digest-engines.ts` (normalizeEquityData, NormalizedEquityStats, computeEquityCurveStats rewrite), `DigestSheetV2.tsx` (EquityCurveCard rewrite with SVG interactivity, module-level constants), `en.json`/`fa.json` (+2 keys)
+- **Needs SOURCE_OF_TRUTH update now?:** no — enhancement within existing Activity Digest feature
+- **Needs manual testing?:** yes — verify chart normalization on real account data, hover tooltip accuracy, mobile touch scrub behavior
+
+---
+
 ## 2026-03-12 — Activity Digest v2.1: Critical pointValue fix + Equity Curve
 
 - **Task:** activity-digest

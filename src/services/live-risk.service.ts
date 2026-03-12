@@ -1,6 +1,32 @@
 import { db } from "@/lib/db";
 import { redis } from "@/lib/redis";
+import { getDisplayPrice } from "@/services/price-pool.service";
 import type { LiveOpenRisk, EffectiveRankView } from "@/types/trader-statement";
+
+const FALLBACK_PV: Record<string, number> = {
+  UKBRENT: 10, UKOIL: 10, BRENT: 10, USOIL: 10, XTIUSD: 10,
+  XAUUSD: 100, GOLD: 100, XAGUSD: 5000,
+  EURUSD: 100000, GBPUSD: 100000, USDJPY: 100000,
+  US30: 1, USTEC: 1, NAS100: 1, BTCUSD: 1,
+};
+
+function estimatePointValue(symbol: string, openPrice: number, lots: number, lastProfit: number | null, currentPrice: number): number {
+  // Try to derive from last known MT data
+  if (lastProfit && lots > 0) {
+    const move = Math.abs(currentPrice - openPrice);
+    if (move > 0.0001) {
+      const derived = Math.abs(lastProfit / (lots * move));
+      const key = symbol.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+      const fb = FALLBACK_PV[key] ?? 1;
+      if (derived > fb * 0.01 && derived < fb * 100) return derived;
+    }
+  }
+  const key = symbol.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  for (const [k, v] of Object.entries(FALLBACK_PV)) {
+    if (key.includes(k) || k.includes(key)) return v;
+  }
+  return FALLBACK_PV[key] ?? 1;
+}
 
 const LIVE_RISK_CACHE_TTL = 15; // seconds — matches half heartbeat interval
 
@@ -35,15 +61,24 @@ export async function getLiveOpenRisk(
       mtTradeMatches: {
         where: { isOpen: true },
         take: 1,
-        select: { profit: true, commission: true, swap: true, openPrice: true },
+        select: { profit: true, commission: true, swap: true, openPrice: true, lots: true, symbol: true, mtAccountId: true },
       },
     },
   });
+
+  // Build a map of stale account IDs for fallback logic
+  const staleAccountIds = new Set(
+    (await db.mtAccount.findMany({
+      where: { userId, isActive: true, trackingStatus: { in: ["STALE", "TRACKING_LOST"] } },
+      select: { id: true },
+    })).map((a) => a.id)
+  );
 
   let totalFloatingPnl = 0;
   let totalFloatingR = 0;
   let biggestLoserR = 0;
   let unprotectedCount = 0;
+  let isEstimated = false;
 
   for (const trade of openTrades) {
     const mt = trade.mtTradeMatches[0];
@@ -52,9 +87,27 @@ export async function getLiveOpenRisk(
     const riskMoney = trade.officialInitialRiskMoney;
     const direction = trade.tradeCard?.direction;
 
-    // Floating PnL from MT
+    // Floating PnL from MT (or price pool fallback for stale accounts)
     if (mt) {
-      const pnl = (mt.profit ?? 0) + (mt.commission ?? 0) + (mt.swap ?? 0);
+      let pnl = (mt.profit ?? 0) + (mt.commission ?? 0) + (mt.swap ?? 0);
+
+      // Price pool fallback: if this trade's account is stale, try to estimate P/L
+      if (mt.mtAccountId && staleAccountIds.has(mt.mtAccountId) && mt.openPrice > 0 && mt.lots > 0) {
+        try {
+          const resolved = await getDisplayPrice(mt.symbol);
+          if (resolved.price !== null && resolved.status !== "no_price" && resolved.status !== "market_closed") {
+            const dir = direction === "LONG" ? 1 : direction === "SHORT" ? -1 : 0;
+            if (dir !== 0) {
+              const pv = estimatePointValue(mt.symbol, mt.openPrice, mt.lots, mt.profit, resolved.price);
+              pnl = dir * (resolved.price - mt.openPrice) * mt.lots * pv + (mt.commission ?? 0) + (mt.swap ?? 0);
+              isEstimated = true;
+            }
+          }
+        } catch {
+          // Price pool unavailable — use last known MT value
+        }
+      }
+
       totalFloatingPnl += pnl;
 
       // Floating R: prefer money-based (most accurate for cross-currency)
@@ -62,13 +115,10 @@ export async function getLiveOpenRisk(
       if (riskMoney && riskMoney > 0) {
         floatingR = pnl / riskMoney;
       } else if (riskAbs > 0) {
-        // Fall back to price-based R estimation using initial risk
-        // Approximate: use profit ratio to estimate price-based R
         const initialRiskDirection = trade.officialInitialStopLoss && entry > 0
           ? Math.abs(entry - trade.officialInitialStopLoss)
           : riskAbs;
         if (initialRiskDirection > 0 && mt.openPrice > 0 && direction) {
-          // If we have profit and initial data, derive R from price movement
           floatingR = pnl !== 0 && riskAbs > 0 ? pnl / (riskAbs * (mt.openPrice / entry || 1)) : 0;
         }
       }
@@ -126,6 +176,7 @@ export async function getLiveOpenRisk(
     unprotectedCount,
     staleWarning,
     lastUpdate,
+    isEstimated,
   };
 
   // Cache briefly

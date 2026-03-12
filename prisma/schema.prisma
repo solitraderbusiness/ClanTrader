@@ -975,6 +975,7 @@ model EquitySnapshot {
   timestamp   DateTime  @default(now())
   balance     Float
   equity      Float
+  isEstimated Boolean   @default(false)
 
   @@index([mtAccountId, timestamp])
 }

@@ -773,7 +773,7 @@ export async function getClanDigestV2(
           timestamp: { gte: periodStart },
         },
         orderBy: { timestamp: "asc" },
-        select: { timestamp: true, balance: true, equity: true },
+        select: { timestamp: true, balance: true, equity: true, isEstimated: true },
       });
       equityCurve = snapshots.map((s) => ({
         timestamp: s.timestamp.toISOString(),
@@ -811,6 +811,7 @@ export async function getClanDigestV2(
     deltas: null,
     concentration,
     riskBudget,
+    accountBalance: hasEquityData ? totalBalance : null,
     hints: [],
     entryInsights: entryInsights.length > 0 ? entryInsights : undefined,
     scalingInsights: scalingInsights.length > 0 ? scalingInsights : undefined,

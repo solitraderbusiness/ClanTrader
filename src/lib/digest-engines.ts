@@ -126,6 +126,7 @@ export interface ConcentrationPositionInput {
 export interface RiskBudget {
   totalOpenRiskR: number;
   totalEquity: number | null;
+  totalBalance: number | null;
   riskPctOfEquity: number | null;
   riskBudgetBand: RiskBudgetBand;
 }
@@ -622,6 +623,7 @@ export function computeRiskBudget(input: {
   return {
     totalOpenRiskR: Math.round(riskR * 100) / 100,
     totalEquity: input.totalEquity,
+    totalBalance: input.totalBalance,
     riskPctOfEquity,
     riskBudgetBand,
   };
@@ -1424,6 +1426,7 @@ export interface EquityDataPoint {
   timestamp: string; // ISO string
   balance: number;
   equity: number;
+  isEstimated?: boolean;
 }
 
 export interface EquityCurveStats {
@@ -1447,6 +1450,7 @@ export interface NormalizedEquityPoint {
   rawBalance: number;
   rawEquity: number;
   floatingPL: number;
+  isEstimated?: boolean;
 }
 
 /**
@@ -1468,6 +1472,7 @@ export function normalizeEquityData(data: EquityDataPoint[]): NormalizedEquityPo
     rawBalance: d.balance,
     rawEquity: d.equity,
     floatingPL: d.equity - d.balance,
+    isEstimated: d.isEstimated,
   }));
 }
 

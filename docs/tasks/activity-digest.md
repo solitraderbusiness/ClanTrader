@@ -134,15 +134,28 @@ Phases 1-5a built the engine foundation: 12 pure-function engines (state, delta,
 - [x] Removed text-heavy v1 sections (PositionSummary, RiskExposure, EntryQuality, ScalingPattern, ProfitAttribution, Concentration, HintsBlock, PeriodResultsCard)
 - [x] i18n: ladder.title, profile.*, smart.allSLHit keys (en + fa)
 
-### Phase 8: v2.1 Fixes + Equity Curve (IN PROGRESS)
-- [ ] FIX 1: Price Ladder — derive pointValue from real trade data (not hardcoded)
-- [ ] FIX 2: Hero — show $/pt fallback when no equity, better % display
-- [ ] FIX 3: Position Profile — actionable insight sentences instead of raw metrics
-- [ ] NEW: Equity & Balance Curve — SVG chart, equity snapshots table, EA recording
-- [ ] FIX 4A: Smart Actions — separators between items
-- [ ] FIX 4B: Price Ladder — improved collision handling
-- [ ] FIX 4C: Position List — total row when expanded
-- [ ] FIX 4D: Price Ladder height / non-linear scale
+### Phase 8: v2.1 Fixes + Equity Curve (implemented)
+- [x] FIX 1: Price Ladder — derive pointValue from real trade data (not hardcoded)
+- [x] FIX 2: Hero — show $/pt fallback when no equity, better % display
+- [x] FIX 3: Position Profile — actionable insight sentences instead of raw metrics
+- [x] NEW: Equity & Balance Curve — SVG chart, equity snapshots table, EA recording
+- [x] FIX 4A: Smart Actions — separators between items
+- [x] FIX 4B: Price Ladder — improved collision handling
+- [x] FIX 4C: Position List — total row when expanded
+- [x] FIX 4D: Price Ladder height / non-linear scale
+
+### Phase 9: v2.3 Equity Chart Normalization + Interactivity (implemented)
+- [x] Normalize equity chart Y-axis: plot $ change from period start (not absolute values)
+- [x] Zero line representing period start balance — always visible
+- [x] Dual-format Y-axis labels: `+$15,000 (+1.5%)`
+- [x] Auto-scale Y-axis to fit data range with 10% padding
+- [x] Interactive vertical crosshair on hover (desktop) / touch drag (mobile)
+- [x] Desktop: floating tooltip with Equity, Balance, Floating P/L, Period P/L ($ + %)
+- [x] Mobile: fixed info bar above chart that updates on touch scrub
+- [x] Stats below chart: Peak, Low (max drawdown), Current floating — all in $ and %
+- [x] `normalizeEquityData()` engine function — baseline from first snapshot's balance
+- [x] `NormalizedEquityStats` with peak/low times, baseline balance, floating %
+- [x] i18n: `equity.touchHint`, `equity.periodPL` keys (en + fa)
 
 ### Phase 6: Complete Redesign — 3-Zone Trading Intelligence Panel (implemented)
 
@@ -190,7 +203,7 @@ Phases 1-5a built the engine foundation: 12 pure-function engines (state, delta,
 
 | File | Change |
 |------|--------|
-| `src/lib/digest-engines.ts` | 14 engines: state, delta, alerts, actions, impact, concentration, risk budget, member trend, predictive hints, entry quality, scaling pattern, concentration summary, smart actions, price ladder |
+| `src/lib/digest-engines.ts` | 14 engines + normalizeEquityData, NormalizedEquityStats: state, delta, alerts, actions, impact, concentration, risk budget, member trend, predictive hints, entry quality, scaling pattern, concentration summary, smart actions, price ladder, equity normalization |
 | `src/lib/digest-constants.ts` | Snapshot prefix/TTL + risk budget thresholds |
 | `src/lib/digest-v2-schema.ts` | Schemas for all engine outputs + scope-aware fields + Phase 5 insight schemas |
 | `src/services/digest-v2.service.ts` | Wired all engines, equity data from MT accounts, account label construction, lots/openPrice pipeline |
@@ -246,6 +259,18 @@ See `docs/testing/activity-digest-test-plan.md`
 - Persian translations need native speaker review
 
 ## 10. Change Notes
+
+### 2026-03-12 (Phase 9 implemented: v2.3 Equity Chart Normalization + Interactivity)
+- Equity chart Y-axis normalized: shows $ change from period start, not absolute values
+- Added `normalizeEquityData()` engine: baseline from first snapshot's balance, both equity and balance relative to same baseline
+- Added `NormalizedEquityStats` type with peak/low values, times, baseline balance, floating %
+- Rewrote `computeEquityCurveStats()` to return normalized stats
+- EquityCurveCard completely rewritten: SVG with normalized Y-axis, zero line, auto-scaling
+- Interactive hover: vertical crosshair + floating tooltip (Equity, Balance, Float, Period P/L with $ and %)
+- Mobile: fixed info bar above chart with touch scrub support (onTouchMove/onTouchEnd)
+- Stats section: Peak (+$X, +Y%) at time, Low (-$X, -Y%) at time, Floating P/L
+- Module-level chart constants (EQ_W, EQ_H, EQ_PAD_L, EQ_CHART_W) for React hook safety
+- 2 new i18n keys: equity.touchHint, equity.periodPL (en + fa)
 
 ### 2026-03-12 (Phase 7 implemented: v2 Visual Redesign)
 - Added Price Ladder (Engine 14): SVG thermometer showing Current Price, Half Profit, Breakeven, -10%/-20%/-50% Account, SL levels

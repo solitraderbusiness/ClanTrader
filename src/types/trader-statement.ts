@@ -27,6 +27,7 @@ export interface LiveOpenRisk {
   unprotectedCount: number;
   staleWarning: boolean;
   lastUpdate: string | null;
+  isEstimated?: boolean;
 }
 
 /** Effective rank view — combines closed R with open risk penalty */

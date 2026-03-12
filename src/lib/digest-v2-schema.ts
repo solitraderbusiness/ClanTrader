@@ -142,6 +142,7 @@ export const concentrationClusterSchema = z.object({
 export const riskBudgetSchema = z.object({
   totalOpenRiskR: z.number(),
   totalEquity: z.number().nullable(),
+  totalBalance: z.number().nullable(),
   riskPctOfEquity: z.number().nullable(),
   riskBudgetBand: z.enum(["LOW", "MODERATE", "HIGH", "CRITICAL"]),
 });
@@ -192,6 +193,7 @@ export const equityDataPointSchema = z.object({
   timestamp: z.string(),
   balance: z.number(),
   equity: z.number(),
+  isEstimated: z.boolean().optional(),
 });
 
 // ─── Predictive Hints (Phase 3) ───
@@ -355,6 +357,7 @@ export const digestV2ResponseSchema = z.object({
   deltas: z.array(digestDeltaSchema).nullable(),
   concentration: z.array(concentrationClusterSchema),
   riskBudget: riskBudgetSchema.nullable(),
+  accountBalance: z.number().nullable(),
   hints: z.array(predictiveHintSchema),
   // Phase 5: Live intelligence insights (optional for backward compat)
   entryInsights: z.array(entryClusterInsightSchema).optional(),

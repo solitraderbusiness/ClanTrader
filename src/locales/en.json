@@ -1347,7 +1347,11 @@
 
     "entryInsight.wideSpread": "{pct}% entry spread — averaging down, not planned scaling",
     "scalingInsight.increasing": "Position size increasing — risk grows with each entry",
-    "scalingInsight.spike": "Largest leg is {pct}% of total — concentrated risk in one entry"
+    "scalingInsight.spike": "Largest leg is {pct}% of total — concentrated risk in one entry",
+
+    "estimated": "Estimated",
+    "estimatedTooltip": "Some data is estimated from market prices — MT terminal is offline",
+    "equity.estimatedSegment": "Dashed segments are estimated"
   },
   "landing": {
     "brandName": "ClanTrader",

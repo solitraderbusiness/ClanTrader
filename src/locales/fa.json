@@ -1347,7 +1347,11 @@
 
     "entryInsight.wideSpread": "پراکندگی ورود {pct}% — میانگین‌گیری نزولی، نه مقیاس‌بندی برنامه‌ریزی شده",
     "scalingInsight.increasing": "حجم پوزیشن در حال افزایش — ریسک با هر ورود بیشتر می‌شود",
-    "scalingInsight.spike": "بزرگ‌ترین پا {pct}% از کل — ریسک متمرکز در یک ورود"
+    "scalingInsight.spike": "بزرگ‌ترین پا {pct}% از کل — ریسک متمرکز در یک ورود",
+
+    "estimated": "تخمینی",
+    "estimatedTooltip": "بخشی از داده‌ها از قیمت‌های بازار تخمین زده شده — ترمینال MT آفلاین است",
+    "equity.estimatedSegment": "بخش‌های خط‌چین تخمینی هستند"
   },
   "landing": {
     "brandName": "ClanTrader",
