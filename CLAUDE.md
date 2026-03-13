@@ -107,7 +107,8 @@ All 7 conditions must pass for `statementEligible = true`:
 | Ranking | `ranking.service.ts` (6 lenses + composite) |
 | Live Risk | `live-risk.service.ts` (floating PnL, drawdown, effective rank) |
 | Journal | `journal.service.ts` (equity curve, calendar, streaks, breakdowns) |
-| Digest | `clan-digest.service.ts` (v1), `digest-v2.service.ts` (v2 cockpit), `open-trade-health.ts` |
+| Digest | `digest-v2.service.ts` (v2 default), `clan-digest.service.ts` (v1 fallback), `open-trade-health.ts` |
+| Balance Events | `balance-event.service.ts` (deposit/withdrawal detection, TWR/NAV, adjusted series) |
 | Trade Evaluation | `trade-evaluator.service.ts` (candle-based auto-evaluation) |
 | Badges | `badge-engine.service.ts` (rank/perf/trophy badges) |
 | Price Data | `price-pool.service.ts` (Redis-cached from EA heartbeat) |
@@ -126,6 +127,9 @@ Use these terms consistently — do not invent synonyms:
 | MT account | MetaTrader 4/5 account connected via EA bridge |
 | statement-eligible | Passes all 7 integrity conditions |
 | frozen risk snapshot | Immutable `officialEntry/SL/TP/RiskAbs/RiskMoney` set at qualification |
+| balance event | Detected deposit/withdrawal/credit/correction stored as `BalanceEvent` |
+| cash-flow-neutral performance | TWR/NAV-based metrics immune to deposits/withdrawals |
+| equity snapshot | Balance + equity recorded every 5min by EA heartbeat, annotated with external flows |
 
 ## Infrastructure
 
@@ -152,6 +156,9 @@ Canonical docs live in `docs/`. Stale/historical docs are in `docs/archive/` wit
 | `docs/PRODUCTION-PLAN.md` | Ops plan, runbooks, CI/CD |
 | `docs/price-system-report.md` | Price data flow architecture |
 | `docs/price-system-review-response.md` | Price system review + improvements |
+| `docs/DECISION_LOG.md` | Running decision log for in-progress tasks |
+| `docs/tasks/*.md` | Per-task briefs (activity-digest, deposit-withdrawal-fix, heartbeat-fallback) |
+| `docs/testing/*-test-plan.md` | Per-task test plans with scenarios and expected results |
 | `docs/archive/*` | 12 archived docs with deprecation banners |
 
 When docs conflict with code, **code wins** for implemented behavior. When planning future work, **latest PM decisions win** over older docs. When any doc conflicts with `SOURCE_OF_TRUTH.md`, the source of truth wins.
