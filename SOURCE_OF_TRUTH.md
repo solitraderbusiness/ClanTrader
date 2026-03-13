@@ -144,7 +144,9 @@ See Section 6.
 - Multiple MT accounts per user supported
 - Rate limit: 1 heartbeat per 10s per account
 - Trade sync: up to 5000 closed trades per batch (every 5 min)
-- EquitySnapshot recording: balance + equity every 5 min per account (Redis-throttled) from heartbeat data
+- EquitySnapshot recording: balance + equity every 5 min per account (Redis-throttled), annotated with external flow data
+- **Deposit/withdrawal detection**: On each heartbeat, `externalFlow = balanceDelta - closedTradesPnL`. If exceeds dynamic threshold → `BalanceEvent` recorded with full audit metadata. Balance update in `processHeartbeat()` runs AFTER trade close detection to preserve previous balance for comparison.
+- **Cash-flow-neutral performance**: NAV-based drawdown tracking (`navValue`, `peakNav`, `maxNavDrawdownPct` on MtAccount) immune to deposits/withdrawals. Equity chart uses adjusted series (raw - cumulative external flows) for trading-only visualization.
 - **Known vulnerability — heartbeat loss**: When EA stops, 6 systems degrade (equity snapshots, live P/L, effective rank, digest, socket broadcasts, ranking). Price pool has data from other EAs but is not used as fallback yet. Planned fix: background estimation from price pool. See task `heartbeat-fallback`.
 
 ### Signal Qualification
@@ -443,7 +445,7 @@ Enforced rules verified from code. For full evidence, see `SITE_RULES_AUDIT_REPO
   - **Clan mode**: Clan-wide monitoring with member breakdown and attribution
   - **14 engines** (pure functions in `digest-engines.ts`): state assessment, delta, alerts, actions, impact, concentration, risk budget, member trend, predictive hints, entry quality, scaling pattern, concentration summary, smart actions, price ladder + equity normalization
   - **3-zone layout**: Cockpit (above fold: hero P/L, smart actions) → Analysis (scrollable cards: price ladder, position profile) → Details (positions, system health collapsed)
-  - **Equity & Balance Curve**: SVG chart with normalized Y-axis ($ change from period start, not absolute). Interactive hover (desktop crosshair + tooltip) and touch scrub (mobile fixed info bar). Data from `EquitySnapshot` model recorded by EA heartbeat (5-min Redis throttle).
+  - **Equity & Balance Curve**: SVG chart with normalized Y-axis ($ change from period start, not absolute). Interactive hover (desktop crosshair + tooltip) and touch scrub (mobile fixed info bar). Data from `EquitySnapshot` model recorded by EA heartbeat (5-min Redis throttle). **Cash-flow adjusted**: deposits/withdrawals are subtracted from the chart series so they don't appear as trading spikes/cliffs. Raw values preserved in tooltip.
   - **Price Ladder**: SVG thermometer showing current price, half profit, breakeven, SL levels, account-impact levels. Point value derived from real trade data.
   - Per-trade: floating P/L, floating R, `riskToSLR`, health dimensions, actions needed
   - Per-member aggregates: floating P/L, floating R, total risk-to-SL, action count, impact score
@@ -615,6 +617,7 @@ Newest first. Append-only.
 
 | Date | Change | Reason | Affected Files |
 |------|--------|--------|----------------|
+| 2026-03-13 | Deposit/withdrawal detection + cash-flow-neutral performance | External cash flows (deposits/withdrawals) distorted equity charts, hero P/L %, and drawdown. Added BalanceEvent model for auditable detection, restructured heartbeat to detect flows before balance update, NAV-based drawdown tracking, adjusted equity series for charts. Rankings/statements already safe (R-based). 49 unit tests, backfill script. Verified in code — 693 tests pass, build clean. | schema.prisma (BalanceEvent, MtAccount NAV fields, EquitySnapshot annotations), balance-event.service.ts (NEW), ea.service.ts (restructured processHeartbeat), digest-engines.ts, digest-v2-schema.ts, digest-v2.service.ts, DigestSheetV2.tsx, backfill-balance-events.ts (NEW) |
 | 2026-03-12 | Documented heartbeat-loss vulnerability + planned fallback | Deep research: 13 systems depend on heartbeat, 6 can use price pool as fallback. Task created, board task added (HIGH/TODO), SOT updated with known vulnerability. Inferred from code analysis. | SOURCE_OF_TRUTH.md, docs/tasks/heartbeat-fallback.md, docs/testing/heartbeat-fallback-test-plan.md, DECISION_LOG.md |
 | 2026-03-12 | Activity Digest v2.1–v2.3: Equity curve, price ladder, chart normalization, interactive hover | Major digest enhancements: EquitySnapshot DB model + EA recording (5-min throttle), SVG equity chart with normalized Y-axis ($ change from period start), interactive crosshair tooltip (desktop) + touch scrub (mobile), price ladder with derived point values, 14 engines total. Verified in code — 644 tests pass, build clean. | digest-engines.ts, DigestSheetV2.tsx, schema.prisma (EquitySnapshot), ea.service.ts, digest-v2.service.ts, digest-v2-schema.ts, en.json, fa.json |
 | 2026-03-11 | Activity Digest Phase 4: Scope-Aware Trader/Clan split | Digest now has Trader/Clan scope switcher (default: Trader). Trader mode shows personal-only state/deltas/actions/concentration/alerts. Clan mode preserves clan-wide view with member breakdown. Server computes trader-scoped deltas with separate Redis key. Client derives trader view from clan data using pure engine functions (no refetch on scope switch). 9 decision engines, premium dashboard UX. Verified in code — 644 tests pass, build clean. | DigestSheetV2.tsx, route.ts, digest-v2-schema.ts, en.json, fa.json, DECISION_LOG.md, docs/tasks/activity-digest.md |

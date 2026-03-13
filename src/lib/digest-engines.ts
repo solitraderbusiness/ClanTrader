@@ -1427,6 +1427,9 @@ export interface EquityDataPoint {
   balance: number;
   equity: number;
   isEstimated?: boolean;
+  // External flow annotation for cash-flow-neutral chart adjustment
+  externalFlowSigned?: number;
+  isBalanceEventBoundary?: boolean;
 }
 
 export interface EquityCurveStats {
@@ -1451,11 +1454,16 @@ export interface NormalizedEquityPoint {
   rawEquity: number;
   floatingPL: number;
   isEstimated?: boolean;
+  isBalanceEventBoundary?: boolean;
 }
 
 /**
  * Normalize equity data relative to the starting balance of the period.
  * Both equity and balance are plotted as deviation from the first data point's balance.
+ *
+ * Cash-flow adjustment: If snapshots have externalFlowSigned annotations,
+ * cumulative external flows are subtracted so deposits/withdrawals don't
+ * appear as trading spikes/cliffs. Raw values are always preserved.
  */
 export function normalizeEquityData(data: EquityDataPoint[]): NormalizedEquityPoint[] {
   if (data.length === 0) return [];
@@ -1463,17 +1471,28 @@ export function normalizeEquityData(data: EquityDataPoint[]): NormalizedEquityPo
   const baseBalance = data[0].balance;
   if (baseBalance <= 0) return [];
 
-  return data.map((d) => ({
-    timestamp: d.timestamp,
-    balanceChange: d.balance - baseBalance,
-    balanceChangePct: ((d.balance - baseBalance) / baseBalance) * 100,
-    equityChange: d.equity - baseBalance,
-    equityChangePct: ((d.equity - baseBalance) / baseBalance) * 100,
-    rawBalance: d.balance,
-    rawEquity: d.equity,
-    floatingPL: d.equity - d.balance,
-    isEstimated: d.isEstimated,
-  }));
+  // Build cumulative external flow to adjust chart values
+  let cumulativeFlow = 0;
+
+  return data.map((d) => {
+    cumulativeFlow += (d.externalFlowSigned ?? 0);
+    // Adjusted values: raw minus cumulative external flows = trading-only
+    const adjBalance = d.balance - cumulativeFlow;
+    const adjEquity = d.equity - cumulativeFlow;
+
+    return {
+      timestamp: d.timestamp,
+      balanceChange: adjBalance - baseBalance,
+      balanceChangePct: ((adjBalance - baseBalance) / baseBalance) * 100,
+      equityChange: adjEquity - baseBalance,
+      equityChangePct: ((adjEquity - baseBalance) / baseBalance) * 100,
+      rawBalance: d.balance,
+      rawEquity: d.equity,
+      floatingPL: d.equity - d.balance, // Floating P/L is always raw (equity - balance)
+      isEstimated: d.isEstimated,
+      isBalanceEventBoundary: d.isBalanceEventBoundary,
+    };
+  });
 }
 
 export interface NormalizedEquityStats {
@@ -1498,31 +1517,50 @@ export function computeEquityCurveStats(data: EquityDataPoint[]): NormalizedEqui
   const baseBalance = data[0].balance;
   if (baseBalance <= 0) return null;
 
-  const current = data[data.length - 1];
-  const currentEqChange = current.equity - baseBalance;
+  // Build cumulative flow array for cash-flow-neutral stats
+  const cumFlows: number[] = [];
+  let cumFlow = 0;
+  for (const d of data) {
+    cumFlow += (d.externalFlowSigned ?? 0);
+    cumFlows.push(cumFlow);
+  }
 
+  // Adjusted values: raw - cumulativeFlow = trading-only
+  const lastIdx = data.length - 1;
+  const adjCurrentEquity = data[lastIdx].equity - cumFlows[lastIdx];
+  const adjCurrentBalance = data[lastIdx].balance - cumFlows[lastIdx];
+  const currentEqChange = adjCurrentEquity - baseBalance;
+
+  // Find peak and low from adjusted equity series
   let peakIdx = 0;
   let lowIdx = 0;
   for (let i = 1; i < data.length; i++) {
-    if (data[i].equity - baseBalance > data[peakIdx].equity - baseBalance) peakIdx = i;
-    if (data[i].equity - baseBalance < data[lowIdx].equity - baseBalance) lowIdx = i;
+    const adjEq = data[i].equity - cumFlows[i];
+    const peakAdjEq = data[peakIdx].equity - cumFlows[peakIdx];
+    const lowAdjEq = data[lowIdx].equity - cumFlows[lowIdx];
+    if (adjEq - baseBalance > peakAdjEq - baseBalance) peakIdx = i;
+    if (adjEq - baseBalance < lowAdjEq - baseBalance) lowIdx = i;
   }
 
-  const floating = current.equity - current.balance;
+  const adjPeakEq = data[peakIdx].equity - cumFlows[peakIdx];
+  const adjLowEq = data[lowIdx].equity - cumFlows[lowIdx];
+
+  // Floating P/L is raw (equity - balance at current moment)
+  const floating = data[lastIdx].equity - data[lastIdx].balance;
 
   return {
     currentEquityChange: currentEqChange,
     currentEquityChangePct: (currentEqChange / baseBalance) * 100,
-    currentBalanceChange: current.balance - baseBalance,
-    currentBalanceChangePct: ((current.balance - baseBalance) / baseBalance) * 100,
-    peakEquityChange: data[peakIdx].equity - baseBalance,
-    peakEquityChangePct: ((data[peakIdx].equity - baseBalance) / baseBalance) * 100,
+    currentBalanceChange: adjCurrentBalance - baseBalance,
+    currentBalanceChangePct: ((adjCurrentBalance - baseBalance) / baseBalance) * 100,
+    peakEquityChange: adjPeakEq - baseBalance,
+    peakEquityChangePct: ((adjPeakEq - baseBalance) / baseBalance) * 100,
     peakTime: data[peakIdx].timestamp,
-    lowEquityChange: data[lowIdx].equity - baseBalance,
-    lowEquityChangePct: ((data[lowIdx].equity - baseBalance) / baseBalance) * 100,
+    lowEquityChange: adjLowEq - baseBalance,
+    lowEquityChangePct: ((adjLowEq - baseBalance) / baseBalance) * 100,
     lowTime: data[lowIdx].timestamp,
     floatingPL: floating,
-    floatingPct: current.balance > 0 ? (floating / current.balance) * 100 : 0,
+    floatingPct: data[lastIdx].balance > 0 ? (floating / data[lastIdx].balance) * 100 : 0,
     baselineBalance: baseBalance,
   };
 }

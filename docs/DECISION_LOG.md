@@ -5,6 +5,17 @@ Newest entries first.
 
 ---
 
+## 2026-03-13 — Deposit/Withdrawal Detection: TWR/NAV + Adjusted Series Architecture
+
+- **Task:** deposit-withdrawal-fix
+- **Decision:** Separate money truth from performance truth using two parallel tracks: (A) Raw balance/equity stays as broker reports, (B) Cash-flow-neutral NAV tracks trading-only performance. Detection uses `externalFlow = balanceDelta - closedTradesPnL` with dynamic account-size threshold. Equity chart adjusted by subtracting cumulative flows. NAV-based drawdown replaces raw peak equity for performance metrics.
+- **Why:** Deposits/withdrawals distorted every balance-based metric. Rankings and statements were already safe (R-based), but equity chart, hero P/L %, floating %, and drawdown % were all broken. TWR/NAV is the industry-standard approach for cash-flow-neutral performance measurement. Proportional peak scaling was rejected as a hack — NAV provides a clean accounting model.
+- **Affected files/rules:** `schema.prisma` (BalanceEvent model, MtAccount NAV fields, EquitySnapshot annotations), `ea.service.ts` (heartbeat restructured), `balance-event.service.ts` (NEW), `digest-engines.ts`, `digest-v2-schema.ts`, `digest-v2.service.ts`, `DigestSheetV2.tsx`
+- **Needs SOURCE_OF_TRUTH update now?:** yes — done in same session
+- **Needs manual testing?:** yes — deposit/withdraw on dev server and verify chart + events
+
+---
+
 ## 2026-03-12 — Heartbeat Fallback: Use Price Pool for Background Estimation
 
 - **Task:** heartbeat-fallback

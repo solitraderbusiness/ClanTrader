@@ -764,7 +764,7 @@ export async function getClanDigestV2(
 
   // ─── Equity Curve Snapshots ───
   const accountIds = Array.from(seenAccounts.keys());
-  let equityCurve: Array<{ timestamp: string; balance: number; equity: number }> = [];
+  let equityCurve: Array<{ timestamp: string; balance: number; equity: number; isEstimated?: boolean; externalFlowSigned?: number; isBalanceEventBoundary?: boolean }> = [];
   if (accountIds.length > 0) {
     try {
       const snapshots = await db.equitySnapshot.findMany({
@@ -773,12 +773,15 @@ export async function getClanDigestV2(
           timestamp: { gte: periodStart },
         },
         orderBy: { timestamp: "asc" },
-        select: { timestamp: true, balance: true, equity: true, isEstimated: true },
+        select: { timestamp: true, balance: true, equity: true, isEstimated: true, externalFlowSigned: true, isBalanceEventBoundary: true },
       });
       equityCurve = snapshots.map((s) => ({
         timestamp: s.timestamp.toISOString(),
         balance: s.balance,
         equity: s.equity,
+        isEstimated: s.isEstimated,
+        externalFlowSigned: s.externalFlowSigned,
+        isBalanceEventBoundary: s.isBalanceEventBoundary,
       }));
     } catch { /* continue without equity curve */ }
   }

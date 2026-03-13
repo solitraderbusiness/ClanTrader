@@ -194,6 +194,8 @@ export const equityDataPointSchema = z.object({
   balance: z.number(),
   equity: z.number(),
   isEstimated: z.boolean().optional(),
+  externalFlowSigned: z.number().optional(),
+  isBalanceEventBoundary: z.boolean().optional(),
 });
 
 // ─── Predictive Hints (Phase 3) ───

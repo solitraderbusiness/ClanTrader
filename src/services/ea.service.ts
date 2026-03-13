@@ -11,6 +11,11 @@ import { fetchPendingActionsForAccount } from "@/services/ea-action.service";
 import { autoCreateSignalFromMtTrade, syncSignalModification, syncSignalClose } from "@/services/ea-signal.service";
 import { calculateTargetRR } from "@/lib/risk-utils";
 import { updateEquityDrawdown } from "@/services/live-risk.service";
+import {
+  computeExternalFlow,
+  recordBalanceEvent,
+  updateNavDrawdown,
+} from "@/services/balance-event.service";
 import { expireUnqualifiedTrades, backfillRiskMoney } from "@/services/signal-qualification.service";
 import { getIO } from "@/lib/socket-io-global";
 import { SOCKET_EVENTS } from "@/lib/chat-constants";
@@ -222,38 +227,31 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
   }
   await redis.set(rateLimitKey, "1", "EX", 10);
 
-  // Update account balance/equity + tracking status
+  // ─── Capture previous state BEFORE any mutations ───
+  // This is critical for external flow detection: we need the old balance
+  // to compare against the new balance and separate trading PnL from deposits/withdrawals.
+  const prevBalance = account.balance;
+  const prevEquity = account.equity;
+
+  // Update tracking status + timestamp (lightweight — no balance/equity yet)
   await db.mtAccount.update({
     where: { id: account.id },
     data: {
-      balance: data.balance,
-      equity: data.equity,
-      margin: data.margin,
-      freeMargin: data.freeMargin,
       lastHeartbeat: new Date(),
       trackingStatus: "ACTIVE",
+      margin: data.margin,
+      freeMargin: data.freeMargin,
       ...(data.floatingProfit != null && { floatingProfit: data.floatingProfit }),
       ...(data.tradeAllowed != null && { tradeAllowed: data.tradeAllowed }),
+      // Set initialBalance on first heartbeat (never overwritten)
+      ...(!account.initialBalance && data.balance > 0 ? { initialBalance: data.balance } : {}),
     },
   });
 
-  // Update equity drawdown tracking
-  updateEquityDrawdown(account.id, data.equity).catch(() => {});
-
-  // Record equity snapshot for equity curve chart (throttled: max 1 per 5 minutes)
-  if (data.equity > 0 && data.balance > 0) {
-    const snapKey = `eq-snap:${account.id}`;
-    const lastSnap = await redis.get(snapKey);
-    if (!lastSnap) {
-      await redis.set(snapKey, "1", "EX", 300); // 5 min throttle
-      db.equitySnapshot.create({
-        data: { mtAccountId: account.id, balance: data.balance, equity: data.equity },
-      }).catch(() => {});
-    }
-  }
-
-  // Upsert open trades with signal change detection
+  // ─── Upsert open trades with signal change detection ───
   const linkedTrades: { matchedTradeId: string; currentPrice: number; mtProfit?: number }[] = [];
+  // Track PnL of trades that closed in THIS heartbeat for external flow detection
+  let closedTradesPnL = 0;
 
   if (data.openTrades.length > 0) {
     for (const trade of data.openTrades) {
@@ -301,6 +299,10 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
 
     for (const dbTrade of dbOpenTrades) {
       if (!openTickets.has(dbTrade.ticket)) {
+        // This trade was open in DB but missing from heartbeat → it closed.
+        // Accumulate its realized PnL for external flow detection.
+        closedTradesPnL += (dbTrade.profit ?? 0) + (dbTrade.commission ?? 0) + (dbTrade.swap ?? 0);
+
         // VERIFICATION-GRADE close-price fallback.
         // Order: exact trade → same account → same source group → unresolved.
         // NEVER uses cross-source/display prices for trade reconciliation.
@@ -357,6 +359,66 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
           }
         }
       }
+    }
+  }
+
+  // ─── External flow detection (deposit/withdrawal) ───
+  // Formula: externalFlow = (newBalance - prevBalance) - closedTradesPnL
+  // Must run AFTER trade close detection so closedTradesPnL is accurate,
+  // and BEFORE balance update so prevBalance is still the old value.
+  let detectedExternalFlow = 0;
+  try {
+    if (prevBalance > 0 && data.balance > 0) {
+      const flowResult = computeExternalFlow(prevBalance, data.balance, closedTradesPnL);
+      if (flowResult) {
+        detectedExternalFlow = flowResult.signedAmount;
+        await recordBalanceEvent(
+          account.id,
+          flowResult.signedAmount,
+          prevBalance,
+          data.balance,
+          closedTradesPnL,
+        );
+        console.log(
+          `[BalanceEvent] account=${account.id} type=${flowResult.signedAmount > 0 ? "DEPOSIT" : "WITHDRAWAL"} amount=${flowResult.signedAmount} bal=${prevBalance}→${data.balance} closedPnL=${closedTradesPnL}`
+        );
+      }
+    }
+  } catch (err) {
+    // Detection failure must NEVER block heartbeat processing
+    console.error("[BalanceEvent] detection error:", err);
+  }
+
+  // ─── NOW update account balance/equity (after flow detection) ───
+  await db.mtAccount.update({
+    where: { id: account.id },
+    data: {
+      balance: data.balance,
+      equity: data.equity,
+    },
+  });
+
+  // ─── Update equity drawdown tracking (raw + NAV-based) ───
+  updateEquityDrawdown(account.id, data.equity).catch(() => {});
+  // NAV-based drawdown: immune to deposits/withdrawals
+  updateNavDrawdown(account.id, prevEquity, data.equity, detectedExternalFlow).catch(() => {});
+
+  // ─── Record equity snapshot for equity curve chart (throttled: max 1 per 5 min) ───
+  if (data.equity > 0 && data.balance > 0) {
+    const snapKey = `eq-snap:${account.id}`;
+    const lastSnap = await redis.get(snapKey);
+    if (!lastSnap) {
+      await redis.set(snapKey, "1", "EX", 300); // 5 min throttle
+      db.equitySnapshot.create({
+        data: {
+          mtAccountId: account.id,
+          balance: data.balance,
+          equity: data.equity,
+          // Annotate with external flow for chart adjustment
+          externalFlowSigned: detectedExternalFlow,
+          isBalanceEventBoundary: detectedExternalFlow !== 0,
+        },
+      }).catch(() => {});
     }
   }
 

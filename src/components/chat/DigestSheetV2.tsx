@@ -648,9 +648,18 @@ function V2Content({
   const equityCurveStats = useMemo(() => {
     const snapshotStats = computeEquityCurveStats(equityCurveData);
     if (!snapshotStats || balance === null || c.totalFloatingPnl === null) return snapshotStats;
-    const liveEquity = balance + c.totalFloatingPnl;
+
+    // Sum cumulative external flows from the period to adjust live values
+    const cumulativeFlow = equityCurveData.reduce(
+      (sum, d) => sum + ((d as { externalFlowSigned?: number }).externalFlowSigned ?? 0),
+      0,
+    );
+    // Adjusted live values: strip out deposits/withdrawals for chart continuity
+    const adjLiveBalance = balance - cumulativeFlow;
+    const liveEquity = adjLiveBalance + c.totalFloatingPnl;
     const liveEqChange = liveEquity - snapshotStats.baselineBalance;
-    const liveBalChange = balance - snapshotStats.baselineBalance;
+    const liveBalChange = adjLiveBalance - snapshotStats.baselineBalance;
+
     return {
       ...snapshotStats,
       currentEquityChange: liveEqChange,

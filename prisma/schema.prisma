@@ -958,10 +958,18 @@ model MtAccount {
   maxDrawdownPct    Float?
   maxDrawdownMoney  Float?
 
+  // Cash-flow-neutral performance tracking (deposit/withdrawal safe)
+  initialBalance         Float?        // Balance at first heartbeat — set once
+  cumulativeExternalFlow Float         @default(0) // Running sum of all detected deposits/withdrawals
+  navValue               Float         @default(1) // Unitized NAV for TWR-based performance
+  peakNav                Float         @default(1) // Peak NAV for cash-flow-neutral drawdown
+  maxNavDrawdownPct      Float         @default(0) // Max drawdown from NAV series (not raw equity)
+
   trades         MtTrade[]
   statements       TradingStatement[]
   pendingActions   EaPendingAction[]
   equitySnapshots  EquitySnapshot[]
+  balanceEvents    BalanceEvent[]
 
   @@unique([accountNumber, broker])
   @@index([userId])
@@ -977,7 +985,47 @@ model EquitySnapshot {
   equity      Float
   isEstimated Boolean   @default(false)
 
+  // Cash-flow annotation: signed external flow at this snapshot (0 if none)
+  externalFlowSigned       Float   @default(0)
+  // True if this snapshot was recorded at a deposit/withdrawal boundary
+  isBalanceEventBoundary   Boolean @default(false)
+
   @@index([mtAccountId, timestamp])
+}
+
+// --- Balance Event Detection (deposit/withdrawal tracking) ---
+
+enum BalanceEventType {
+  DEPOSIT
+  WITHDRAWAL
+  CREDIT
+  CORRECTION
+  REBATE
+  UNKNOWN_EXTERNAL_FLOW
+}
+
+enum BalanceEventSource {
+  HEARTBEAT
+  BACKFILL
+  MANUAL
+}
+
+model BalanceEvent {
+  id            String             @id @default(cuid())
+  mtAccountId   String
+  mtAccount     MtAccount          @relation(fields: [mtAccountId], references: [id], onDelete: Cascade)
+  type          BalanceEventType
+  signedAmount  Float              // +deposit, -withdrawal
+  absAmount     Float              // Always positive
+  balanceBefore Float
+  balanceAfter  Float
+  detectedAt    DateTime           @default(now())
+  inferredFrom  BalanceEventSource @default(HEARTBEAT)
+  metadata      Json?              // Detection math for audit/debugging
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([mtAccountId, detectedAt])
 }
 
 model MtTrade {

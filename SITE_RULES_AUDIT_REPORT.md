@@ -190,6 +190,11 @@
 | EA-15 | No explicit reconnect handshake — reconciliation is implicit via heartbeat snapshot | ACTIVE | VERIFIED IN CODE | `ea.service.ts` | |
 | EA-16 | No gap audit logging exists | ACTIVE | VERIFIED IN CODE | No gap event model or logging | **Gap for launch** |
 | EA-17 | Account uniqueness: one account per broker per user | ACTIVE | VERIFIED IN CONFIG | `schema.prisma` `@@unique([accountNumber, broker])` | |
+| EA-18 | Deposit/withdrawal detection: `externalFlow = balanceDelta - closedTradesPnL` on heartbeat | ACTIVE | VERIFIED IN CODE | `ea.service.ts`, `balance-event.service.ts` | Dynamic threshold by account size |
+| EA-19 | Cash-flow-neutral NAV tracking: deposits/withdrawals don't affect performance metrics | ACTIVE | VERIFIED IN CODE | `balance-event.service.ts`, `MtAccount.navValue/peakNav` | TWR-based, immune to cash flows |
+| EA-20 | BalanceEvent model stores all detected external flows with audit metadata | ACTIVE | VERIFIED IN CODE | `schema.prisma` BalanceEvent, `balance-event.service.ts` | Types: DEPOSIT, WITHDRAWAL, CREDIT, CORRECTION, REBATE, UNKNOWN |
+| EA-21 | Equity chart adjusted for cash flows: raw - cumulativeExternalFlow | ACTIVE | VERIFIED IN CODE | `digest-engines.ts` normalizeEquityData, computeEquityCurveStats | Chart shows trading P/L only |
+| EA-22 | Balance update in processHeartbeat() runs AFTER trade close detection | ACTIVE | VERIFIED IN CODE | `ea.service.ts` processHeartbeat | Required for accurate external flow detection |
 
 ### G. Leaderboard & Badge Rules
 
