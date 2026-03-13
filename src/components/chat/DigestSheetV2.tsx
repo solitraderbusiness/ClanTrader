@@ -636,6 +636,7 @@ function V2Content({
         floatingPnl: p.floatingPnl,
         currentPrice: p.currentPrice ?? null,
         currentSL: p.currentSL ?? null,
+        currentTP: p.currentTP ?? null,
       })),
       accountEquity: equity,
     }),
@@ -722,9 +723,9 @@ function V2Content({
       <EquityCurveCard data={equityCurveData} stats={equityCurveStats} t={t} />
 
       {/* ═══ SECTION 4: PRICE LADDER ═══ */}
-      {priceLadders.length > 0 && priceLadders.map((ladder) => (
-        <PriceLadderCard key={`${ladder.symbol}-${ladder.direction}`} ladder={ladder} t={t} />
-      ))}
+      {priceLadders.length > 0 && (
+        <PriceLadderSection ladders={priceLadders} t={t} />
+      )}
 
       {/* ═══ SECTION 4: POSITION PROFILE ═══ */}
       {allPositions.length > 1 && (
@@ -885,7 +886,7 @@ function HeroStats({
   );
 }
 
-// ─── Section 3: Price Ladder Card (SVG thermometer) ───
+// ─── Section 3: Price Ladder with Asset Tabs ───
 
 const ZONE_COLORS: Record<PriceLadderLevel["zone"], string> = {
   profit: "text-green-500",
@@ -894,14 +895,71 @@ const ZONE_COLORS: Record<PriceLadderLevel["zone"], string> = {
   catastrophic: "text-red-700 dark:text-red-400",
 };
 
-function PriceLadderCard({
-  ladder,
+function PriceLadderSection({
+  ladders,
   t,
 }: {
-  ladder: PriceLadderData;
+  ladders: PriceLadderData[];
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const ladder = ladders[activeIdx] ?? ladders[0];
+  if (!ladder) return null;
+
+  return (
+    <div className="rounded-xl border border-border/30 bg-muted/10 p-3">
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {t("digest.ladder.title")}{ladders.length === 1 ? ` — ${ladder.symbol}` : ""}
+      </p>
+
+      {/* Asset tabs — only when multiple symbols */}
+      {ladders.length > 1 && (
+        <div className="mb-2 flex gap-2">
+          {ladders.map((l, i) => (
+            <button
+              key={`${l.symbol}-${l.direction}`}
+              onClick={() => setActiveIdx(i)}
+              className={cn(
+                "flex min-w-[72px] flex-col items-center rounded-lg border px-3 py-1.5 transition-colors",
+                i === activeIdx
+                  ? "border-white/20 bg-white/[0.08]"
+                  : "border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.05]",
+              )}
+            >
+              <span className="text-[12px] font-semibold text-foreground/90">{l.symbol}</span>
+              <span className={cn("text-[10px] font-mono", l.totalPnl >= 0 ? "text-green-500" : "text-red-500")}>
+                {fmtChange(l.totalPnl)}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Context line: "LONG · 4 trades · 250 lots · +$29,955" */}
+      <p className="mb-2 text-[11px] text-muted-foreground">
+        <span className={cn("font-semibold", ladder.direction === "LONG" ? "text-green-500" : "text-red-500")}>
+          {ladder.direction}
+        </span>
+        {" · "}{ladder.tradeCount} trade{ladder.tradeCount > 1 ? "s" : ""}
+        {" · "}{ladder.totalLots} lots
+        {" · "}
+        <span className={cn("font-mono", ladder.totalPnl >= 0 ? "text-green-500" : "text-red-500")}>
+          {fmtChange(ladder.totalPnl)}
+        </span>
+      </p>
+
+      <PriceLadderCard ladder={ladder} />
+    </div>
+  );
+}
+
+function PriceLadderCard({
+  ladder,
+}: {
+  ladder: PriceLadderData;
+}) {
   const levels = ladder.levels;
+  const isLong = ladder.direction === "LONG";
 
   const BAR_EQ_H = 300;
   const BAR_EQ_W = 32;
@@ -938,11 +996,12 @@ function PriceLadderCard({
 
   const SVG_EQ_H = Math.max(BAR_EQ_H + 40, (resolvedY[resolvedY.length - 1] ?? BAR_EQ_H) + 30);
 
+  // Gradient: green-top for LONG (profit up), red-top for SHORT (loss up)
+  const gradTop = isLong ? "#22c55e" : "#ef4444";
+  const gradBottom = isLong ? "#ef4444" : "#22c55e";
+
   return (
-    <div className="rounded-xl border border-border/30 bg-muted/10 p-3">
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {t("digest.ladder.title")} — {ladder.symbol}
-      </p>
+    <>
       <svg
         width="100%"
         viewBox={`0 0 ${SVG_EQ_W} ${SVG_EQ_H}`}
@@ -950,10 +1009,10 @@ function PriceLadderCard({
         aria-label={`Price ladder for ${ladder.symbol}`}
       >
         <defs>
-          <linearGradient id={`grad-${ladder.symbol}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#22c55e" stopOpacity="0.7" />
+          <linearGradient id={`grad-${ladder.symbol}-${ladder.direction}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={gradTop} stopOpacity="0.7" />
             <stop offset={`${100 - bePct}%`} stopColor="#eab308" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="#ef4444" stopOpacity="0.7" />
+            <stop offset="100%" stopColor={gradBottom} stopOpacity="0.7" />
           </linearGradient>
         </defs>
 
@@ -964,7 +1023,7 @@ function PriceLadderCard({
           width={BAR_EQ_W}
           height={BAR_EQ_H}
           rx={6}
-          fill={`url(#grad-${ladder.symbol})`}
+          fill={`url(#grad-${ladder.symbol}-${ladder.direction})`}
         />
 
         {/* Level markers */}
@@ -972,7 +1031,7 @@ function PriceLadderCard({
           const y = priceToY(level.price);
           const labelY = resolvedY[i];
           const color = ZONE_COLORS[level.zone];
-          const isCurrent = level.isCurrent;
+          const isCur = level.isCurrent;
 
           return (
             <g key={`${level.label}-${i}`}>
@@ -983,8 +1042,8 @@ function PriceLadderCard({
                 x2={LEFT_MARGIN + BAR_EQ_W}
                 y2={y}
                 stroke="currentColor"
-                className={isCurrent ? "text-white" : "text-white/30"}
-                strokeWidth={isCurrent ? 2 : 1}
+                className={isCur ? "text-white" : "text-white/30"}
+                strokeWidth={isCur ? 2 : 1}
               />
 
               {/* Connector line from tick to offset label if needed */}
@@ -1001,7 +1060,7 @@ function PriceLadderCard({
               )}
 
               {/* Current price marker */}
-              {isCurrent && (
+              {isCur && (
                 <circle
                   cx={LEFT_MARGIN + BAR_EQ_W / 2}
                   cy={y}
@@ -1049,7 +1108,7 @@ function PriceLadderCard({
           {ladder.insight}
         </p>
       )}
-    </div>
+    </>
   );
 }
 

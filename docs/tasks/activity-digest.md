@@ -157,14 +157,17 @@ Phases 1-5a built the engine foundation: 12 pure-function engines (state, delta,
 - [x] `NormalizedEquityStats` with peak/low times, baseline balance, floating %
 - [x] i18n: `equity.touchHint`, `equity.periodPL` keys (en + fa)
 
-### Phase 10: v2.5 Price Ladder Risk Context Insight (implemented)
-- [x] `generateLadderInsight()` engine function — computes risk context based on account/position leverage
-- [x] 4 tiers: Low (<0.2%/1% move, >50% crash for -10%), Moderate (20-50%), Significant (5-20%), High (<5%)
-- [x] No-SL gap risk warning appended when positions lack stop losses
-- [x] Hidden loss levels note when -20%/-50% require impossible (negative) prices
-- [x] `PriceLadderData.insight` and `hiddenLossLevels` fields added
-- [x] `PriceLadderCard` renders insight below SVG thermometer
-- [x] `computePriceLadder()` tracks hidden loss levels and generates insight per ladder
+### Phase 10: v2.4 Price Ladder: Asset Tabs, SHORT Fix, Filtering, TP, Insight (implemented)
+- [x] **Asset tabs**: Single ladder with horizontal tab pills when multiple symbols — no more stacked ladders
+- [x] **Context line**: "LONG · 4 trades · 250 lots · +$29,955" below tabs
+- [x] **SHORT-aware gradient**: Gradient inverts for SHORT (red top = loss, green bottom = profit)
+- [x] **TP levels**: Take Profit levels now shown on ladder (`currentTP` added to `PriceLadderInput`)
+- [x] **Unrealistic level filter**: Loss levels beyond 0.2x-2x current price are hidden (not just negative prices)
+- [x] **Collision resolver**: Data-level merging when levels within 3% of total range (priority-based)
+- [x] **Risk insight**: `generateLadderInsight()` — 4 tiers (Low/Moderate/Significant/High), no-SL warning, hidden level note
+- [x] **No limit**: Removed `slice(0,2)` — all symbol ladders available via tabs
+- [x] `PriceLadderData.tradeCount` field added for context line
+- [x] `PriceLadderSection` wraps `PriceLadderCard` with tab selection
 
 ### Phase 6: Complete Redesign — 3-Zone Trading Intelligence Panel (implemented)
 

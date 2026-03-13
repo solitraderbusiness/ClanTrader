@@ -1262,6 +1262,7 @@ export interface PriceLadderData {
   dollarsPerPoint: number;
   insight?: string;
   hiddenLossLevels: number;
+  tradeCount: number;
 }
 
 export interface PriceLadderInput {
@@ -1273,6 +1274,7 @@ export interface PriceLadderInput {
     floatingPnl: number | null;
     currentPrice: number | null;
     currentSL: number | null;
+    currentTP: number | null;
   }>;
   accountEquity: number | null;
 }
@@ -1397,13 +1399,15 @@ export function computePriceLadder(input: PriceLadderInput): PriceLadderData[] {
       });
     }
 
-    // Account loss levels (-10%, -20%, -50%) — track hidden levels
+    // Account loss levels (-10%, -20%, -50%) — filter unrealistic prices
     let hiddenLossLevels = 0;
+    const maxReasonable = curPrice * 2.0;
+    const minReasonable = curPrice * 0.2;
     if (accountEquity && accountEquity > 0 && pv > 0) {
       for (const pct of [0.10, 0.20, 0.50]) {
         const lossDelta = (accountEquity * pct) / (totalLots * pv);
         const lossPrice = isLong ? avgEntry - lossDelta : avgEntry + lossDelta;
-        if (lossPrice > 0) {
+        if (lossPrice > minReasonable && lossPrice < maxReasonable) {
           levels.push({
             price: lossPrice,
             label: `-${Math.round(pct * 100)}% Account`,
@@ -1447,8 +1451,65 @@ export function computePriceLadder(input: PriceLadderInput): PriceLadderData[] {
       }
     }
 
-    // Sort: highest to lowest for LONG, lowest to highest for SHORT
+    // TP levels
+    const withTP = group.filter((p) => p.currentTP !== null && (p.currentTP ?? 0) > 0);
+    if (withTP.length > 0) {
+      const tpPrices = withTP.map((p) => p.currentTP!);
+      // LONG: first TP = lowest TP (nearest above current). SHORT: first TP = highest TP (nearest below current)
+      const firstTP = isLong ? Math.min(...tpPrices) : Math.max(...tpPrices);
+
+      const tpProfit = withTP.reduce((sum, p) => {
+        const priceDiff = isLong
+          ? (p.currentTP ?? 0) - (p.openPrice ?? 0)
+          : (p.openPrice ?? 0) - (p.currentTP ?? 0);
+        return sum + priceDiff * (p.lots ?? 0) * pv;
+      }, 0);
+
+      levels.push({
+        price: firstTP,
+        label: withTP.length > 1 ? "First TP" : "Take Profit",
+        sublabel: `+$${Math.round(Math.abs(tpProfit)).toLocaleString()}`,
+        zone: "profit",
+      });
+    }
+
+    // Sort: highest to lowest (always — display inverts meaning for SHORT via gradient)
     levels.sort((a, b) => b.price - a.price);
+
+    // Collision resolver: merge levels within 3% of total range
+    if (levels.length >= 2) {
+      const totalRange = levels[0].price - levels[levels.length - 1].price;
+      if (totalRange > 0) {
+        const minGap = totalRange * 0.03;
+        const priority: Record<string, number> = {
+          Current: 10, Breakeven: 9, "Half Profit": 8,
+          "-10% Account": 7, "-20% Account": 7, "-50% Account": 7,
+          "Stop Loss": 6, "First SL": 6, "All SLs Hit": 6,
+          "Take Profit": 5, "First TP": 5, "Worst Entry": 3,
+        };
+        for (let i = 0; i < levels.length - 1; i++) {
+          const gap = Math.abs(levels[i].price - levels[i + 1].price);
+          if (gap < minGap) {
+            const priA = priority[levels[i].label] ?? 0;
+            const priB = priority[levels[i + 1].label] ?? 0;
+            if (priA >= priB) {
+              const bLabel = levels[i + 1].label.toLowerCase();
+              levels[i].sublabel = levels[i].sublabel
+                ? `${levels[i].sublabel} · near ${bLabel}`
+                : `Near ${bLabel}`;
+              levels.splice(i + 1, 1);
+            } else {
+              const aLabel = levels[i].label.toLowerCase();
+              levels[i + 1].sublabel = levels[i + 1].sublabel
+                ? `${levels[i + 1].sublabel} · near ${aLabel}`
+                : `Near ${aLabel}`;
+              levels.splice(i, 1);
+            }
+            i--;
+          }
+        }
+      }
+    }
 
     // Generate risk context insight
     const dpp = totalLots * pv;
@@ -1467,13 +1528,14 @@ export function computePriceLadder(input: PriceLadderInput): PriceLadderData[] {
       dollarsPerPoint: dpp,
       insight,
       hiddenLossLevels,
+      tradeCount: group.length,
     });
   }
 
-  // Sort ladders by total exposure descending
+  // Sort ladders by total exposure descending — no limit, tabs handle display
   ladders.sort((a, b) => Math.abs(b.totalPnl) - Math.abs(a.totalPnl));
 
-  return ladders.slice(0, 2); // top 2 symbols by exposure
+  return ladders;
 }
 
 // ════════════════════════════════════════════
