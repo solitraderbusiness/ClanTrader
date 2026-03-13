@@ -5,6 +5,17 @@ Newest entries first.
 
 ---
 
+## 2026-03-13 — Price Ladder v2.5: Auto-Generated Risk Context Insight
+
+- **Task:** activity-digest
+- **Decision:** Add a `generateLadderInsight()` pure function that computes a single-line risk context sentence below each Price Ladder. Uses account impact per 1% price move and distance to -10% account loss to classify into 4 tiers (Low/Moderate/Significant/High). When positions have no stop loss, appends gap risk warning. When loss levels are beyond possible price range (negative prices), shows hidden level count.
+- **Why:** On large accounts with moderate positions, the -10%/-20%/-50% loss levels can appear impossibly far from current price (e.g., -10% requires a 64% price crash for UKBRENT). Without context, traders misread this as "I'm safe" when the real insight is "low leverage but no stop loss = gap risk." The insight turns a distant number into actionable understanding.
+- **Affected files/rules:** `digest-engines.ts` (new `generateLadderInsight()`, updated `computePriceLadder()`, `PriceLadderData` interface), `DigestSheetV2.tsx` (PriceLadderCard renders insight)
+- **Needs SOURCE_OF_TRUTH update now?:** no — enhancement within existing Activity Digest feature
+- **Needs manual testing?:** yes — verify insight text accuracy for different account/position sizes
+
+---
+
 ## 2026-03-13 — Deposit/Withdrawal Detection: TWR/NAV + Adjusted Series Architecture
 
 - **Task:** deposit-withdrawal-fix

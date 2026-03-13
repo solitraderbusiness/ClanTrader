@@ -1042,6 +1042,13 @@ function PriceLadderCard({
           );
         })}
       </svg>
+
+      {/* Risk context insight below ladder */}
+      {ladder.insight && (
+        <p className="mt-2 border-t border-white/[0.06] pt-2 text-[11px] leading-relaxed text-muted-foreground">
+          {ladder.insight}
+        </p>
+      )}
     </div>
   );
 }

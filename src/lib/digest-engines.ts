@@ -1260,6 +1260,8 @@ export interface PriceLadderData {
   totalLots: number;
   totalPnl: number;
   dollarsPerPoint: number;
+  insight?: string;
+  hiddenLossLevels: number;
 }
 
 export interface PriceLadderInput {
@@ -1273,6 +1275,50 @@ export interface PriceLadderInput {
     currentSL: number | null;
   }>;
   accountEquity: number | null;
+}
+
+/**
+ * Generate a risk-context insight for the Price Ladder.
+ * Tells the trader how much account risk a 1% price move creates,
+ * how far -10% account loss is, and warns about gap risk if no SL.
+ */
+export function generateLadderInsight(
+  currentPrice: number,
+  dollarsPerPoint: number,
+  accountEquity: number,
+  symbol: string,
+  hasStopLoss: boolean,
+  hiddenLossLevels: number,
+): string {
+  if (accountEquity <= 0 || dollarsPerPoint <= 0 || currentPrice <= 0) return "";
+
+  // Account impact per 1% price move
+  const onePercentMove = currentPrice * 0.01;
+  const accountImpactPerPctMove = onePercentMove * dollarsPerPoint;
+  const accountPctPerPctMove = (accountImpactPerPctMove / accountEquity) * 100;
+
+  // How far is -10% account loss from current price?
+  const tenPctLoss = accountEquity * 0.10;
+  const tenPctDrop = tenPctLoss / dollarsPerPoint;
+  const tenPctDropPct = (tenPctDrop / currentPrice) * 100;
+
+  let insight: string;
+  if (tenPctDropPct > 50) {
+    const riskNote = hasStopLoss ? "" : " No stop loss — gap risk remains.";
+    insight = `Low relative risk: 1% ${symbol} move = ${accountPctPerPctMove.toFixed(2)}% of account. ${tenPctDropPct.toFixed(0)}% crash needed for -10%.${riskNote}`;
+  } else if (tenPctDropPct > 20) {
+    insight = `Moderate exposure: 1% ${symbol} move ≈ ${accountPctPerPctMove.toFixed(1)}% account. -10% at ${tenPctDropPct.toFixed(0)}% price drop.`;
+  } else if (tenPctDropPct > 5) {
+    insight = `Significant exposure: 1% ${symbol} move = ${accountPctPerPctMove.toFixed(1)}% of account. ${tenPctDropPct.toFixed(0)}% price move wipes 10%.`;
+  } else {
+    insight = `High leverage: ${tenPctDropPct.toFixed(1)}% ${symbol} move hits -10% of account. 1% move = ${accountPctPerPctMove.toFixed(1)}% of account.`;
+  }
+
+  if (hiddenLossLevels > 0) {
+    insight += ` (${hiddenLossLevels} loss level${hiddenLossLevels > 1 ? "s" : ""} beyond possible price range)`;
+  }
+
+  return insight;
 }
 
 export function computePriceLadder(input: PriceLadderInput): PriceLadderData[] {
@@ -1351,7 +1397,8 @@ export function computePriceLadder(input: PriceLadderInput): PriceLadderData[] {
       });
     }
 
-    // Account loss levels (-10%, -20%, -50%)
+    // Account loss levels (-10%, -20%, -50%) — track hidden levels
+    let hiddenLossLevels = 0;
     if (accountEquity && accountEquity > 0 && pv > 0) {
       for (const pct of [0.10, 0.20, 0.50]) {
         const lossDelta = (accountEquity * pct) / (totalLots * pv);
@@ -1363,13 +1410,16 @@ export function computePriceLadder(input: PriceLadderInput): PriceLadderData[] {
             sublabel: `-$${Math.round(accountEquity * pct).toLocaleString()}`,
             zone: pct >= 0.50 ? "catastrophic" : "danger",
           });
+        } else {
+          hiddenLossLevels++;
         }
       }
     }
 
     // SL levels
     const withSL = group.filter((p) => p.currentSL !== null && p.currentSL > 0);
-    if (withSL.length > 0) {
+    const hasStopLoss = withSL.length > 0;
+    if (hasStopLoss) {
       const slPrices = withSL.map((p) => p.currentSL!);
       const firstSL = isLong ? Math.max(...slPrices) : Math.min(...slPrices);
       const lastSL = isLong ? Math.min(...slPrices) : Math.max(...slPrices);
@@ -1400,6 +1450,12 @@ export function computePriceLadder(input: PriceLadderInput): PriceLadderData[] {
     // Sort: highest to lowest for LONG, lowest to highest for SHORT
     levels.sort((a, b) => b.price - a.price);
 
+    // Generate risk context insight
+    const dpp = totalLots * pv;
+    const insight = accountEquity && accountEquity > 0 && dpp > 0
+      ? generateLadderInsight(curPrice, dpp, accountEquity, symbol, hasStopLoss, hiddenLossLevels)
+      : undefined;
+
     ladders.push({
       symbol,
       direction: isLong ? "LONG" : "SHORT",
@@ -1408,7 +1464,9 @@ export function computePriceLadder(input: PriceLadderInput): PriceLadderData[] {
       avgEntry,
       totalLots,
       totalPnl,
-      dollarsPerPoint: totalLots * pv,
+      dollarsPerPoint: dpp,
+      insight,
+      hiddenLossLevels,
     });
   }
 

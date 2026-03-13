@@ -157,6 +157,15 @@ Phases 1-5a built the engine foundation: 12 pure-function engines (state, delta,
 - [x] `NormalizedEquityStats` with peak/low times, baseline balance, floating %
 - [x] i18n: `equity.touchHint`, `equity.periodPL` keys (en + fa)
 
+### Phase 10: v2.5 Price Ladder Risk Context Insight (implemented)
+- [x] `generateLadderInsight()` engine function — computes risk context based on account/position leverage
+- [x] 4 tiers: Low (<0.2%/1% move, >50% crash for -10%), Moderate (20-50%), Significant (5-20%), High (<5%)
+- [x] No-SL gap risk warning appended when positions lack stop losses
+- [x] Hidden loss levels note when -20%/-50% require impossible (negative) prices
+- [x] `PriceLadderData.insight` and `hiddenLossLevels` fields added
+- [x] `PriceLadderCard` renders insight below SVG thermometer
+- [x] `computePriceLadder()` tracks hidden loss levels and generates insight per ladder
+
 ### Phase 6: Complete Redesign — 3-Zone Trading Intelligence Panel (implemented)
 
 #### Zone 1: "The Cockpit" — Above the fold, no scrolling
@@ -259,6 +268,16 @@ See `docs/testing/activity-digest-test-plan.md`
 - Persian translations need native speaker review
 
 ## 10. Change Notes
+
+### 2026-03-13 (Phase 10: v2.5 Price Ladder Risk Context Insight)
+- Added `generateLadderInsight()` to digest-engines.ts — pure function that computes risk context
+- Calculates account impact per 1% price move and distance to -10% account loss
+- 4 insight tiers: Low relative risk / Moderate exposure / Significant exposure / High leverage
+- No-SL warning: "No stop loss — gap risk remains" appended when unprotected
+- Hidden loss levels: "(2 loss levels beyond possible price range)" when -20%/-50% require negative prices
+- `PriceLadderData` extended with `insight?: string` and `hiddenLossLevels: number`
+- `PriceLadderCard` renders insight text below SVG with subtle top border
+- `computePriceLadder()` now tracks hidden levels and generates insight for each ladder
 
 ### 2026-03-12 (Heartbeat fallback + estimated data indicators)
 - Equity chart now renders estimated data points as dashed line segments (60% opacity)
