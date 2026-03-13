@@ -5,6 +5,17 @@ Newest entries first.
 
 ---
 
+## 2026-03-13 — Price Ladder v2.4: Asset Tabs, SHORT Fix, TP Levels, Collision Resolver
+
+- **Task:** activity-digest
+- **Decision:** Replace stacked per-symbol ladders with a single ladder + horizontal asset tab pills. Add SHORT-aware gradient inversion, Take Profit level support, data-level collision resolver (3% threshold, priority-based merging), unrealistic level filter (0.2x–2x current price), and position context line (direction · trades · lots · P/L). Auto-select tab with largest absolute P/L.
+- **Why:** Stacked ladders destroyed the compact "digest" feel — 3 assets = 3x scroll. SHORT positions had inverted profit/loss semantics but used LONG gradient colors. TP levels were missing despite data being available. Levels at similar prices overlapped visually. Tiny positions on large accounts showed absurd loss prices ($69K gold for -50%).
+- **Affected files/rules:** `digest-engines.ts` (computePriceLadder rewrite: TP levels, collision resolver, unrealistic filter, tradeCount, currentTP input), `DigestSheetV2.tsx` (new PriceLadderSection with tabs, PriceLadderCard SHORT gradient, context line)
+- **Needs SOURCE_OF_TRUTH update now?:** no — enhancement within existing Activity Digest feature
+- **Needs manual testing?:** yes — asset tab switching, SHORT gradient colors, TP level placement, collision merging behavior, unrealistic level hiding
+
+---
+
 ## 2026-03-13 — Price Ladder v2.5: Auto-Generated Risk Context Insight
 
 - **Task:** activity-digest
