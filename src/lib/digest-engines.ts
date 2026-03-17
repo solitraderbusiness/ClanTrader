@@ -1585,10 +1585,13 @@ export interface NormalizedEquityPoint {
  * cumulative external flows are subtracted so deposits/withdrawals don't
  * appear as trading spikes/cliffs. Raw values are always preserved.
  */
-export function normalizeEquityData(data: EquityDataPoint[]): NormalizedEquityPoint[] {
+export function normalizeEquityData(
+  data: EquityDataPoint[],
+  anchorBalance?: number, // pre-period adjusted balance for baseline (math-only)
+): NormalizedEquityPoint[] {
   if (data.length === 0) return [];
 
-  const baseBalance = data[0].balance;
+  const baseBalance = anchorBalance ?? data[0].balance;
   if (baseBalance <= 0) return [];
 
   // Build cumulative external flow to adjust chart values
@@ -1629,12 +1632,16 @@ export interface NormalizedEquityStats {
   floatingPL: number;
   floatingPct: number;
   baselineBalance: number;
+  isCurrentEstimated: boolean; // true if latest data point is estimated
 }
 
-export function computeEquityCurveStats(data: EquityDataPoint[]): NormalizedEquityStats | null {
+export function computeEquityCurveStats(
+  data: EquityDataPoint[],
+  anchorBalance?: number, // pre-period adjusted balance for baseline (math-only)
+): NormalizedEquityStats | null {
   if (data.length === 0) return null;
 
-  const baseBalance = data[0].balance;
+  const baseBalance = anchorBalance ?? data[0].balance;
   if (baseBalance <= 0) return null;
 
   // Build cumulative flow array for cash-flow-neutral stats
@@ -1682,5 +1689,6 @@ export function computeEquityCurveStats(data: EquityDataPoint[]): NormalizedEqui
     floatingPL: floating,
     floatingPct: data[lastIdx].balance > 0 ? (floating / data[lastIdx].balance) * 100 : 0,
     baselineBalance: baseBalance,
+    isCurrentEstimated: data[lastIdx].isEstimated ?? false,
   };
 }

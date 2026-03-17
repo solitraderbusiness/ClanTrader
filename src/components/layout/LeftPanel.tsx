@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -68,8 +68,11 @@ export function LeftPanel() {
   const isAdmin = session?.user?.role === "ADMIN";
   const hasChats = chats.length > 0;
 
+  const initialLoadDone = useRef(false);
+
   const fetchData = useCallback(async () => {
-    setLoading(true);
+    // Only show loading spinner on initial load, not background refreshes
+    if (!initialLoadDone.current) setLoading(true);
     try {
       const [chatsRes, channelsRes, dmsRes] = await Promise.all([
         fetch("/api/me/chats"),
@@ -91,6 +94,7 @@ export function LeftPanel() {
     } catch {
       // Silent fail
     } finally {
+      initialLoadDone.current = true;
       setLoading(false);
     }
   }, [setChats, setChannels, setDmConversations, setLoading]);
@@ -98,8 +102,8 @@ export function LeftPanel() {
   useEffect(() => {
     if (session?.user?.id) {
       fetchData();
-      // Refresh every 30s
-      const interval = setInterval(fetchData, 30000);
+      // Background refresh as fallback (active clan updates in real-time via socket)
+      const interval = setInterval(fetchData, 120000);
       return () => clearInterval(interval);
     }
   }, [session?.user?.id, fetchData]);

@@ -367,6 +367,7 @@ export const digestV2ResponseSchema = z.object({
   concentrationSummary: concentrationSummarySchema.nullable().optional(),
   // Phase 8: Equity curve data
   equityCurve: z.array(equityDataPointSchema).optional(),
+  anchorBalance: z.number().optional(), // pre-period baseline for normalization (math-only)
   // Scope-aware fields (added by route, optional for service)
   currentUserId: z.string().optional(),
   traderDeltas: z.array(digestDeltaSchema).nullable().optional(),

@@ -92,6 +92,12 @@ export const eaLoginSchema = z.object({
 
 export type EaLoginInput = z.infer<typeof eaLoginSchema>;
 
+export const eaBrokerSymbolsSchema = z.object({
+  symbols: z.array(z.string().min(1).max(30)).max(5000),
+});
+
+export type EaBrokerSymbolsInput = z.infer<typeof eaBrokerSymbolsSchema>;
+
 export const mtTradeInputSchema = z.object({
   ticket: z.number().int().positive(),
   symbol: z.string().min(1).max(20),
@@ -114,6 +120,13 @@ export const mtTradeInputSchema = z.object({
 
 export type MtTradeInput = z.infer<typeof mtTradeInputSchema>;
 
+const marketPriceSchema = z.object({
+  symbol: z.string().min(1).max(20),
+  bid: z.number().positive(),
+  high: z.number().positive().optional(),
+  low: z.number().positive().optional(),
+});
+
 export const eaHeartbeatSchema = z.object({
   balance: z.number(),
   equity: z.number(),
@@ -122,6 +135,7 @@ export const eaHeartbeatSchema = z.object({
   floatingProfit: z.number().optional(),
   tradeAllowed: z.boolean().optional(),
   openTrades: z.array(mtTradeInputSchema).max(200).default([]),
+  marketPrices: z.array(marketPriceSchema).max(50).default([]),
 });
 
 export type EaHeartbeatInput = z.infer<typeof eaHeartbeatSchema>;

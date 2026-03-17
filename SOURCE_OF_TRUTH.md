@@ -21,7 +21,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Phase** | MVP QA (Phase A: Mar 9–13, 2026) |
+| **Phase** | MVP Hardening (Phase B: Mar 14–20, 2026) |
 | **MVP timeline** | Mar 9 – Apr 8, 2026 (5 phases: QA → Harden → Infra → Beta → Launch) |
 | **Target users** | Farsi-speaking forex/gold traders (Iran-first), competing in clans |
 | **Stack** | Next.js 16.1, React 19, Prisma 7, PostgreSQL 16, Socket.io 4.8, Redis 7, TypeScript strict |
@@ -44,7 +44,7 @@
 - Effective rank with open-loss penalty
 - Leaderboards (6 lenses + composite)
 - Badges (rank/performance/trophy)
-- Admin panel (9 routes: flags, paywall rules, plans, impersonate, badges, referrals, statements, testing, dashboard)
+- Admin panel (15 pages: dashboard, feature-flags, paywall, plans, impersonate, badges, badges/recompute, referrals, statements, testing, kanban, audit-logs, alpha-issues, demo-data, clans, ranking, digests)
 - i18n (English + Persian, 1200+ keys, RTL support)
 - Mobile responsive (Tailwind breakpoints + logical CSS)
 - Rate limiting (6 tiers, Redis-backed)
@@ -53,7 +53,13 @@
 - Deploy scripts (pack, staging, promote-to-prod)
 - Price pool (5-layer Redis cache, source-aware, verification-grade)
 - Activity Digest v2 (3-zone trading intelligence: hero P/L, smart actions, price ladder with asset tabs + SHORT support + risk insight, equity curve with cash-flow-adjusted normalization + interactive hover/touch, 14 pure-function engines, deposit/withdrawal detection)
-- Channel posts (backend API — no UI yet)
+- Channel posts (full lifecycle: create, view, feed, reactions, view count)
+- Notification system (in-app bell, persisted history, preferences, dedupe/cooldown, real-time delivery)
+- Price alerts (ABOVE/BELOW, candle-style evaluation using M1 high/low, source-group aware, audio alerts)
+- Server-side M1 candles (Redis, auto-expiring, built from EA heartbeat prices)
+- EA broker symbol list (sent on login, stored in Redis, merged with traded symbols for autocomplete)
+- Health endpoint (`/api/health` — DB/Redis/Socket.io checks, public + admin views)
+- Service worker (network-first for JS/CSS chunks, cache-first for static assets, offline fallback)
 - Onboarding (minimal modal)
 
 ### What Is Blocking Launch
@@ -66,12 +72,13 @@ See Section 6.
 - Manual statement file upload
 - AI features (folder exists, empty)
 - Payment processing / ZarinPal (DB models exist, no processor)
-- Public channel post UI
+- Channel post notifications for followed clans
 - Multi-step onboarding flow
 - Prometheus / APM monitoring
 - CI/CD pipeline
-- Dedicated `/api/health` endpoint
 - Database backup automation
+- Notification channels beyond in-app (Telegram, web push, email, SMS)
+- Advanced price alert conditions (RSI, MA cross, recurring alerts)
 
 ---
 
@@ -115,7 +122,7 @@ See Section 6.
 - Topics per clan (default topic auto-created)
 - Features: send/receive/edit/delete, pinning, emoji reactions, presence tracking, image upload (JPEG/PNG/WebP, 5MB limit, 4 images max per message)
 - Rate limiting: 5 messages per 10 seconds per user
-- Message types: TEXT, TRADE_CARD, IMAGE
+- Message types: TEXT, TRADE_CARD, SYSTEM_SUMMARY, TRADE_ACTION (images are TEXT messages with `imageUrls` field)
 
 ### DMs
 **Status: LIVE**
@@ -144,17 +151,27 @@ See Section 6.
 - Multiple MT accounts per user supported
 - Rate limit: 1 heartbeat per 10s per account
 - Trade sync: up to 5000 closed trades per batch (every 5 min)
-- EquitySnapshot recording: balance + equity every 5 min per account (Redis-throttled), annotated with external flow data
+- EquitySnapshot recording: balance + equity every 5 min per account (Redis-throttled), annotated with external flow data. Each snapshot tagged with `snapshotSource` (EA/FALLBACK), `estimateQuality` (REAL/FALLBACK_FRESH/FALLBACK_STALE/NO_PRICE), and `chartEligible` flag.
 - **Deposit/withdrawal detection**: On each heartbeat, `externalFlow = balanceDelta - closedTradesPnL`. If exceeds dynamic threshold → `BalanceEvent` recorded with full audit metadata. Balance update in `processHeartbeat()` runs AFTER trade close detection to preserve previous balance for comparison.
 - **Cash-flow-neutral performance**: NAV-based drawdown tracking (`navValue`, `peakNav`, `maxNavDrawdownPct` on MtAccount) immune to deposits/withdrawals. Equity chart uses adjusted series (raw - cumulative external flows) for trading-only visualization.
-- **Known vulnerability — heartbeat loss**: When EA stops, 6 systems degrade (equity snapshots, live P/L, effective rank, digest, socket broadcasts, ranking). Price pool has data from other EAs but is not used as fallback yet. Planned fix: background estimation from price pool. See task `heartbeat-fallback`.
+- **Heartbeat fallback** (LIVE): When EA stops, background estimation uses cross-user price pool to continue computing equity/PnL. Freshness-gated: only prices within 90s create chart-eligible snapshots, update MtAccount.equity, or broadcast socket PnL. Stale/no-price estimates are silently skipped to prevent fake flat lines on equity charts. Equity chart queries filter `chartEligible: true` and use anchor baseline (pre-period snapshot) for normalization. Time gaps >10min produce visual breaks in chart segments.
+- **Cross-user price pool for fallback**: EAs with no open trades send `marketPrices` for symbols other users need. Server sends `watchSymbols` in heartbeat response. Ensures fresh prices even when the only connected EAs have zero open trades.
 
 ### Signal Qualification
 **Status: LIVE**
 - 20-second window from MT open time
 - Origin types: `AT_OPEN` (SL+TP at open) or `WITHIN_WINDOW` (added within 20s)
 - Missed window → permanent analysis-origin (never statements/leaderboard)
-- Frozen official risk snapshot: immutable entry, SL, TP, riskAbs, riskMoney
+- Frozen official risk snapshot: entry always immutable; SL, TP, riskAbs, riskMoney mutable within 20s window via `reQualifyTrade()`, immutable after deadline
+- R:R priority chain: `officialSnapshot > initialFields > tradeCard` — centralized in `risk-utils.ts` (`getFrozenEntry`, `getFrozenRiskAbs`, `getFrozenTP`), used by close service, `trade-r.ts`, live broadcast, channel service, and all UI components
+- **Four R:R display types** (all use frozen snapshot denominator):
+  - **Planned/original setup R:R** (`1:2.5`): frozen TP, frozen entry, frozen risk — never changes after 20s window. Centralized via `formatPlannedRR()` / `getPlannedRRRatio()` in `risk-utils.ts`
+  - **Live R:R** (`+1.50R`): current price over frozen entry/risk — socket broadcast. **Suppressed when UNPROTECTED** (all 4 broadcast paths: `broadcastTradePnl`, `broadcastUnlinkedTradePnl`, `sendInitialPnl`, `broadcastEstimatedPnl` emit `currentRR: null` and `targetRR: null`). UI falls through to `$ P&L` display automatically.
+  - **Target R:R** (`Target: 2.5R`): current TP over frozen entry/risk — may change if TP moves (separate concept from planned). Also suppressed when UNPROTECTED.
+  - **Final R:R** (`+2.00R`): close price over frozen entry/risk — set at trade close
+- **SL deletion display**: When current SL = 0 but official frozen SL exists, UI shows "— (was X.XX)" instead of "Not set" — preserves audit trail of what the original risk was
+- Official frozen fields (including `officialInitialStopLoss`) plumbed to UI via `messageInclude`, `serializeMessageForSocket`, `channel.service.ts` select, and `TradeCardData` type
+- Close price correction (double-close from EA): updates trade DB + original chat message text + broadcasts socket events so card and message converge
 - Risk money backfill: computed from floating P&L when price moves enough
 
 ### Integrity Contract
@@ -200,9 +217,10 @@ See Section 6.
 
 ### Admin Panel
 **Status: LIVE**
-- Routes: dashboard, feature-flags, paywall-rules, plans, impersonate, badges, referrals, statements, testing
+- 15 page routes: dashboard, feature-flags, paywall, plans, impersonate, badges (+ recompute), referrals, statements, testing, kanban, audit-logs, alpha-issues, demo-data, clans, ranking, digests
+- 40+ API routes under `/api/admin/` (including badge dry-run, ranking config, stale-check, daily/evening digest triggers)
 - Session-based auth, admin role required
-- Kanban board at `/admin/kanban`
+- Kanban board at `/admin/kanban` with smart rebalancer
 
 ### Mobile Responsiveness
 **Status: LIVE**
@@ -229,11 +247,28 @@ See Section 6.
 - Referral tracking (signup events)
 - **No payment processor integration** (ZarinPal folder empty, no Stripe)
 
+### Notifications & Price Alerts
+**Status: LIVE**
+- DB models: `Notification`, `NotificationPreference`, `PriceAlert`
+- Enums: `NotificationSeverity` (CRITICAL/IMPORTANT/UPDATE), `NotificationFamily` (ACCOUNT/MARKET/CLAN/SYSTEM), `PriceAlertCondition` (ABOVE/BELOW), `PriceAlertStatus` (ACTIVE/TRIGGERED/CANCELLED)
+- Services: `notification.service.ts`, `price-alert.service.ts`, `notification-triggers.ts`
+- Type registry: `notification-types.ts` (all types, severity/family maps, cooldown windows)
+- API routes: `/api/notifications`, `/api/notifications/unread-count`, `/api/notifications/[id]`, `/api/price-alerts`, `/api/price-alerts/[id]`, `/api/users/me/notification-preferences`, `/api/users/me/traded-symbols`, `/api/ea/broker-symbols`
+- UI: `NotificationBell.tsx` (navbar with polling fallback + audio alerts), `PriceAlertModal.tsx` (symbol autocomplete from broker list), `PriceAlertList.tsx`, `/notifications` page, `/settings/notifications` page
+- Socket events: `notification_new`, `notification_count_update`
+- Price alert evaluation: 15-second server-side interval using candle-style M1 high/low (not just current price)
+- Notification delivery: Socket.io real-time + 30-second polling fallback for reliability
+- Audio alerts: Web Audio API double-beep for CRITICAL/sound-worthy notifications (price alerts, risk warnings)
+- i18n: `notifications` + `priceAlerts` namespaces in en.json / fa.json
+
 ### Channel Posts
-**Status: PARTIAL**
-- DB model: ChannelPost
-- API routes: `/api/me/channels`, `/api/me/feed`
-- No UI components yet
+**Status: LIVE**
+- DB model: ChannelPost with TradeCard embed
+- API routes: `/api/me/channels`, `/api/me/feed`, post detail page (`/clans/[clanId]/posts/[postId]`)
+- UI: ChannelPostCard (signal + text layouts), ChannelStream, ChannelFeed, ChannelInput, CreatePostForm, post detail page, HomeFeed cards, SignalPostCard, TradeCardChannelPost
+- Features: create posts (LEADER/CO_LEADER), reactions, trade card signal display, premium gating, live R:R for open trades, image grid, auto-post badge
+- View count: Telegram-style unique views (Redis SADD dedup — 1 view per user per post)
+- RTL: `dir="auto"` on all user-generated text for mixed-direction content
 
 ---
 
@@ -274,9 +309,11 @@ See Section 6.
 - Returns 429 with Retry-After header
 
 ### Health Endpoint
-**Status: NOT IMPLEMENTED**
-- No dedicated `/api/health` route
-- Deploy scripts do inline HTTP checks (curl to port, check 200/302)
+**Status: LIVE** (verified in code: 2026-03-16)
+- `GET /api/health` — checks DB (Prisma $queryRaw), Redis (ping), Socket.io (getIO)
+- Public: returns `{ status: "ok" | "degraded" }` with 200 or 503
+- Admin: returns full diagnostics (serverTime, uptime, database, redis, socketio status)
+- Deploy scripts also do inline HTTP checks (curl to port)
 
 ### Backups
 **Status: PARTIAL** (last verified: 2026-03-10 — no backup scripts in repo)
@@ -285,22 +322,25 @@ See Section 6.
 - `pg-backup.log` exists (suggests manual/external backup runs)
 
 ### Monitoring
-**Status: PARTIAL** (last verified: 2026-03-10 — Sentry + PM2 confirmed, no APM)
+**Status: PARTIAL** (last verified: 2026-03-16 — Sentry + PM2 + health endpoint confirmed, no APM)
 - Sentry for errors + Telegram notifications
 - PM2 auto-restart + memory limits
+- `/api/health` endpoint (DB, Redis, Socket.io checks)
 - No Prometheus, DataDog, or APM
-- No dedicated health endpoint
 
 ### Redis
 **Status: LIVE**
 - ioredis client, lazy connect, single database (default DB 0)
-- Usage: rate limits, EA login tokens, price cache (5 layers), live-risk cache, signal dedup locks, heartbeat rate limits, event reminder dedup
+- Usage: rate limits, EA login tokens, price cache (5 layers), M1 candles (per-symbol per-minute OHLC, 1h TTL), broker symbol lists (per-broker, 48h TTL), live-risk cache, signal dedup locks, heartbeat rate limits, event reminder dedup, notification cooldowns, channel post view dedup, price alert evaluation
 
 ### Background Workers
-**Status: PARTIAL** (last verified: 2026-03-10 — `server.ts` inspected, cron status unknown)
-- In-process intervals in `server.ts`:
-  - Trade evaluator: 60s (feature-flagged)
+**Status: LIVE** (last verified: 2026-03-16 — `server.ts` inspected)
+- In-process intervals in `server.ts` (all feature-flag gated):
+  - Trade evaluator: 60s (flag: `trade_integrity_evaluator`)
   - Event reminder: 30s
+  - Heartbeat fallback + stale check: 30s (flag: `heartbeat_fallback`)
+  - Price alert evaluation: 15s
+  - Notification service IO binding on startup
 - Cron-intended endpoint: `/api/admin/stale-check` (every 60s) — **must be configured externally** (NEEDS VERIFICATION: check `crontab -l`)
 - Manual scripts with cron suggestions: `scripts/daily-digest.ts` (8 AM Iran), `scripts/evening-digest.ts` (10 PM Iran) — **not auto-scheduled in repo** (NEEDS VERIFICATION: check `crontab -l`)
 
@@ -322,14 +362,14 @@ See Section 6.
 - **EA API keys stored plaintext** (64-char hex, direct DB lookup — not hashed)
 
 ### Known Ops Gaps
-1. No `/api/health` endpoint
-2. No automated database backups
-3. No CI/CD pipeline
-4. Deploy scripts need path updates for Germany VPS
-5. Stale-check cron must be configured externally (or moved to in-process interval)
-6. Digest scripts not auto-scheduled
-7. No APM/metrics collection
-8. **Heartbeat fallback not implemented** — when EA disconnects, 6 systems degrade (equity snapshots, live P/L, effective rank, digest, socket broadcasts, ranking) even though price pool has data from other EAs. Task `heartbeat-fallback` planned.
+1. No automated database backups
+2. No CI/CD pipeline
+3. Deploy scripts need path updates for Germany VPS
+4. Stale-check cron must be configured externally (or moved to in-process interval)
+5. Digest scripts not auto-scheduled
+6. No APM/metrics collection
+7. ~~`/api/health` endpoint not implemented~~ — **RESOLVED** (2026-03-16): full health endpoint with DB/Redis/Socket.io checks, public + admin views.
+8. ~~Heartbeat fallback not implemented~~ — **RESOLVED** (2026-03-15): freshness-gated fallback with cross-user price pool, equity chart hardening, gap detection.
 
 ---
 
@@ -351,7 +391,7 @@ See Section 6.
 ### MVP Boundary
 **In MVP**: Auth, clans, chat, DMs, trade cards, EA bridge, integrity, statements, leaderboards, badges, admin panel, i18n, responsive design, error tracking, PM2
 
-**NOT in MVP**: AI features, payment processing, channel post UI, broker history import, manual statement upload, CI/CD, APM monitoring, multi-step onboarding
+**NOT in MVP**: AI features, payment processing, broker history import, manual statement upload, CI/CD, APM monitoring, multi-step onboarding
 
 ### Priority Lens
 The product prioritizes:
@@ -411,11 +451,13 @@ Enforced rules verified from code. For full evidence, see `SITE_RULES_AUDIT_REPO
 - Journal: separate tabs for official (verified signal) and analysis trades
 
 ### EA Bridge
-- Heartbeat: full snapshot every 30s, rate limited to 1/10s per account, includes floatingProfit + tradeAllowed. Records `EquitySnapshot` (balance + equity) every 5 min per account (Redis-throttled).
-- Login: sends extended account data (accountName, currency, leverage, stopoutLevel, stopoutMode, isDemo)
+- Heartbeat: full snapshot every 30s, rate limited to 1/10s per account, includes floatingProfit + tradeAllowed + M1 candle high/low per watched symbol. Records `EquitySnapshot` (balance + equity) every 5 min per account (Redis-throttled). EA snapshots tagged `snapshotSource: EA`, `estimateQuality: REAL`, `chartEligible: true`. MarketPrices now include `high`/`low` from `iHigh()`/`iLow()` on PERIOD_M1 — fed into server-side M1 candle system.
+- Login: sends extended account data (accountName, currency, leverage, stopoutLevel, stopoutMode, isDemo). Also sends full broker symbol list (`SendBrokerSymbols()` → `/api/ea/broker-symbols`).
 - Close detection: DB open trades missing from heartbeat = closed
 - Close price: same-source fallback only (never cross-broker)
-- Signal qualification: 20s window, frozen risk snapshot
+- Signal qualification: 20s window, frozen risk snapshot (mutable within window via `reQualifyTrade`, immutable after deadline)
+- R calculation: canonical priority chain `officialSnapshot > initialFields > tradeCard` centralized in `risk-utils.ts` (`getFrozenEntry`/`getFrozenRiskAbs`/`getFrozenTP`), used in close service, `trade-r.ts`, live broadcast, channel service, all UI components, and digest
+- Close price correction: EA may send two close events; second updates trade, chat message, and broadcasts socket events
 - Pending orders: NOT tracked (filtered out in EA)
 - No reconnect handshake — implicit via heartbeat comparison
 - No gap audit logging
@@ -445,7 +487,7 @@ Enforced rules verified from code. For full evidence, see `SITE_RULES_AUDIT_REPO
   - **Clan mode**: Clan-wide monitoring with member breakdown and attribution
   - **14 engines** (pure functions in `digest-engines.ts`): state assessment, delta, alerts, actions, impact, concentration, risk budget, member trend, predictive hints, entry quality, scaling pattern, concentration summary, smart actions, price ladder + equity normalization
   - **3-zone layout**: Cockpit (above fold: hero P/L, smart actions) → Analysis (scrollable cards: price ladder, position profile) → Details (positions, system health collapsed)
-  - **Equity & Balance Curve**: SVG chart with normalized Y-axis ($ change from period start, not absolute). Interactive hover (desktop crosshair + tooltip) and touch scrub (mobile fixed info bar). Data from `EquitySnapshot` model recorded by EA heartbeat (5-min Redis throttle). **Cash-flow adjusted**: deposits/withdrawals are subtracted from the chart series so they don't appear as trading spikes/cliffs. Raw values preserved in tooltip.
+  - **Equity & Balance Curve**: SVG chart with normalized Y-axis ($ change from period start, not absolute). Interactive hover (desktop crosshair + tooltip) and touch scrub (mobile fixed info bar). Data from `EquitySnapshot` model recorded by EA heartbeat (5-min Redis throttle). **Cash-flow adjusted**: deposits/withdrawals subtracted so they don't appear as spikes/cliffs. **Hardened against stale data**: only `chartEligible` snapshots queried; anchor baseline from pre-period snapshot for normalization; time gaps >10min produce visual breaks (no fake flat lines from stale fallback prices). Raw values preserved in tooltip.
   - **Price Ladder** (v2.4): SVG thermometer with asset tabs (single ladder + horizontal tab pills instead of stacked), SHORT-aware gradient (inverted colors for short positions), 7 level types (current, half profit, breakeven, worst entry, SL, TP, account loss), collision resolver (3% threshold priority-based merging), unrealistic level filter (hides levels beyond 0.2x–2x current price), position context line (direction · trades · lots · P/L). Point value derived from real trade data.
   - **Risk Insight** (v2.5): Auto-generated plain-language risk context below each price ladder. 4 tiers (Low/Moderate/Significant/High) based on account impact per 1% price move and distance to -10% loss level. Flags gap risk when no stop loss. Notes hidden loss levels count.
   - Per-trade: floating P/L, floating R, `riskToSLR`, health dimensions, actions needed
@@ -460,9 +502,33 @@ Enforced rules verified from code. For full evidence, see `SITE_RULES_AUDIT_REPO
 - 43 unit tests for engine functions, 644 total tests passing
 
 ### Notifications
+**Status: LIVE**
+- In-app notification system with bell icon, unread badge, dropdown, and full `/notifications` page
+- Persisted to DB (`Notification` model) with severity (CRITICAL/IMPORTANT/UPDATE), family (ACCOUNT/MARKET/CLAN/SYSTEM)
+- Real-time delivery via Socket.io `user:${userId}` rooms
+- User preferences: in-app on/off, delivery mode (all / critical_only) at `/settings/notifications`
+- Redis-based dedupe/cooldown for noisy events (tracking flapping, rank changes, risk warnings)
+- Notification types wired from real events:
+  - Tracking lost/restored (heartbeat status changes)
+  - Trade close (EA-verified close with outcome + R)
+  - Trade action success/failure (SET_BE, MOVE_SL, CHANGE_TP, CLOSE)
+  - Risk warnings: SL removal (UNPROTECTED), drawdown threshold crossing (5%/10%/15%/20%)
+  - Integrity: eligibility lost, qualification missed (analysis-origin)
+  - Rank changes (composite lens, ±3 positions or top-3 entry/exit)
+  - Clan: join request, approval, rejection, member joined
+- Price alerts: ABOVE/BELOW conditions, server-side evaluation every 15s using candle-style M1 high/low
+  - **Candle-style evaluation**: ABOVE alerts check M1 candle HIGH, BELOW alerts check M1 candle LOW — catches price spikes that reverse between evaluation cycles
+  - **Server-side M1 candles**: Redis-stored OHLC per symbol per minute, atomic Lua updates, 1-hour TTL auto-expiry. Built from EA heartbeat prices (both bid and M1 high/low from EA). Lookback: current + last 2 minutes for evaluation.
+  - Source-group aware (uses same `getDisplayPrice()` as charts)
+  - Weekend stale-price guard (skips non-crypto during market close)
+  - One-time trigger, max 20 active per user
+  - Management UI: create modal with symbol autocomplete (broker symbols + traded symbols), active/triggered list, cancel/delete
+  - **Broker symbol list**: EA sends all broker symbols on login (`/api/ea/broker-symbols`), stored in Redis with 48h TTL per broker. Merged with DB-traded symbols for autocomplete. MQL5 sends ALL broker symbols; MQL4 sends Market Watch only.
+- Toast behavior: CRITICAL → error toast 8s, IMPORTANT → info toast 6s (with body text), UPDATE → no toast
+- **Notification reliability**: Socket.io real-time delivery + 30-second polling fallback (checks unread count, fetches latest if increased). Dedup via `seenIds` ref prevents duplicate toasts.
+- **Audio alerts**: Web Audio API synthesized double-beep (880Hz + 1100Hz) for sound-worthy types: price_alert_triggered, risk_no_sl, risk_drawdown, trade_action_failed. No external audio files.
 - Calendar event reminders: socket-based (1-hour + 1-minute before)
-- Project digests: Telegram delivery, manual/cron scripts
-- No in-app notification system. No push notifications. No email notifications (beyond auth).
+- NOT built: Telegram delivery, web push, email notifications, SMS, webhooks, advanced automation
 
 ### Monetization
 - `isPro` flag exists but no active way to set it (no payment flow)
@@ -505,24 +571,22 @@ Most decision-sensitive rules in one place. All verified in code (2026-03-10).
 4. **QA pass on EA auth flow** — currently in testing (user verification pending)
 
 ### Important But Not Blocking
-1. **`/api/health` endpoint** — should exist for production monitoring, but deploy scripts have inline checks
-2. **Automated database backups** — critical for production but can be set up during infra phase (Mar 17-21)
-3. **Digest script scheduling** — cron needs to be configured for daily/evening digests
-4. **Trade card staleness indicator in chat** — cards don't show stale warning, only statement page does
-5. **No user moderation tools** — no blocking, muting, reporting, or content filtering exists
-6. **Admin impersonation audit logging** — impersonation creates JWT but does not log to audit trail
+1. **Automated database backups** — critical for production but can be set up during infra phase (Mar 17-21)
+2. **Digest script scheduling** — cron needs to be configured for daily/evening digests
+3. **Trade card staleness indicator in chat** — cards don't show stale warning, only statement page does
+4. **No user moderation tools** — no blocking, muting, reporting, or content filtering exists
+5. **Admin impersonation audit logging** — impersonation creates JWT but does not log to audit trail
 
 ### Deferred by Decision
 1. AI features — post-MVP
 2. Payment processing (ZarinPal) — post-MVP
-3. Channel post UI — post-MVP
-4. Broker history import — not planned
-5. Manual statement upload — not planned
-6. CI/CD pipeline — post-MVP (manual deploy acceptable for beta)
-7. Multi-step onboarding — post-MVP
-8. Pending order tracking — not planned for MVP
-9. In-app notifications / push notifications — not implemented
-10. Email notifications (beyond auth) — not implemented
+3. Broker history import — not planned
+4. Manual statement upload — not planned
+5. CI/CD pipeline — post-MVP (manual deploy acceptable for beta)
+6. Multi-step onboarding — post-MVP
+7. Pending order tracking — not planned for MVP
+8. Notification channels beyond in-app (Telegram, web push, email, SMS) — not implemented
+9. Channel post notifications for followed clans — not implemented
 
 ---
 
@@ -542,6 +606,9 @@ Most decision-sensitive rules in one place. All verified in code (2026-03-10).
 | SOT implied moderation features exist | **No moderation exists**: no blocking, muting, reporting, or content filtering | Full codebase search for block/mute/report/moderate returned no user-facing implementations |
 | Admin impersonation assumed to be audited | **Impersonation does NOT log to audit trail** | `impersonate/route.ts` has no audit call |
 | PaywallRule assumed to gate features | **PaywallRule model exists but is NOT enforced** in any route or middleware | Rules can be created in admin but have zero runtime effect |
+| SOT: Health endpoint "NOT IMPLEMENTED" | **`/api/health` IS implemented** with DB/Redis/Socket.io checks | `src/app/api/health/route.ts` exists: public ok/degraded + admin full diagnostics. Verified 2026-03-16. |
+| SOT: Admin panel "9 routes" | **15 admin pages + 40+ API routes** | Glob found 15 page.tsx under admin/. API exploration found 40+ admin route handlers. |
+| SOT: Chat message types "TEXT, TRADE_CARD, IMAGE" | **No IMAGE type in MessageType enum** — types are TEXT, TRADE_CARD, SYSTEM_SUMMARY, TRADE_ACTION | `prisma/schema.prisma` enum MessageType. Images are TEXT messages with imageUrls field. |
 
 ---
 
@@ -564,6 +631,9 @@ Most decision-sensitive rules in one place. All verified in code (2026-03-10).
 | `docs/price-system-review-response.md` | **HISTORICAL** | Price system improvements proposal | Low | Proposals are now implemented in code |
 | `docs/README.md` | **ACTIVE** | Docs index and navigation | Medium | Accurate index |
 | `SITE_RULES_AUDIT_REPORT.md` | **ACTIVE** | Detailed code-verified rules audit | High | Evidence source for Core Platform Rules section |
+| `docs/STRATEGIC_ROADMAP.md` | **ACTIVE** | 7-phase product strategy roadmap | High | Long-term vision from Phase 0 (MVP) to Phase 7 (Full Vibe Trading) |
+| `docs/tasks/*.md` | **ACTIVE** | Per-task briefs | Medium | Activity-digest, deposit-withdrawal-fix, heartbeat-fallback, notification-alarm-mvp, ghost-trade-resolution |
+| `docs/testing/*-test-plan.md` | **ACTIVE** | Per-task test plans | Medium | Heartbeat-fallback, notification-alarm-mvp |
 | `docs/archive/*` | **ARCHIVED** | 12 archived docs with deprecation banners | None | Historical reference only |
 
 ---
@@ -618,6 +688,14 @@ Newest first. Append-only.
 
 | Date | Change | Reason | Affected Files |
 |------|--------|--------|----------------|
+| 2026-03-17 | UNPROTECTED R:R suppression + frozen SL reference display + frozen hierarchy hardening | When SL is deleted post-qualification, all 4 broadcast paths (`broadcastTradePnl`, `broadcastUnlinkedTradePnl`, `sendInitialPnl`, `broadcastEstimatedPnl`) now emit `currentRR: null` / `targetRR: null` for UNPROTECTED trades — UI falls through to $ P&L display. New "— (was X.XX)" SL reference when current SL = 0 but official snapshot exists. `sendInitialPnl` and `broadcastEstimatedPnl` upgraded from 2-level to 3-level frozen hierarchy. `getPost()` in channel.service.ts missing official fields — fixed. Integrity comment corrected 6→7 conditions. `officialInitialStopLoss` plumbed through serializer/types. 907 tests pass, lint clean, build clean. | ea.service.ts, heartbeat-fallback.service.ts, socket-handlers/shared.ts, channel.service.ts, integrity.service.ts, ea-signal-helpers.ts, chat-store.ts, TradeCardInline.tsx, en.json, fa.json, SOURCE_OF_TRUTH.md |
+| 2026-03-17 | Fix static R:R display + centralize frozen snapshot resolution | Static "1:X.X" R:R on trade cards used mutable card SL/TP — inflated when SL moved (e.g., trailing). Root cause: official frozen fields existed in DB but were not selected/serialized to UI. Fix: (1) Added `getFrozenEntry`/`getFrozenRiskAbs`/`getFrozenTP`/`getPlannedRRRatio`/`formatPlannedRR` to `risk-utils.ts` with strict priority chain: officialSnapshot > initialFields > card. (2) Plumbed `officialEntryPrice`/`officialInitialRiskAbs`/`officialInitialTargets` through `messageInclude`, `serializeMessageForSocket`, `TradeCardData`, channel.service.ts select. (3) All 3 UI components (ChannelStream, ChannelPostCard, TradeCardInline) now use centralized helpers. (4) Both `broadcastTradePnl` and `broadcastUnlinkedTradePnl` now prefer official frozen fields. 30 new regression tests. Verified: 896 tests pass, lint clean, build clean. | risk-utils.ts, ea-signal-helpers.ts, chat-store.ts, channel.service.ts, ea.service.ts, ea-signal-close.service.ts, ChannelStream.tsx, ChannelPostCard.tsx, TradeCardInline.tsx, risk-utils.test.ts |
+| 2026-03-16 | Candle-style price alert evaluation, notification reliability, EA broker symbols | Three changes: (1) Price alerts now use M1 candle high/low instead of current price — ABOVE checks HIGH, BELOW checks LOW — catches spikes that reverse between 15s evaluation cycles. Server-side M1 candles in Redis (atomic Lua OHLC, 1h TTL, 2-min lookback). EA sends M1 `iHigh()`/`iLow()` in heartbeat marketPrices. (2) Notification reliability: 30s polling fallback + Web Audio API alerts (double-beep for CRITICAL types) + IMPORTANT toast upgraded to 6s with body text. Price alert severity → CRITICAL (8s toast). (3) EA sends broker symbol list on login (`/api/ea/broker-symbols`, Redis 48h TTL). Symbol autocomplete merges broker + traded symbols. Verified in code — tests pass, build clean. | ea/MQL4/ClanTrader_EA.mq4, ea/MQL5/ClanTrader_EA.mq5, public/ea/*.mq4/*.mq5, price-pool.service.ts (M1 candles), price-alert.service.ts (broker symbols + candle eval), ea.service.ts (candle feed), NotificationBell.tsx (polling + audio), notification-types.ts (severity), validators.ts (schemas), api/ea/broker-symbols/route.ts (NEW) |
+| 2026-03-16 | Extensive code audit: health endpoint LIVE, admin panel 15 pages (not 9), chat MessageType corrected (no IMAGE type), background workers now LIVE, service worker network-first for chunks, strategic roadmap added to registry | Code exploration revealed 3 SOT contradictions: (1) /api/health exists with DB/Redis/Socket.io checks, (2) admin has 15 pages + 40+ API routes, (3) MessageType enum has no IMAGE variant. Also: heartbeat fallback + price alert intervals already running in server.ts (background workers upgraded to LIVE). SW chunks switched to network-first to prevent stale cache errors. | SOURCE_OF_TRUTH.md, public/sw.js |
+| 2026-03-15 | Equity chart hardening: stop fake flat history from stale fallback prices | Heartbeat fallback created EquitySnapshot rows using hours-old prices, producing fake flat dashed lines. Added `SnapshotSource`/`EstimateQuality` enums + `chartEligible` flag to EquitySnapshot. Freshness-gated: only prices within 90s create snapshots/update equity/broadcast. Stale estimates silently skipped. Chart queries filter `chartEligible: true`, use anchor baseline for normalization, and detect time gaps >10min as visual breaks. EA snapshots explicitly tagged. 823 tests pass, build clean. | schema.prisma (2 enums, 4 fields), heartbeat-fallback.service.ts, ea.service.ts, digest-v2.service.ts, digest-engines.ts, digest-v2-schema.ts, DigestSheetV2.tsx, heartbeat-fallback.service.test.ts (NEW, 28 tests), digest-engines.test.ts (+18 tests) |
+| 2026-03-13 | R calculation fix: reQualifyTrade + official snapshot priority chain + close message convergence | SL hit showed -0.72R (card) and -0.58R (message) instead of -1R. Three root causes: (1) snapshot froze at first qualification and never re-froze when SL/TP changed within 20s window, (2) close service used initialFields instead of official snapshot, (3) double-close from EA updated trade but not message text. Added `reQualifyTrade()`, official→initial→card priority chain in all R paths, message update + socket broadcast on correction. 17 new regression tests. Verified in code — all tests pass, build clean. | signal-qualification.service.ts, ea-signal-modify.service.ts, ea-signal-close.service.ts, trade-r.ts, ea-signal.service.test.ts, signal-qualification.service.test.ts |
+| 2026-03-13 | Channel post RTL + view count dedup | Persian text in channel posts aligned left instead of right. View count inflated on every page refresh instead of unique views. Added `dir="auto"` to all user-generated text. Replaced unconditional increment with Redis SADD dedup (`recordPostView`). Verified in code — build clean. | channel.service.ts, ChannelPostCard.tsx, ChannelStream.tsx, HomeFeed.tsx, posts/[postId]/page.tsx |
+| 2026-03-13 | Channel Posts upgraded to LIVE status in SOT | SOT said "No UI components yet" but 10+ UI components exist (ChannelPostCard, ChannelStream, ChannelFeed, CreatePostForm, post detail page, HomeFeed cards). Removed "Channel post UI" from deferred list. Fixed "in-app notifications not implemented" deferred item (contradicted by LIVE Notifications section). | SOURCE_OF_TRUTH.md |
 | 2026-03-13 | Activity Digest v2.4–v2.5: Price Ladder asset tabs, SHORT gradient, TP levels, collision resolver, unrealistic filter, risk insight | Stacked ladders per symbol destroyed compact feel. SHORT positions had inverted semantics but used LONG colors. TP levels missing despite data available. Tiny positions on large accounts showed absurd loss prices. Added auto-generated risk context insight below ladder. Verified in code — build clean, lint clean. | digest-engines.ts (computePriceLadder rewrite, generateLadderInsight), DigestSheetV2.tsx (PriceLadderSection with tabs, PriceLadderCard SHORT gradient), docs/tasks/activity-digest.md, DECISION_LOG.md |
 | 2026-03-13 | Deposit/withdrawal detection + cash-flow-neutral performance | External cash flows (deposits/withdrawals) distorted equity charts, hero P/L %, and drawdown. Added BalanceEvent model for auditable detection, restructured heartbeat to detect flows before balance update, NAV-based drawdown tracking, adjusted equity series for charts. Rankings/statements already safe (R-based). 49 unit tests, backfill script. Verified in code — 693 tests pass, build clean. | schema.prisma (BalanceEvent, MtAccount NAV fields, EquitySnapshot annotations), balance-event.service.ts (NEW), ea.service.ts (restructured processHeartbeat), digest-engines.ts, digest-v2-schema.ts, digest-v2.service.ts, DigestSheetV2.tsx, backfill-balance-events.ts (NEW) |
 | 2026-03-12 | Documented heartbeat-loss vulnerability + planned fallback | Deep research: 13 systems depend on heartbeat, 6 can use price pool as fallback. Task created, board task added (HIGH/TODO), SOT updated with known vulnerability. Inferred from code analysis. | SOURCE_OF_TRUTH.md, docs/tasks/heartbeat-fallback.md, docs/testing/heartbeat-fallback-test-plan.md, DECISION_LOG.md |

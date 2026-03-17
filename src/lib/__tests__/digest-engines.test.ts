@@ -17,6 +17,11 @@ import {
   type DigestSnapshot,
   type StateMetrics,
 } from "../digest-engines";
+import {
+  normalizeEquityData,
+  computeEquityCurveStats,
+  type EquityDataPoint,
+} from "../digest-engines";
 
 // ─── Helpers ───
 
@@ -471,5 +476,262 @@ describe("computePredictiveHints", () => {
     const previous = makeSnapshot({ safetyScore: 80, unknownRiskCount: 1 });
     const deltas = computeDeltas(current, previous);
     expect(computePredictiveHints(current, previous, deltas)).toHaveLength(0);
+  });
+});
+
+// ═══════════════════════════════════════════
+// ENGINE 10: EQUITY CURVE HARDENING
+// ═══════════════════════════════════════════
+
+describe("Equity Curve Hardening", () => {
+  // ── Helpers ──
+
+  function makePoint(
+    timestamp: string,
+    balance: number,
+    equity: number,
+    overrides: Partial<EquityDataPoint> = {},
+  ): EquityDataPoint {
+    return { timestamp, balance, equity, ...overrides };
+  }
+
+  // ── normalizeEquityData ──
+
+  describe("normalizeEquityData", () => {
+    it("uses anchorBalance as baseline when provided", () => {
+      const data: EquityDataPoint[] = [
+        makePoint("2026-01-01T00:00:00Z", 1000, 1000),
+        makePoint("2026-01-01T01:00:00Z", 1050, 1050),
+      ];
+      // anchorBalance=900 means the period started at 900 before data[0]
+      const result = normalizeEquityData(data, 900);
+
+      expect(result).toHaveLength(2);
+      // First point: adjBalance(1000) - anchorBalance(900) = 100
+      expect(result[0].balanceChange).toBeCloseTo(100);
+      expect(result[0].balanceChangePct).toBeCloseTo((100 / 900) * 100);
+      // Second point: adjBalance(1050) - anchorBalance(900) = 150
+      expect(result[1].balanceChange).toBeCloseTo(150);
+    });
+
+    it("falls back to data[0].balance when anchorBalance is omitted", () => {
+      const data: EquityDataPoint[] = [
+        makePoint("2026-01-01T00:00:00Z", 1000, 1000),
+        makePoint("2026-01-01T01:00:00Z", 1100, 1100),
+      ];
+      const result = normalizeEquityData(data);
+
+      expect(result).toHaveLength(2);
+      // Without anchorBalance, baseline is data[0].balance = 1000, so first point change = 0
+      expect(result[0].balanceChange).toBeCloseTo(0);
+      expect(result[0].balanceChangePct).toBeCloseTo(0);
+      // Second point: 1100 - 1000 = 100
+      expect(result[1].balanceChange).toBeCloseTo(100);
+    });
+
+    it("returns empty array for empty input", () => {
+      expect(normalizeEquityData([], 1000)).toEqual([]);
+      expect(normalizeEquityData([])).toEqual([]);
+    });
+
+    it("returns empty array when baseBalance is zero or negative", () => {
+      const data: EquityDataPoint[] = [
+        makePoint("2026-01-01T00:00:00Z", 1000, 1000),
+      ];
+      // anchorBalance=0 should trigger the guard
+      expect(normalizeEquityData(data, 0)).toEqual([]);
+    });
+
+    it("preserves rawBalance and rawEquity fields", () => {
+      const data: EquityDataPoint[] = [
+        makePoint("2026-01-01T00:00:00Z", 1000, 990),
+      ];
+      const result = normalizeEquityData(data, 900);
+      expect(result[0].rawBalance).toBe(1000);
+      expect(result[0].rawEquity).toBe(990);
+      expect(result[0].floatingPL).toBeCloseTo(990 - 1000); // equity - balance
+    });
+
+    it("strips externalFlowSigned deposits so the chart shows no spike (regression)", () => {
+      // Point 1: starting balance 1000, equity 1000 (no flow yet)
+      // Point 2: a deposit of 500 arrives — raw balance jumps to 1500 but
+      //   externalFlowSigned=500 annotates the flow so the trading chart stays flat
+      const data: EquityDataPoint[] = [
+        makePoint("2026-01-01T00:00:00Z", 1000, 1000),
+        makePoint("2026-01-01T01:00:00Z", 1500, 1500, { externalFlowSigned: 500 }),
+        makePoint("2026-01-01T02:00:00Z", 1520, 1520),
+      ];
+      const result = normalizeEquityData(data);
+
+      // Without neutralization: point[1].balanceChange would be 500 (spike)
+      // With neutralization: adjBalance = 1500 - 500 = 1000, change = 1000 - 1000 = 0
+      expect(result[1].balanceChange).toBeCloseTo(0);
+      // Point 3: cumFlow still 500, adjBalance = 1520 - 500 = 1020, change = 20
+      expect(result[2].balanceChange).toBeCloseTo(20);
+    });
+
+    it("handles isEstimated and isBalanceEventBoundary pass-through", () => {
+      const data: EquityDataPoint[] = [
+        makePoint("2026-01-01T00:00:00Z", 1000, 1000, { isEstimated: true, isBalanceEventBoundary: true }),
+      ];
+      const result = normalizeEquityData(data);
+      expect(result[0].isEstimated).toBe(true);
+      expect(result[0].isBalanceEventBoundary).toBe(true);
+    });
+  });
+
+  // ── computeEquityCurveStats ──
+
+  describe("computeEquityCurveStats", () => {
+    it("returns null for empty input", () => {
+      expect(computeEquityCurveStats([])).toBeNull();
+      expect(computeEquityCurveStats([], 1000)).toBeNull();
+    });
+
+    it("returns null when anchorBalance is zero", () => {
+      const data: EquityDataPoint[] = [
+        makePoint("2026-01-01T00:00:00Z", 1000, 1000),
+      ];
+      expect(computeEquityCurveStats(data, 0)).toBeNull();
+    });
+
+    it("isCurrentEstimated is true when last data point has isEstimated: true", () => {
+      const data: EquityDataPoint[] = [
+        makePoint("2026-01-01T00:00:00Z", 1000, 1000),
+        makePoint("2026-01-01T01:00:00Z", 1050, 1050, { isEstimated: true }),
+      ];
+      const stats = computeEquityCurveStats(data);
+      expect(stats).not.toBeNull();
+      expect(stats!.isCurrentEstimated).toBe(true);
+    });
+
+    it("isCurrentEstimated is false when last data point has isEstimated: false", () => {
+      const data: EquityDataPoint[] = [
+        makePoint("2026-01-01T00:00:00Z", 1000, 1000, { isEstimated: true }),
+        makePoint("2026-01-01T01:00:00Z", 1050, 1050, { isEstimated: false }),
+      ];
+      const stats = computeEquityCurveStats(data);
+      expect(stats!.isCurrentEstimated).toBe(false);
+    });
+
+    it("isCurrentEstimated is false when last data point has no isEstimated field", () => {
+      const data: EquityDataPoint[] = [
+        makePoint("2026-01-01T00:00:00Z", 1000, 1000),
+      ];
+      const stats = computeEquityCurveStats(data);
+      expect(stats!.isCurrentEstimated).toBe(false);
+    });
+
+    it("uses anchorBalance as baseline for currentBalanceChange", () => {
+      // data[0].balance = 1000, anchorBalance = 800
+      // adjCurrentBalance = 1000 - 0 (no flows) = 1000
+      // currentBalanceChange = 1000 - 800 = 200
+      const data: EquityDataPoint[] = [
+        makePoint("2026-01-01T00:00:00Z", 1000, 1000),
+        makePoint("2026-01-01T01:00:00Z", 1050, 1060),
+      ];
+      const stats = computeEquityCurveStats(data, 800);
+      expect(stats).not.toBeNull();
+      // adjCurrentBalance = 1050 (no external flows), change vs anchor 800 = 250
+      expect(stats!.currentBalanceChange).toBeCloseTo(250);
+      expect(stats!.currentBalanceChangePct).toBeCloseTo((250 / 800) * 100);
+      expect(stats!.baselineBalance).toBe(800);
+    });
+
+    it("without anchorBalance falls back to data[0].balance as baseline", () => {
+      const data: EquityDataPoint[] = [
+        makePoint("2026-01-01T00:00:00Z", 1000, 1000),
+        makePoint("2026-01-01T01:00:00Z", 1100, 1110),
+      ];
+      const stats = computeEquityCurveStats(data);
+      // baseline = 1000, adjCurrentBalance = 1100, change = 100
+      expect(stats!.currentBalanceChange).toBeCloseTo(100);
+      expect(stats!.baselineBalance).toBe(1000);
+    });
+
+    it("strips external flows in stats — deposit of 500 does not inflate currentBalanceChange (regression)", () => {
+      // Scenario: period starts at balance 1000. At point 2 a deposit of 500 arrives.
+      // Without neutralization currentBalanceChange would be 500 from the deposit alone.
+      // With neutralization it should stay near 0 (no actual trading gain).
+      const data: EquityDataPoint[] = [
+        makePoint("2026-01-01T00:00:00Z", 1000, 1000),
+        makePoint("2026-01-01T01:00:00Z", 1500, 1500, { externalFlowSigned: 500 }),
+      ];
+      const stats = computeEquityCurveStats(data);
+      expect(stats).not.toBeNull();
+      // adjCurrentBalance = 1500 - 500 = 1000, change vs baseline 1000 = 0
+      expect(stats!.currentBalanceChange).toBeCloseTo(0);
+      expect(stats!.currentBalanceChangePct).toBeCloseTo(0);
+    });
+
+    it("strips external flows with anchorBalance — deposit does not inflate stats (regression)", () => {
+      // anchorBalance=900, data[0].balance=1000, deposit of 500 at data[1]
+      const data: EquityDataPoint[] = [
+        makePoint("2026-01-01T00:00:00Z", 1000, 1000),
+        makePoint("2026-01-01T01:00:00Z", 1500, 1500, { externalFlowSigned: 500 }),
+      ];
+      const stats = computeEquityCurveStats(data, 900);
+      // adjCurrentBalance = 1500 - 500 = 1000, change vs anchor 900 = 100
+      expect(stats!.currentBalanceChange).toBeCloseTo(100);
+      expect(stats!.baselineBalance).toBe(900);
+    });
+
+    it("correctly identifies peak and low equity across the series", () => {
+      const data: EquityDataPoint[] = [
+        makePoint("2026-01-01T00:00:00Z", 1000, 1000),
+        makePoint("2026-01-01T01:00:00Z", 1000, 1200), // peak
+        makePoint("2026-01-01T02:00:00Z", 1000, 950),  // low
+        makePoint("2026-01-01T03:00:00Z", 1000, 1050),
+      ];
+      const stats = computeEquityCurveStats(data);
+      expect(stats!.peakEquityChange).toBeCloseTo(200);  // 1200 - 1000
+      expect(stats!.peakTime).toBe("2026-01-01T01:00:00Z");
+      expect(stats!.lowEquityChange).toBeCloseTo(-50);   // 950 - 1000
+      expect(stats!.lowTime).toBe("2026-01-01T02:00:00Z");
+    });
+  });
+
+  // ── Time gap detection (data structure validation) ──
+
+  describe("Time gap detection helper", () => {
+    it("detects a >10min gap between adjacent data points from timestamps", () => {
+      const t1 = new Date("2026-01-01T00:00:00Z");
+      const t2 = new Date("2026-01-01T00:15:00Z"); // 15-minute gap
+
+      const gapMs = t2.getTime() - t1.getTime();
+      const TEN_MINUTES_MS = 10 * 60 * 1000;
+
+      expect(gapMs).toBeGreaterThan(TEN_MINUTES_MS);
+    });
+
+    it("does NOT flag a 5-minute gap as >10min", () => {
+      const t1 = new Date("2026-01-01T00:00:00Z");
+      const t2 = new Date("2026-01-01T00:05:00Z");
+
+      const gapMs = t2.getTime() - t1.getTime();
+      const TEN_MINUTES_MS = 10 * 60 * 1000;
+
+      expect(gapMs).toBeLessThanOrEqual(TEN_MINUTES_MS);
+    });
+
+    it("normalizeEquityData preserves timestamps allowing gap detection downstream", () => {
+      const data: EquityDataPoint[] = [
+        makePoint("2026-01-01T00:00:00Z", 1000, 1000),
+        makePoint("2026-01-01T00:15:00Z", 1010, 1010), // 15-min gap
+        makePoint("2026-01-01T00:17:00Z", 1015, 1015), // 2-min gap
+      ];
+      const result = normalizeEquityData(data);
+
+      const gap01Ms =
+        new Date(result[1].timestamp).getTime() -
+        new Date(result[0].timestamp).getTime();
+      const gap12Ms =
+        new Date(result[2].timestamp).getTime() -
+        new Date(result[1].timestamp).getTime();
+
+      const TEN_MINUTES_MS = 10 * 60 * 1000;
+      expect(gap01Ms).toBeGreaterThan(TEN_MINUTES_MS);
+      expect(gap12Ms).toBeLessThanOrEqual(TEN_MINUTES_MS);
+    });
   });
 });

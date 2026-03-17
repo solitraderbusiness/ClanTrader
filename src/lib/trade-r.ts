@@ -14,6 +14,9 @@ export interface TradeRow {
   initialStopLoss: number | null;
   initialTakeProfit: number | null;
   initialRiskAbs: number | null;
+  officialEntryPrice?: number | null;
+  officialInitialStopLoss?: number | null;
+  officialInitialRiskAbs?: number | null;
   mtClosePrice: number | null; // from matched MtTrade
   tradeCard: {
     instrument: string;
@@ -28,11 +31,14 @@ export interface TradeRow {
 export function getR(trade: TradeRow): number | null {
   if (trade.finalRR !== null) return trade.finalRR;
 
-  const entry = trade.initialEntry || trade.tradeCard.entry;
-  const sl = trade.initialStopLoss || trade.tradeCard.stopLoss;
-  const riskAbs = (trade.initialRiskAbs && trade.initialRiskAbs > 0)
-    ? trade.initialRiskAbs
-    : Math.abs(entry - sl);
+  // Prefer official frozen snapshot → initial fields → tradeCard (one canonical R source)
+  const entry = trade.officialEntryPrice || trade.initialEntry || trade.tradeCard.entry;
+  const sl = trade.officialInitialStopLoss || trade.initialStopLoss || trade.tradeCard.stopLoss;
+  const riskAbs = (trade.officialInitialRiskAbs && trade.officialInitialRiskAbs > 0)
+    ? trade.officialInitialRiskAbs
+    : (trade.initialRiskAbs && trade.initialRiskAbs > 0)
+      ? trade.initialRiskAbs
+      : Math.abs(entry - sl);
   if (riskAbs === 0) return null;
 
   // Use closePrice from Trade or from matched MtTrade

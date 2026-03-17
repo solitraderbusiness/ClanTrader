@@ -8,6 +8,7 @@ import {
   MESSAGE_RATE_LIMIT,
   MESSAGE_RATE_WINDOW,
 } from "../chat-constants";
+import { getFrozenEntry, getFrozenRiskAbs, calculateTargetRR } from "@/lib/risk-utils";
 
 export interface HandlerContext {
   io: Server;
@@ -110,6 +111,8 @@ export async function sendInitialPnl(socket: Socket, clanId: string, topicId: st
         id: true,
         initialEntry: true,
         initialRiskAbs: true,
+        officialEntryPrice: true,
+        officialInitialRiskAbs: true,
         riskStatus: true,
         mtTradeMatches: {
           where: { isOpen: true },
@@ -158,10 +161,8 @@ export async function sendInitialPnl(socket: Socket, clanId: string, topicId: st
     for (const trade of topicTrades) {
       if (!trade.tradeCard) continue;
 
-      const entry = trade.initialEntry ?? trade.tradeCard.entry;
-      const riskAbs = (trade.initialRiskAbs && trade.initialRiskAbs > 0)
-        ? trade.initialRiskAbs
-        : (trade.tradeCard.stopLoss > 0 ? Math.abs(entry - trade.tradeCard.stopLoss) : 0);
+      const entry = getFrozenEntry(trade, trade.tradeCard.entry);
+      const riskAbs = getFrozenRiskAbs(trade, trade.tradeCard.entry, trade.tradeCard.stopLoss);
 
       const mtSymbol = trade.mtTradeMatches[0]?.symbol?.toUpperCase();
       const cardSymbol = trade.tradeCard.instrument?.toUpperCase();
@@ -171,13 +172,13 @@ export async function sendInitialPnl(socket: Socket, clanId: string, topicId: st
 
       const dir = trade.tradeCard.direction === "LONG" ? 1 : -1;
       const pricePnl = dir * (currentPrice - entry);
-      const currentRR = riskAbs > 0
+      const isUnprotected = trade.riskStatus === "UNPROTECTED";
+      const currentRR = (!isUnprotected && riskAbs > 0)
         ? Math.round(((dir * (currentPrice - entry)) / riskAbs) * 100) / 100
         : null;
 
-      const tp = trade.tradeCard.targets[0];
-      const targetRR = tp && tp > 0 && riskAbs > 0
-        ? Math.round((Math.abs(tp - entry) / riskAbs) * 100) / 100
+      const targetRR = (!isUnprotected && riskAbs > 0)
+        ? calculateTargetRR(trade.tradeCard.targets[0], entry, riskAbs)
         : null;
 
       // Get actual MT dollar profit if linked

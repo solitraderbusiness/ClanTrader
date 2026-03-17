@@ -431,14 +431,15 @@ function FeedPostCard({ post }: { post: FeedPost }) {
 
           {/* Title + content preview */}
           {post.title && (
-            <p className="text-sm font-medium leading-tight">{post.title}</p>
+            <p dir="auto" className="text-sm font-medium leading-tight">{post.title}</p>
           )}
-          <p className="text-xs text-muted-foreground line-clamp-2">
+          <p dir="auto" className="text-xs text-muted-foreground line-clamp-2">
             {post.content}
           </p>
 
           {post.images.length > 0 && (
             <div className="flex gap-1">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={post.images[0]}
                 alt=""

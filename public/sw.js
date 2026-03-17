@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const FONT_CACHE = `${CACHE_VERSION}-fonts`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
@@ -47,7 +47,13 @@ self.addEventListener("fetch", (event) => {
   // Skip all other API routes
   if (url.pathname.startsWith("/api/")) return;
 
-  // Static assets: cache-first (content-hashed by Next.js, immutable)
+  // Next.js JS/CSS chunks: network-first (new builds produce new hashes, stale cache causes errors)
+  if (url.pathname.startsWith("/_next/static/chunks/") || url.pathname.startsWith("/_next/static/css/")) {
+    event.respondWith(networkFirst(request, STATIC_CACHE));
+    return;
+  }
+
+  // Other static assets (media, etc.): cache-first (content-hashed, immutable)
   if (url.pathname.startsWith("/_next/static/")) {
     event.respondWith(cacheFirst(request, STATIC_CACHE));
     return;
@@ -148,6 +154,56 @@ async function networkFirst(request, cacheName) {
     return cached || new Response("Network error", { status: 503 });
   }
 }
+
+// --- PUSH NOTIFICATION ---
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+
+  let data;
+  try {
+    data = event.data.json();
+  } catch {
+    data = { title: "ClanTrader", body: event.data.text() };
+  }
+
+  const options = {
+    body: data.body || "",
+    icon: data.icon || "/icons/icon-192x192.png",
+    badge: data.badge || "/icons/icon-192x192.png",
+    tag: data.tag || "clantrader-notification",
+    renotify: true,
+    data: {
+      url: data.url || "/notifications",
+      type: data.type || "",
+    },
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title || "ClanTrader", options)
+  );
+});
+
+// --- NOTIFICATION CLICK ---
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const url = event.notification.data?.url || "/notifications";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      // Focus existing ClanTrader tab if open
+      for (const client of clients) {
+        if (client.url.includes(self.location.origin) && "focus" in client) {
+          client.focus();
+          client.navigate(url);
+          return;
+        }
+      }
+      // Otherwise open new tab
+      return self.clients.openWindow(url);
+    })
+  );
+});
 
 // --- UTILITY: Fetch with timeout ---
 function fetchWithTimeout(request, timeout) {

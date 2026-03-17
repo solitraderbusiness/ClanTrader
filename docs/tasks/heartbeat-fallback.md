@@ -1,7 +1,8 @@
 # Task Brief — Heartbeat Fallback: Price-Pool-Based Background Computation
 
 > Started: 2026-03-12
-> Status: TODO
+> Status: DONE (2026-03-15)
+> Completed: Heartbeat fallback implemented (2026-03-14) + equity chart hardening (2026-03-15)
 
 ## 1. Goal
 

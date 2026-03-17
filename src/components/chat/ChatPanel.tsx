@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback, useState } from "react";
-import { getSocket } from "@/lib/socket-client";
+import { getSocket, joinRoom, leaveRoom } from "@/lib/socket-client";
 import {
   useChatStore,
   type ChatMessage,
@@ -75,12 +75,7 @@ export function ChatPanel({
       .then((res) => {
         if (res.ok) {
           // Immediately zero out unread in the nav store
-          const { chats, setChats } = useNavStore.getState();
-          setChats(
-            chats.map((c) =>
-              c.clanId === clanId ? { ...c, unreadCount: 0 } : c
-            )
-          );
+          useNavStore.getState().clearChatUnread(clanId);
         }
       })
       .catch(() => {});
@@ -152,165 +147,184 @@ export function ChatPanel({
     const currentTopicId = useChatStore.getState().currentTopicId;
 
     socket.connect();
-    socket.emit(SOCKET_EVENTS.JOIN_CLAN, { clanId, topicId: currentTopicId || undefined });
+    joinRoom(clanId, currentTopicId || undefined);
 
     if (currentTopicId) {
       fetchMessages(currentTopicId);
     }
     fetchMembers();
 
-    socket.on("connect", () => setConnected(true));
-    socket.on("disconnect", () => setConnected(false));
-    // Socket may already be connected (e.g. from channel tab)
-    if (socket.connected) setConnected(true);
+    let hasConnectedOnce = socket.connected;
 
-    socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, (message: ChatMessage) => {
-      addMessage(message);
-    });
+    const handleConnect = () => {
+      setConnected(true);
 
-    socket.on(
-      SOCKET_EVENTS.MESSAGE_EDITED,
-      (data: ChatMessage | { id: string; clanId: string; content: string; isEdited: boolean }) => {
-        if ("tradeCard" in data) {
-          updateMessage(data.id, data);
-        } else {
-          updateMessage(data.id, { content: data.content, isEdited: data.isEdited });
+      // On RECONNECT (not first connect), fetch recent messages to recover
+      // any that were missed during the disconnect window.
+      if (hasConnectedOnce) {
+        const topicId = useChatStore.getState().currentTopicId;
+        if (topicId) {
+          fetch(`/api/clans/${clanId}/topics/${topicId}/messages`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+              if (!data?.messages) return;
+              // addMessage deduplicates — existing messages are skipped,
+              // only truly missed messages get appended in chronological order
+              for (const msg of data.messages) {
+                addMessage(msg);
+              }
+            })
+            .catch(() => {});
         }
       }
-    );
+      hasConnectedOnce = true;
+    };
+    const handleDisconnect = () => setConnected(false);
+    const handleReceiveMessage = (message: ChatMessage) => {
+      // Filter: only show messages for the current topic
+      const curTopic = useChatStore.getState().currentTopicId;
+      if (message.topicId && curTopic && message.topicId !== curTopic) return;
 
-    socket.on(SOCKET_EVENTS.MESSAGE_DELETED, (data: { id: string }) => {
-      removeMessage(data.id);
-    });
-
-    socket.on(
-      SOCKET_EVENTS.MESSAGE_REACTED,
-      (data: { id: string; reactions: Record<string, string[]> | null }) => {
-        updateMessage(data.id, { reactions: data.reactions });
+      addMessage(message);
+      // Update sidebar preview in real-time
+      const isOwnMessage = message.user?.id === currentUserId;
+      useNavStore.getState().updateChatPreview(
+        clanId,
+        {
+          content: message.tradeCard ? `[${message.tradeCard.instrument}]` : (message.content || ""),
+          userName: message.user?.name || null,
+          createdAt: message.createdAt,
+        },
+        !isOwnMessage // only increment unread for other people's messages
+      );
+    };
+    const handleMessageEdited = (data: ChatMessage | { id: string; clanId: string; content: string; isEdited: boolean }) => {
+      if ("tradeCard" in data) {
+        updateMessage(data.id, data);
+      } else {
+        updateMessage(data.id, { content: data.content, isEdited: data.isEdited });
       }
-    );
-
-    socket.on(SOCKET_EVENTS.MESSAGE_PINNED, (message: ChatMessage) => {
+    };
+    const handleMessageDeleted = (data: { id: string }) => {
+      removeMessage(data.id);
+    };
+    const handleMessageReacted = (data: { id: string; reactions: Record<string, string[]> | null }) => {
+      updateMessage(data.id, { reactions: data.reactions });
+    };
+    const handleMessagePinned = (message: ChatMessage) => {
       updateMessage(message.id, { isPinned: true });
       addPinnedMessage(message);
-    });
-
-    socket.on(SOCKET_EVENTS.MESSAGE_UNPINNED, (data: { id: string }) => {
+    };
+    const handleMessageUnpinned = (data: { id: string }) => {
       updateMessage(data.id, { isPinned: false });
       removePinnedMessage(data.id);
-    });
-
-    socket.on(
-      SOCKET_EVENTS.USER_TYPING,
-      (data: { userId: string; name: string }) => {
-        if (data.userId !== currentUserId) {
-          addTypingUser(data.userId, data.name);
-        }
+    };
+    const handleUserTyping = (data: { userId: string; name: string }) => {
+      if (data.userId !== currentUserId) {
+        addTypingUser(data.userId, data.name);
       }
-    );
-
-    socket.on(SOCKET_EVENTS.USER_STOP_TYPING, (data: { userId: string }) => {
+    };
+    const handleUserStopTyping = (data: { userId: string }) => {
       removeTypingUser(data.userId);
-    });
-
-    socket.on(SOCKET_EVENTS.PRESENCE_UPDATE, (users: OnlineUser[]) => {
+    };
+    const handlePresenceUpdate = (users: OnlineUser[]) => {
       setOnlineUsers(users);
-    });
-
-    socket.on(SOCKET_EVENTS.TOPIC_CREATED, (topic: ChatTopic) => {
+    };
+    const handleTopicCreated = (topic: ChatTopic) => {
       addTopic(topic);
-    });
-
-    socket.on(SOCKET_EVENTS.TOPIC_UPDATED, (topic: ChatTopic) => {
+    };
+    const handleTopicUpdated = (topic: ChatTopic) => {
       updateTopicInStore(topic.id, topic);
-    });
-
-    socket.on(SOCKET_EVENTS.TOPIC_ARCHIVED, (data: { topicId: string }) => {
+    };
+    const handleTopicArchived = (data: { topicId: string }) => {
       removeTopic(data.topicId);
-    });
-
-    socket.on(
-      SOCKET_EVENTS.TRADE_STATUS_UPDATED,
-      (data: { messageId: string; trade: { id: string; status: string; userId: string } }) => {
-        updateTradeCardStatus(data.messageId, data.trade);
-      }
-    );
-
-    socket.on(
-      SOCKET_EVENTS.EA_ACTION_PENDING,
-      (data: { tradeId: string; actionType: string; actionId: string; expiresAt: string }) => {
+    };
+    const handleTradeStatusUpdated = (data: { messageId: string; trade: { id: string; status: string; userId: string } }) => {
+      updateTradeCardStatus(data.messageId, data.trade);
+    };
+    const handleEaActionPending = (data: { tradeId: string; actionType: string; actionId: string; expiresAt: string }) => {
+      updateTradeCardPendingAction(data.tradeId, {
+        actionId: data.actionId,
+        actionType: data.actionType,
+        expiresAt: data.expiresAt,
+      });
+    };
+    const handleEaActionResolved = (data: { tradeId: string; actionId: string; actionType: string; status: string; errorMessage: string | null; newValue?: string | null }) => {
+      if (data.status === "EXECUTED") {
+        clearTradeCardPendingAction(data.tradeId);
+        // Apply the updated values to the trade card
+        if (data.newValue) {
+          const val = parseFloat(data.newValue);
+          if (!isNaN(val)) {
+            if (data.actionType === "MOVE_SL" || data.actionType === "SET_BE") {
+              updateTradeCardValues(data.tradeId, { stopLoss: val });
+            } else if (data.actionType === "CHANGE_TP") {
+              updateTradeCardValues(data.tradeId, { targets: [val] });
+            }
+          }
+        }
+      } else {
         updateTradeCardPendingAction(data.tradeId, {
           actionId: data.actionId,
           actionType: data.actionType,
-          expiresAt: data.expiresAt,
+          expiresAt: "",
+          status: data.status,
+          errorMessage: data.errorMessage,
         });
       }
-    );
+    };
+    const handleTradePnlUpdate = (data: { updates: Array<{ tradeId: string; currentRR: number | null; currentPrice: number; targetRR?: number | null; riskStatus?: string; pricePnl?: number | null; mtProfit?: number | null }> }) => {
+      updateTradePnl(data.updates);
+    };
+    const handleError = (data: { event: string; message: string }) => {
+      toast.error(data.message);
+    };
 
-    socket.on(
-      SOCKET_EVENTS.EA_ACTION_RESOLVED,
-      (data: { tradeId: string; actionId: string; actionType: string; status: string; errorMessage: string | null; newValue?: string | null }) => {
-        if (data.status === "EXECUTED") {
-          clearTradeCardPendingAction(data.tradeId);
-          // Apply the updated values to the trade card
-          if (data.newValue) {
-            const val = parseFloat(data.newValue);
-            if (!isNaN(val)) {
-              if (data.actionType === "MOVE_SL" || data.actionType === "SET_BE") {
-                updateTradeCardValues(data.tradeId, { stopLoss: val });
-              } else if (data.actionType === "CHANGE_TP") {
-                updateTradeCardValues(data.tradeId, { targets: [val] });
-              }
-            }
-          }
-        } else {
-          updateTradeCardPendingAction(data.tradeId, {
-            actionId: data.actionId,
-            actionType: data.actionType,
-            expiresAt: "",
-            status: data.status,
-            errorMessage: data.errorMessage,
-          });
-        }
-      }
-    );
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
+    // Socket may already be connected (e.g. from channel tab)
+    if (socket.connected) setConnected(true);
 
-    socket.on(
-      SOCKET_EVENTS.TRADE_PNL_UPDATE,
-      (data: { updates: Array<{ tradeId: string; currentRR: number | null; currentPrice: number; targetRR?: number | null; riskStatus?: string; pricePnl?: number | null; mtProfit?: number | null }> }) => {
-        updateTradePnl(data.updates);
-      }
-    );
-
-    socket.on(
-      SOCKET_EVENTS.ERROR,
-      (data: { event: string; message: string }) => {
-        toast.error(data.message);
-      }
-    );
+    socket.on(SOCKET_EVENTS.RECEIVE_MESSAGE, handleReceiveMessage);
+    socket.on(SOCKET_EVENTS.MESSAGE_EDITED, handleMessageEdited);
+    socket.on(SOCKET_EVENTS.MESSAGE_DELETED, handleMessageDeleted);
+    socket.on(SOCKET_EVENTS.MESSAGE_REACTED, handleMessageReacted);
+    socket.on(SOCKET_EVENTS.MESSAGE_PINNED, handleMessagePinned);
+    socket.on(SOCKET_EVENTS.MESSAGE_UNPINNED, handleMessageUnpinned);
+    socket.on(SOCKET_EVENTS.USER_TYPING, handleUserTyping);
+    socket.on(SOCKET_EVENTS.USER_STOP_TYPING, handleUserStopTyping);
+    socket.on(SOCKET_EVENTS.PRESENCE_UPDATE, handlePresenceUpdate);
+    socket.on(SOCKET_EVENTS.TOPIC_CREATED, handleTopicCreated);
+    socket.on(SOCKET_EVENTS.TOPIC_UPDATED, handleTopicUpdated);
+    socket.on(SOCKET_EVENTS.TOPIC_ARCHIVED, handleTopicArchived);
+    socket.on(SOCKET_EVENTS.TRADE_STATUS_UPDATED, handleTradeStatusUpdated);
+    socket.on(SOCKET_EVENTS.EA_ACTION_PENDING, handleEaActionPending);
+    socket.on(SOCKET_EVENTS.EA_ACTION_RESOLVED, handleEaActionResolved);
+    socket.on(SOCKET_EVENTS.TRADE_PNL_UPDATE, handleTradePnlUpdate);
+    socket.on(SOCKET_EVENTS.ERROR, handleError);
 
     return () => {
+      leaveRoom(clanId, currentTopicId || undefined);
       socket.emit(SOCKET_EVENTS.LEAVE_CLAN, clanId);
-      socket.off("connect");
-      socket.off("disconnect");
-      socket.off(SOCKET_EVENTS.RECEIVE_MESSAGE);
-      socket.off(SOCKET_EVENTS.MESSAGE_EDITED);
-      socket.off(SOCKET_EVENTS.MESSAGE_DELETED);
-      socket.off(SOCKET_EVENTS.MESSAGE_REACTED);
-      socket.off(SOCKET_EVENTS.MESSAGE_PINNED);
-      socket.off(SOCKET_EVENTS.MESSAGE_UNPINNED);
-      socket.off(SOCKET_EVENTS.USER_TYPING);
-      socket.off(SOCKET_EVENTS.USER_STOP_TYPING);
-      socket.off(SOCKET_EVENTS.PRESENCE_UPDATE);
-      socket.off(SOCKET_EVENTS.TOPIC_CREATED);
-      socket.off(SOCKET_EVENTS.TOPIC_UPDATED);
-      socket.off(SOCKET_EVENTS.TOPIC_ARCHIVED);
-      socket.off(SOCKET_EVENTS.TRADE_STATUS_UPDATED);
-      socket.off(SOCKET_EVENTS.EA_ACTION_PENDING);
-      socket.off(SOCKET_EVENTS.EA_ACTION_RESOLVED);
-      socket.off(SOCKET_EVENTS.TRADE_PNL_UPDATE);
-      socket.off(SOCKET_EVENTS.ERROR);
-      socket.disconnect();
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+      socket.off(SOCKET_EVENTS.RECEIVE_MESSAGE, handleReceiveMessage);
+      socket.off(SOCKET_EVENTS.MESSAGE_EDITED, handleMessageEdited);
+      socket.off(SOCKET_EVENTS.MESSAGE_DELETED, handleMessageDeleted);
+      socket.off(SOCKET_EVENTS.MESSAGE_REACTED, handleMessageReacted);
+      socket.off(SOCKET_EVENTS.MESSAGE_PINNED, handleMessagePinned);
+      socket.off(SOCKET_EVENTS.MESSAGE_UNPINNED, handleMessageUnpinned);
+      socket.off(SOCKET_EVENTS.USER_TYPING, handleUserTyping);
+      socket.off(SOCKET_EVENTS.USER_STOP_TYPING, handleUserStopTyping);
+      socket.off(SOCKET_EVENTS.PRESENCE_UPDATE, handlePresenceUpdate);
+      socket.off(SOCKET_EVENTS.TOPIC_CREATED, handleTopicCreated);
+      socket.off(SOCKET_EVENTS.TOPIC_UPDATED, handleTopicUpdated);
+      socket.off(SOCKET_EVENTS.TOPIC_ARCHIVED, handleTopicArchived);
+      socket.off(SOCKET_EVENTS.TRADE_STATUS_UPDATED, handleTradeStatusUpdated);
+      socket.off(SOCKET_EVENTS.EA_ACTION_PENDING, handleEaActionPending);
+      socket.off(SOCKET_EVENTS.EA_ACTION_RESOLVED, handleEaActionResolved);
+      socket.off(SOCKET_EVENTS.TRADE_PNL_UPDATE, handleTradePnlUpdate);
+      socket.off(SOCKET_EVENTS.ERROR, handleError);
       reset();
     };
   }, [clanId, currentUserId]);
@@ -330,6 +344,7 @@ export function ChatPanel({
       } = useChatStore.getState();
 
       if (currentTopicId) {
+        leaveRoom(clanId, currentTopicId);
         socket.emit(SOCKET_EVENTS.SWITCH_TOPIC, {
           clanId,
           fromTopicId: currentTopicId,
@@ -337,6 +352,7 @@ export function ChatPanel({
         });
       }
 
+      joinRoom(clanId, topicId);
       setCurrentTopicId(topicId);
       setMessages([]);
       setHasMore(false);

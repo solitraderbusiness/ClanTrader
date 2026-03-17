@@ -765,12 +765,14 @@ export async function getClanDigestV2(
   // ─── Equity Curve Snapshots ───
   const accountIds = Array.from(seenAccounts.keys());
   let equityCurve: Array<{ timestamp: string; balance: number; equity: number; isEstimated?: boolean; externalFlowSigned?: number; isBalanceEventBoundary?: boolean }> = [];
+  let anchorBalance: number | undefined;
   if (accountIds.length > 0) {
     try {
       const snapshots = await db.equitySnapshot.findMany({
         where: {
           mtAccountId: { in: accountIds },
           timestamp: { gte: periodStart },
+          chartEligible: true, // exclude stale fallback snapshots
         },
         orderBy: { timestamp: "asc" },
         select: { timestamp: true, balance: true, equity: true, isEstimated: true, externalFlowSigned: true, isBalanceEventBoundary: true },
@@ -783,6 +785,19 @@ export async function getClanDigestV2(
         externalFlowSigned: s.externalFlowSigned,
         isBalanceEventBoundary: s.isBalanceEventBoundary,
       }));
+
+      // Fetch anchor snapshot before period start for baseline normalization (math-only, NOT rendered)
+      // Only for single-account case — multi-account aggregated first point is a reasonable baseline
+      if (accountIds.length === 1 && equityCurve.length > 0) {
+        const anchor = await db.equitySnapshot.findFirst({
+          where: { mtAccountId: accountIds[0], timestamp: { lt: periodStart }, chartEligible: true },
+          orderBy: { timestamp: "desc" },
+          select: { balance: true, externalFlowSigned: true },
+        });
+        if (anchor) {
+          anchorBalance = anchor.balance - (anchor.externalFlowSigned ?? 0);
+        }
+      }
     } catch { /* continue without equity curve */ }
   }
 
@@ -820,6 +835,7 @@ export async function getClanDigestV2(
     scalingInsights: scalingInsights.length > 0 ? scalingInsights : undefined,
     concentrationSummary,
     equityCurve: equityCurve.length > 0 ? equityCurve : undefined,
+    anchorBalance,
     _memberSnapshotData: memberSnapshotData,
   } as DigestV2Response & { _memberSnapshotData: Record<string, MemberSnapshotData> };
 

@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@/lib/db", () => ({
   db: {
     clanMember: { findFirst: vi.fn() },
-    message: { create: vi.fn(), findUnique: vi.fn() },
+    message: { create: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     trade: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     tradeCard: { update: vi.fn() },
     tradeCardVersion: { create: vi.fn() },
@@ -59,6 +59,7 @@ vi.mock("@/services/integrity.service", () => ({
 vi.mock("@/services/signal-qualification.service", () => ({
   computeQualificationDeadline: vi.fn((d: Date) => new Date(d.getTime() + 20_000)),
   qualifyTrade: vi.fn(() => Promise.resolve(true)),
+  reQualifyTrade: vi.fn(() => Promise.resolve(true)),
 }));
 
 vi.mock("@/services/signal-matcher.service", () => ({
@@ -77,7 +78,7 @@ import { db } from "@/lib/db";
 import { redis } from "@/lib/redis";
 import { createTradeCardMessage } from "@/services/trade-card.service";
 import { computeAndSetEligibility } from "@/services/integrity.service";
-import { qualifyTrade } from "@/services/signal-qualification.service";
+import { qualifyTrade, reQualifyTrade } from "@/services/signal-qualification.service";
 import { pipDistance } from "@/services/signal-matcher.service";
 import { deriveRiskStatus } from "@/lib/risk-utils";
 import { calculateStatement } from "@/services/statement-calc.service";
@@ -124,6 +125,10 @@ function makeTradeWithCard(overrides: Record<string, unknown> = {}) {
     initialStopLoss: 1.095,
     initialRiskAbs: 0.005,
     initialRiskMissing: false,
+    officialEntryPrice: 1.1,
+    officialInitialStopLoss: 1.095,
+    officialInitialRiskAbs: 0.005,
+    officialInitialRiskMoney: null,
     riskStatus: "PROTECTED",
     officialSignalQualified: false,
     qualificationDeadline: new Date(Date.now() + 20_000),
@@ -159,6 +164,9 @@ const mockTradeEventCreate = vi.mocked(db.tradeEvent.create);
 const mockTradeStatusHistoryCreate = vi.mocked(db.tradeStatusHistory.create);
 const mockMessageCreate = vi.mocked(db.message.create);
 const mockMessageFindUnique = vi.mocked(db.message.findUnique);
+const mockMessageFindFirst = vi.mocked(db.message.findFirst);
+const mockMessageUpdate = vi.mocked(db.message.update);
+const mockReQualifyTrade = vi.mocked(reQualifyTrade);
 const mockMtAccountFindFirst = vi.mocked(db.mtAccount.findFirst);
 const mockCreateTradeCardMessage = vi.mocked(createTradeCardMessage);
 const mockComputeAndSetEligibility = vi.mocked(computeAndSetEligibility);
@@ -1130,6 +1138,9 @@ describe("syncSignalClose", () => {
     const trade = makeTradeWithCard({
       initialRiskAbs: 0,
       initialStopLoss: 0,
+      officialEntryPrice: null,
+      officialInitialRiskAbs: null,
+      officialInitialStopLoss: null,
       tradeCard: {
         id: "card-1",
         instrument: "EURUSD",
@@ -1210,17 +1221,18 @@ describe("syncSignalClose", () => {
     expect(updateCall.data.netProfit).toBe(-53);
   });
 
-  it("uses initialEntry from trade (not tradeCard.entry) for R:R calculation", async () => {
-    // If trade.initialEntry differs from tradeCard.entry (e.g., entry was modified)
-    // the code should use trade.initialEntry
+  it("uses officialEntryPrice over tradeCard.entry for R:R calculation", async () => {
+    // officialEntryPrice (from frozen snapshot) should be used for R, not card entry
     const mtTrade = makeMtTrade({
       matchedTradeId: "trade-1",
       closePrice: 1.115,
     });
 
     const trade = makeTradeWithCard({
-      initialEntry: 1.102, // Different from card entry of 1.1
-      initialRiskAbs: 0.007, // |1.102 - 1.095|
+      officialEntryPrice: 1.102,            // Official snapshot entry (fill price)
+      officialInitialRiskAbs: 0.007,        // |1.102 - 1.095|
+      initialEntry: 1.102,
+      initialRiskAbs: 0.007,
     });
 
     mockTradeFindUnique.mockResolvedValue(trade as never);
@@ -1240,6 +1252,7 @@ describe("syncSignalClose", () => {
       data: { finalRR: number };
     };
     // dir=1 (LONG), (1.115 - 1.102) / 0.007 = 0.013/0.007 = 1.857... -> rounded to 1.86
+    // Uses officialEntryPrice=1.102 and officialInitialRiskAbs=0.007
     const expected = Math.round((1 * (1.115 - 1.102)) / 0.007 * 100) / 100;
     expect(updateCall.data.finalRR).toBe(expected);
   });
@@ -1304,5 +1317,276 @@ describe("syncSignalClose", () => {
         }),
       })
     );
+  });
+
+  // --- BUG REGRESSION: Official snapshot used for R calculation ---
+
+  it("BUG REGRESSION: uses officialInitialRiskAbs for finalRR calculation", async () => {
+    // Trade with official snapshot: entry=1.1, officialRisk=0.01 (SL at 1.09)
+    // But initial risk was different (0.005, SL at 1.095)
+    const mtTrade = makeMtTrade({
+      matchedTradeId: "trade-1",
+      closePrice: 1.09, // closes at official SL
+    });
+
+    const trade = makeTradeWithCard({
+      officialEntryPrice: 1.1,
+      officialInitialRiskAbs: 0.01,      // official snapshot: SL was at 1.09
+      officialInitialStopLoss: 1.09,
+      initialRiskAbs: 0.005,              // initial: SL was at 1.095
+      initialEntry: 1.1,
+    });
+
+    mockTradeFindUnique.mockResolvedValue(trade as never);
+    mockPipDistance.mockReturnValue(50); // > tolerance → outcome = CLOSED
+    mockTradeUpdate.mockResolvedValue({} as never);
+    mockTradeStatusHistoryCreate.mockResolvedValue({} as never);
+    mockTradeEventCreate.mockResolvedValue({} as never);
+    mockMessageCreate.mockResolvedValue({
+      id: "sys-1",
+      user: { id: "user-1" },
+    } as never);
+    mockMtAccountFindFirst.mockResolvedValue({ id: "acc-1" } as never);
+
+    await syncSignalClose(mtTrade as never, "user-1");
+
+    // R should be: (1.09 - 1.1) / 0.01 = -1.0 (using official risk)
+    // NOT: (1.09 - 1.1) / 0.005 = -2.0 (using initial risk)
+    expect(mockTradeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          finalRR: -1,
+        }),
+      })
+    );
+  });
+
+  it("BUG REGRESSION: falls back to initialRiskAbs when official snapshot is null", async () => {
+    const mtTrade = makeMtTrade({
+      matchedTradeId: "trade-1",
+      closePrice: 1.095,
+    });
+
+    const trade = makeTradeWithCard({
+      officialEntryPrice: null,
+      officialInitialRiskAbs: null,
+      officialInitialStopLoss: null,
+      initialEntry: 1.1,
+      initialRiskAbs: 0.005,
+    });
+
+    mockTradeFindUnique.mockResolvedValue(trade as never);
+    mockPipDistance.mockReturnValue(50);
+    mockTradeUpdate.mockResolvedValue({} as never);
+    mockTradeStatusHistoryCreate.mockResolvedValue({} as never);
+    mockTradeEventCreate.mockResolvedValue({} as never);
+    mockMessageCreate.mockResolvedValue({
+      id: "sys-1",
+      user: { id: "user-1" },
+    } as never);
+    mockMtAccountFindFirst.mockResolvedValue({ id: "acc-1" } as never);
+
+    await syncSignalClose(mtTrade as never, "user-1");
+
+    // R = (1.095 - 1.1) / 0.005 = -1.0
+    expect(mockTradeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          finalRR: -1,
+        }),
+      })
+    );
+  });
+
+  it("BUG REGRESSION: close correction updates system message text", async () => {
+    const mtTrade = makeMtTrade({
+      matchedTradeId: "trade-1",
+      closePrice: 1.112,
+      profit: 120,
+      commission: -2,
+      swap: -1,
+    });
+
+    const trade = makeTradeWithCard({
+      closedAt: new Date("2026-01-01T12:00:00Z"),
+      closePrice: 1.11,
+      status: "TP_HIT",
+      officialEntryPrice: 1.1,
+      officialInitialRiskAbs: 0.005,
+    });
+
+    mockTradeFindUnique.mockResolvedValue(trade as never);
+    mockTradeUpdate.mockResolvedValue({} as never);
+    mockPipDistance.mockReturnValue(0);
+    // Simulate finding the original close message
+    mockMessageFindFirst.mockResolvedValue({ id: "close-msg-1" } as never);
+    mockMessageUpdate.mockResolvedValue({} as never);
+    mockMessageFindUnique.mockResolvedValue(null as never);
+
+    await syncSignalClose(mtTrade as never, "user-1");
+
+    // Should find and update the original close message
+    expect(mockMessageFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          replyToId: "msg-1",
+          type: "TRADE_ACTION",
+          content: { startsWith: "Trade closed at" },
+        }),
+      })
+    );
+    expect(mockMessageUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "close-msg-1" },
+        data: expect.objectContaining({
+          content: expect.stringContaining("Trade closed at 1.112"),
+          isEdited: true,
+        }),
+      })
+    );
+  });
+
+  it("BUG REGRESSION: SL_HIT with slippage has R < -1 (not clamped)", async () => {
+    // SL at 1.095 but trade slipped to 1.094 (beyond SL)
+    const mtTrade = makeMtTrade({
+      matchedTradeId: "trade-1",
+      closePrice: 1.094,
+    });
+
+    const trade = makeTradeWithCard({
+      officialEntryPrice: 1.1,
+      officialInitialRiskAbs: 0.005, // SL at 1.095
+      officialInitialStopLoss: 1.095,
+    });
+
+    mockTradeFindUnique.mockResolvedValue(trade as never);
+    // Close within 5 pips of SL → SL_HIT
+    mockPipDistance
+      .mockReturnValueOnce(50)  // vs TP — far away
+      .mockReturnValueOnce(1)   // vs SL — close (within tolerance)
+      .mockReturnValueOnce(50); // vs entry — far away
+    mockTradeUpdate.mockResolvedValue({} as never);
+    mockTradeStatusHistoryCreate.mockResolvedValue({} as never);
+    mockTradeEventCreate.mockResolvedValue({} as never);
+    mockMessageCreate.mockResolvedValue({
+      id: "sys-1",
+      user: { id: "user-1" },
+    } as never);
+    mockMtAccountFindFirst.mockResolvedValue({ id: "acc-1" } as never);
+
+    await syncSignalClose(mtTrade as never, "user-1");
+
+    // Outcome should be SL_HIT (within pip tolerance of SL)
+    // R = (1.094 - 1.1) / 0.005 = -1.2 (slippage gives worse than -1R)
+    expect(mockTradeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "SL_HIT",
+          finalRR: -1.2,
+        }),
+      })
+    );
+  });
+});
+
+// ============================================================
+// syncSignalModification — reQualifyTrade integration
+// ============================================================
+
+describe("syncSignalModification — reQualifyTrade", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("calls reQualifyTrade when SL changes on already-qualified trade", async () => {
+    const mtTrade = makeMtTrade({
+      matchedTradeId: "trade-1",
+      isOpen: true,
+      stopLoss: 1.096,    // new SL
+      takeProfit: 1.11,
+    });
+
+    const trade = makeTradeWithCard({
+      officialSignalQualified: true, // already qualified
+      tradeCard: {
+        id: "card-1",
+        instrument: "EURUSD",
+        direction: "LONG",
+        entry: 1.1,
+        stopLoss: 1.095,   // old SL
+        targets: [1.11],
+        tags: ["signal"],
+        cardType: "SIGNAL",
+        timeframe: "AUTO",
+        riskPct: null,
+        note: "Auto-generated",
+        message: { id: "msg-1", topicId: "topic-1", clanId: "clan-1" },
+      },
+    });
+
+    mockTradeFindUnique.mockResolvedValue(trade as never);
+    (redis.set as ReturnType<typeof vi.fn>).mockResolvedValue("OK");
+    mockTradeUpdate.mockResolvedValue({} as never);
+    mockTradeCardUpdate.mockResolvedValue({} as never);
+    mockTradeCardVersionCreate.mockResolvedValue({} as never);
+    mockTradeEventCreate.mockResolvedValue({} as never);
+    mockMessageCreate.mockResolvedValue({
+      id: "sys-1",
+      user: { id: "user-1" },
+    } as never);
+
+    await syncSignalModification(mtTrade as never, "user-1");
+
+    // Should call reQualifyTrade, NOT qualifyTrade
+    expect(mockReQualifyTrade).toHaveBeenCalledWith(
+      "trade-1",
+      1.096,  // new SL
+      1.11,   // TP
+      expect.objectContaining({ lots: 0.1 })
+    );
+  });
+
+  it("calls qualifyTrade (not reQualifyTrade) when trade is not yet qualified", async () => {
+    const mtTrade = makeMtTrade({
+      matchedTradeId: "trade-1",
+      isOpen: true,
+      stopLoss: 1.095,
+      takeProfit: 1.11,
+    });
+
+    const trade = makeTradeWithCard({
+      officialSignalQualified: false, // not yet qualified
+      tradeCard: {
+        id: "card-1",
+        instrument: "EURUSD",
+        direction: "LONG",
+        entry: 1.1,
+        stopLoss: 0,       // was missing
+        targets: [0],
+        tags: ["analysis"],
+        cardType: "ANALYSIS",
+        timeframe: "AUTO",
+        riskPct: null,
+        note: "Auto-generated",
+        message: { id: "msg-1", topicId: "topic-1", clanId: "clan-1" },
+      },
+    });
+
+    mockTradeFindUnique.mockResolvedValue(trade as never);
+    (redis.set as ReturnType<typeof vi.fn>).mockResolvedValue("OK");
+    mockTradeUpdate.mockResolvedValue({} as never);
+    mockTradeCardUpdate.mockResolvedValue({} as never);
+    mockTradeCardVersionCreate.mockResolvedValue({} as never);
+    mockTradeEventCreate.mockResolvedValue({} as never);
+    mockMessageCreate.mockResolvedValue({
+      id: "sys-1",
+      user: { id: "user-1" },
+    } as never);
+
+    await syncSignalModification(mtTrade as never, "user-1");
+
+    // Should call qualifyTrade, NOT reQualifyTrade
+    expect(qualifyTrade).toHaveBeenCalled();
+    expect(mockReQualifyTrade).not.toHaveBeenCalled();
   });
 });

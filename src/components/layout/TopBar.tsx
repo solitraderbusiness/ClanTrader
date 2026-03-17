@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { Menu, UserPlus, Wifi, WifiOff } from "lucide-react";
+import { Menu, UserPlus, Wifi, WifiOff, BellRing } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { UserMenu } from "./UserMenu";
@@ -11,6 +11,8 @@ import { InviteFriendDialog } from "@/components/shared/InviteFriendDialog";
 import { LanguageSwitch } from "@/components/shared/LanguageSwitch";
 import { useTranslation } from "@/lib/i18n";
 import Link from "next/link";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { AlertPanel } from "@/components/notifications/AlertPanel";
 
 type MtStatus = "online" | "idle" | "offline";
 
@@ -92,6 +94,77 @@ function MtStatusIndicator() {
   );
 }
 
+function AlertBellButton() {
+  const { t } = useTranslation();
+  const { data: session } = useSession();
+  const [alertPanelOpen, setAlertPanelOpen] = useState(false);
+  const [activeCount, setActiveCount] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!session?.user) return;
+
+    let cancelled = false;
+
+    async function poll() {
+      try {
+        const res = await fetch("/api/price-alerts/active-count");
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          setActiveCount(data.count ?? 0);
+        }
+      } catch {
+        // silent
+      }
+    }
+
+    poll();
+    intervalRef.current = setInterval(poll, 60_000);
+    return () => {
+      cancelled = true;
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [session?.user]);
+
+  // Refresh count when panel closes
+  useEffect(() => {
+    if (alertPanelOpen) return; // only refresh on close
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/price-alerts/active-count");
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          setActiveCount(data.count ?? 0);
+        }
+      } catch { /* silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, [alertPanelOpen]);
+
+  if (!session?.user) return null;
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="relative"
+        onClick={() => setAlertPanelOpen(true)}
+        title={t("priceAlerts.title")}
+      >
+        <BellRing className="h-4 w-4" />
+        {activeCount > 0 && (
+          <span className="absolute -end-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">
+            {activeCount > 99 ? "99+" : activeCount}
+          </span>
+        )}
+      </Button>
+      <AlertPanel open={alertPanelOpen} onOpenChange={setAlertPanelOpen} />
+    </>
+  );
+}
+
 export function TopBar() {
   const { t } = useTranslation();
   const { open } = useSidebarStore();
@@ -123,6 +196,8 @@ export function TopBar() {
         >
           <UserPlus className="h-4 w-4" />
         </Button>
+        <AlertBellButton />
+        <NotificationBell />
         <div className="hidden sm:flex sm:items-center sm:gap-1">
           <LanguageSwitch />
           <ThemeToggle />

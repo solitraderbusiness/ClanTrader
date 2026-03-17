@@ -268,6 +268,9 @@ export async function writeHeartbeatPrice(input: WriteHeartbeatPriceInput): Prom
   for (const s of symbols) {
     redis.zremrangebyscore(KEY.activeGroups(s), 0, cutoff).catch(() => {});
   }
+
+  // Update alert high/low tracker (for price alert candle-style evaluation)
+  updateAlertHighLow(sym, currentPrice);
 }
 
 // ── DISPLAY Read API (cross-source OK) ──
@@ -282,6 +285,8 @@ export async function getDisplayPrice(
   symbol: string,
   preferredSourceGroup?: string | null
 ): Promise<ResolvedPrice> {
+  // Uppercase to match writeHeartbeatPrice key format
+  symbol = symbol.toUpperCase();
   const now = Date.now();
   const marketOpen = isMarketOpen();
 
@@ -389,6 +394,8 @@ export async function getDisplayPrices(
   const result = new Map<string, ResolvedPrice>();
   if (symbols.length === 0) return result;
 
+  // Uppercase to match writeHeartbeatPrice key format
+  symbols = symbols.map((s) => s.toUpperCase());
   const now = Date.now();
   const marketOpen = isMarketOpen();
   const keys = symbols.map((s) => KEY.display(s));
@@ -513,6 +520,8 @@ export async function getVerifiedPrice(
   accountId: string,
   sourceGroup: string
 ): Promise<ResolvedPrice> {
+  // Uppercase to match writeHeartbeatPrice key format
+  symbol = symbol.toUpperCase();
   const now = Date.now();
   const marketOpen = isMarketOpen();
 
@@ -615,6 +624,117 @@ function noPrice(symbol: string, marketOpen: boolean): ResolvedPrice {
     marketOpen,
     crossSource: false,
   };
+}
+
+// ── Server-Side M1 Candles ──
+// Proper OHLC candles built from incoming heartbeat prices.
+// Time-bounded to minute boundaries, no manual reset needed.
+// Used by price alert evaluation (high for ABOVE, low for BELOW).
+// Kept for 1 hour — enough for alerts without storing full history.
+
+export interface M1Candle {
+  o: number;   // open
+  h: number;   // high
+  l: number;   // low
+  c: number;   // close (latest price)
+  ts: number;  // minute timestamp (floored to minute)
+}
+
+const CANDLE_TTL = 3600; // 1 hour
+
+function candleKey(symbol: string, minuteTs: number): string {
+  return `candle:M1:${symbol}:${minuteTs}`;
+}
+
+function currentMinuteTs(): number {
+  return Math.floor(Date.now() / 60000) * 60000;
+}
+
+const UPDATE_CANDLE_LUA = `
+local key = KEYS[1]
+local price = tonumber(ARGV[1])
+local minuteTs = tonumber(ARGV[2])
+local ttl = tonumber(ARGV[3])
+local current = redis.call('GET', key)
+if current then
+  local c = cjson.decode(current)
+  c.h = math.max(c.h, price)
+  c.l = math.min(c.l, price)
+  c.c = price
+  redis.call('SET', key, cjson.encode(c), 'EX', ttl)
+else
+  local c = {o=price, h=price, l=price, c=price, ts=minuteTs}
+  redis.call('SET', key, cjson.encode(c), 'EX', ttl)
+end
+return 1
+`;
+
+/** Update the current M1 candle for a symbol. Called on every price write. */
+export async function updateAlertHighLow(symbol: string, price: number): Promise<void> {
+  const sym = symbol.toUpperCase();
+  const minTs = currentMinuteTs();
+  try {
+    await redis.eval(UPDATE_CANDLE_LUA, 1, candleKey(sym, minTs), String(price), String(minTs), String(CANDLE_TTL));
+    const norm = normalizeSymbol(sym);
+    if (norm !== sym) {
+      await redis.eval(UPDATE_CANDLE_LUA, 1, candleKey(norm, minTs), String(price), String(minTs), String(CANDLE_TTL));
+    }
+  } catch {
+    // Non-critical — alert evaluation falls back to current price
+  }
+}
+
+/**
+ * Get merged high/low across recent M1 candles for a symbol.
+ * Looks at current minute + previous N minutes to catch spikes
+ * that happened between alert evaluation cycles.
+ */
+export async function getAlertHighLow(
+  symbol: string,
+  lookbackMinutes: number = 2
+): Promise<{ high: number; low: number } | null> {
+  const sym = symbol.toUpperCase();
+  const now = currentMinuteTs();
+  const keys: string[] = [];
+  for (let i = 0; i <= lookbackMinutes; i++) {
+    keys.push(candleKey(sym, now - i * 60000));
+  }
+
+  const values = await redis.mget(...keys);
+  let high = -Infinity;
+  let low = Infinity;
+  let found = false;
+
+  for (const raw of values) {
+    if (!raw) continue;
+    try {
+      const candle = JSON.parse(raw) as M1Candle;
+      high = Math.max(high, candle.h);
+      low = Math.min(low, candle.l);
+      found = true;
+    } catch { /* skip malformed */ }
+  }
+
+  return found ? { high, low } : null;
+}
+
+/** Get a single M1 candle for a symbol at a specific minute. */
+export async function getM1Candle(symbol: string, minuteTs?: number): Promise<M1Candle | null> {
+  const ts = minuteTs ?? currentMinuteTs();
+  const raw = await redis.get(candleKey(symbol.toUpperCase(), ts));
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as M1Candle;
+  } catch {
+    return null;
+  }
+}
+
+/** No-op for backward compat — M1 candles auto-expire, no reset needed. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function resetAlertHighLow(_symbols: string[]): Promise<void> {
+  // M1 candles are time-bounded and auto-expire via TTL.
+  // No reset needed — each minute gets a fresh candle.
 }
 
 // Re-export KEY for testing

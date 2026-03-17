@@ -4,7 +4,7 @@ import { log } from "@/lib/audit";
 import { deriveRiskStatus } from "@/lib/risk-utils";
 import { maybeAutoPost, updateChannelPostRiskWarning, updateChannelPostTargets } from "@/services/auto-post.service";
 import { computeAndSetEligibility } from "@/services/integrity.service";
-import { qualifyTrade } from "@/services/signal-qualification.service";
+import { qualifyTrade, reQualifyTrade } from "@/services/signal-qualification.service";
 import { createSystemMessage, broadcastMessages } from "./ea-signal-helpers";
 import type { MtTrade } from "@prisma/client";
 
@@ -99,6 +99,11 @@ export async function syncSignalModification(
       updateChannelPostRiskWarning(tradeCard.id, "SL_REMOVED").catch((err) =>
         log("ea_signal.channel_post_risk_warning_error", "ERROR", "EA", { error: String(err) }, userId)
       );
+
+      // Notify user about unprotected risk
+      import("@/services/notification-triggers").then(({ notifyRiskNoSL }) =>
+        notifyRiskNoSL(userId, tradeCard.instrument, tradeCard.direction).catch(() => {})
+      );
     }
 
     // --- TP Removal ---
@@ -141,19 +146,30 @@ export async function syncSignalModification(
       const hasBothNow = newSL > 0 && newTP > 0;
 
       // Attempt official signal qualification within 20-second window
+      const mtTradeData = {
+        lots: mtTrade.lots,
+        currentPrice: mtTrade.openPrice,
+        profit: mtTrade.profit ?? 0,
+        direction: mtTrade.direction,
+      };
       if (hasBothNow && !trade.officialSignalQualified) {
-        const mtTradeData = {
-          lots: mtTrade.lots,
-          currentPrice: mtTrade.openPrice,
-          profit: mtTrade.profit ?? 0,
-          direction: mtTrade.direction,
-        };
         const qualified = await qualifyTrade(
           trade.id, newSL, newTP, tradeCard.entry, "WITHIN_WINDOW", mtTradeData
         );
 
         if (qualified) {
           log("signal.qualified_within_window", "INFO", "TRADE", {
+            tradeId: trade.id,
+            ticket: String(mtTrade.ticket),
+          }, userId);
+        }
+      } else if (hasBothNow && trade.officialSignalQualified) {
+        // Re-freeze snapshot if SL/TP changed within 20s window
+        const requalified = await reQualifyTrade(
+          trade.id, newSL, newTP, mtTradeData
+        );
+        if (requalified) {
+          log("signal.requalified_within_window", "INFO", "TRADE", {
             tradeId: trade.id,
             ticket: String(mtTrade.ticket),
           }, userId);

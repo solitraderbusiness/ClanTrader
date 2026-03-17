@@ -14,11 +14,15 @@
 
 import { db } from "@/lib/db";
 import { redis } from "@/lib/redis";
-import { getDisplayPrice } from "@/services/price-pool.service";
+import { getDisplayPrice, type ResolvedPrice } from "@/services/price-pool.service";
 import { updateTrackingStatus, checkRankingEligibility } from "@/services/live-risk.service";
 import { getIO } from "@/lib/socket-io-global";
 import { SOCKET_EVENTS } from "@/lib/chat-constants";
-import { calculateTargetRR } from "@/lib/risk-utils";
+import { calculateTargetRR, getFrozenEntry, getFrozenRiskAbs } from "@/lib/risk-utils";
+import type { EstimateQuality } from "@prisma/client";
+
+/** Max acceptable price age for chart-eligible fallback snapshot (ms) */
+const FALLBACK_FRESH_THRESHOLD_MS = 90_000; // 90 seconds
 
 // Point value defaults for P/L estimation
 const DEFAULT_PV: Record<string, number> = {
@@ -127,12 +131,13 @@ export async function runHeartbeatFallback(): Promise<FallbackResult> {
     }
 
     // Batch-fetch display prices for all symbols (now with 4h extended key fallback)
-    const priceMap = new Map<string, number>();
+    // Store full ResolvedPrice to access timestamp for freshness gating
+    const resolvedPrices = new Map<string, ResolvedPrice>();
     for (const symbol of symbolSet) {
       try {
         const resolved = await getDisplayPrice(symbol);
         if (resolved.price !== null && resolved.status !== "no_price" && resolved.status !== "market_closed") {
-          priceMap.set(symbol, resolved.price);
+          resolvedPrices.set(symbol, resolved);
           result.pricesResolved++;
         }
       } catch {
@@ -140,7 +145,7 @@ export async function runHeartbeatFallback(): Promise<FallbackResult> {
       }
     }
 
-    // Collect matched trade IDs for socket broadcast
+    // Collect matched trade IDs for socket broadcast (only for fresh estimates)
     const matchedTradeIds: string[] = [];
     const tradeCurrentPrices = new Map<string, number>(); // matchedTradeId → currentPrice
     const tradeMtProfits = new Map<string, number>(); // matchedTradeId → estimated mtProfit
@@ -153,11 +158,22 @@ export async function runHeartbeatFallback(): Promise<FallbackResult> {
 
         let estimatedTotalPnl = 0;
         let hasEstimate = false;
+        let maxPriceAgeMs = 0;
+        let hasMissingPrice = false;
 
         for (const trade of acct.trades) {
-          const currentPrice = priceMap.get(trade.symbol);
-          if (!currentPrice || !trade.openPrice || !trade.lots) continue;
+          const resolved = resolvedPrices.get(trade.symbol);
+          if (!resolved?.price || !trade.openPrice || !trade.lots) {
+            if (!resolvedPrices.has(trade.symbol)) hasMissingPrice = true;
+            continue;
+          }
 
+          // Track price age for freshness classification
+          if (resolved.ts) {
+            maxPriceAgeMs = Math.max(maxPriceAgeMs, Date.now() - resolved.ts);
+          }
+
+          const currentPrice = resolved.price;
           const dir = trade.direction === "BUY" ? 1 : -1;
           const pv = derivePointValueFromTrade(
             { openPrice: trade.openPrice, lots: trade.lots, profit: trade.profit, symbol: trade.symbol },
@@ -171,9 +187,8 @@ export async function runHeartbeatFallback(): Promise<FallbackResult> {
           estimatedTotalPnl += totalTradeProfit;
           hasEstimate = true;
 
-          // Track for socket broadcast
+          // Track for socket broadcast (only populated if quality is fresh — see below)
           if (trade.matchedTradeId) {
-            matchedTradeIds.push(trade.matchedTradeId);
             tradeCurrentPrices.set(trade.matchedTradeId, currentPrice);
             tradeMtProfits.set(trade.matchedTradeId, Math.round(totalTradeProfit * 100) / 100);
           }
@@ -181,36 +196,60 @@ export async function runHeartbeatFallback(): Promise<FallbackResult> {
 
         if (!hasEstimate) continue;
 
+        // Classify estimate quality based on price freshness
+        const quality: EstimateQuality = hasMissingPrice
+          ? "NO_PRICE"
+          : maxPriceAgeMs > FALLBACK_FRESH_THRESHOLD_MS
+            ? "FALLBACK_STALE"
+            : "FALLBACK_FRESH";
+        const chartEligible = quality === "FALLBACK_FRESH";
+
         const estimatedEquity = balance + estimatedTotalPnl;
         result.accountsProcessed++;
 
         // Record estimated EquitySnapshot (throttled: max 1 per 5 min)
-        const snapKey = `eq-snap-est:${acct.id}`;
-        const lastSnap = await redis.get(snapKey);
-        if (!lastSnap) {
-          await redis.set(snapKey, "1", "EX", 300);
-          await db.equitySnapshot.create({
-            data: {
-              mtAccountId: acct.id,
-              balance,
-              equity: estimatedEquity,
-              isEstimated: true,
-            },
-          });
-          result.snapshotsCreated++;
-        }
+        // Only create chart-eligible snapshots — stale/no-price estimates produce fake flat lines
+        if (chartEligible) {
+          const snapKey = `eq-snap-est:${acct.id}`;
+          const lastSnap = await redis.get(snapKey);
+          if (!lastSnap) {
+            await redis.set(snapKey, "1", "EX", 300);
+            await db.equitySnapshot.create({
+              data: {
+                mtAccountId: acct.id,
+                balance,
+                equity: estimatedEquity,
+                isEstimated: true,
+                snapshotSource: "FALLBACK",
+                estimateQuality: quality,
+                sourcePriceAgeMs: maxPriceAgeMs,
+                chartEligible: true,
+              },
+            });
+            result.snapshotsCreated++;
+          }
 
-        // Update MtAccount with estimated equity (so downstream consumers pick it up)
-        await db.mtAccount.update({
-          where: { id: acct.id },
-          data: { equity: estimatedEquity },
-        });
+          // Update MtAccount equity only when prices are fresh
+          await db.mtAccount.update({
+            where: { id: acct.id },
+            data: { equity: estimatedEquity },
+          });
+
+          // Collect matched trade IDs for broadcast only when fresh
+          for (const trade of acct.trades) {
+            if (trade.matchedTradeId && tradeCurrentPrices.has(trade.matchedTradeId)) {
+              matchedTradeIds.push(trade.matchedTradeId);
+            }
+          }
+        }
+        // STALE/NO_PRICE: do NOT create snapshot, update equity, or broadcast
+        // Stale data must not masquerade as current truth
       } catch {
         result.errors++;
       }
     }
 
-    // Broadcast estimated PnL updates via socket (so trade cards in chat update)
+    // Broadcast estimated PnL updates via socket (only fresh estimates)
     if (matchedTradeIds.length > 0) {
       try {
         const broadcasted = await broadcastEstimatedPnl(matchedTradeIds, tradeCurrentPrices, tradeMtProfits);
@@ -292,14 +331,13 @@ async function broadcastEstimatedPnl(
     const card = trade.tradeCard;
     if (!card?.message?.topicId) continue;
 
-    const entry = trade.initialEntry ?? card.entry;
-    const riskDistance = (trade.initialRiskAbs && trade.initialRiskAbs > 0)
-      ? trade.initialRiskAbs
-      : (card.stopLoss > 0 ? Math.abs(entry - card.stopLoss) : 0);
+    const entry = getFrozenEntry(trade, card.entry);
+    const riskDistance = getFrozenRiskAbs(trade, card.entry, card.stopLoss);
 
     const dir = card.direction === "LONG" ? 1 : -1;
     const pricePnl = dir * (currentPrice - entry);
-    const currentRR = riskDistance > 0
+    const isUnprotected = trade.riskStatus === "UNPROTECTED";
+    const currentRR = (!isUnprotected && riskDistance > 0)
       ? Math.round(((dir * (currentPrice - entry)) / riskDistance) * 100) / 100
       : null;
 
@@ -310,7 +348,7 @@ async function broadcastEstimatedPnl(
       messageId: card.message.id,
       currentRR,
       currentPrice,
-      targetRR: riskDistance > 0 ? calculateTargetRR(card.targets[0], entry, riskDistance) : null,
+      targetRR: (!isUnprotected && riskDistance > 0) ? calculateTargetRR(card.targets[0], entry, riskDistance) : null,
       riskStatus: trade.riskStatus,
       pricePnl,
       mtProfit: mtProfit != null ? mtProfit : undefined,

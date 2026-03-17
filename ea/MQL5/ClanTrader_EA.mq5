@@ -18,11 +18,13 @@ bool     g_Connected = false;
 ulong    g_KnownPositions[];
 datetime g_LastHistorySync = 0;
 int      g_TimerTick = 0;
+string   g_WatchSymbols[];  // Symbols server wants prices for
 
 //+------------------------------------------------------------------+
 //| Expert initialization                                             |
 //+------------------------------------------------------------------+
 int OnInit() {
+   Print("[ClanTrader] EA v2.1 initialized — watchSymbols+marketPrices build");
    SetBaseUrl(InpBaseUrl);
    PanelCreate();
    EventSetTimer(3);
@@ -197,6 +199,9 @@ void DoLogin() {
 
       SyncTradeHistory();
       g_LastHistorySync = TimeCurrent();
+
+      // Send broker symbol list for price alert autocomplete
+      SendBrokerSymbols();
    }
    else if (code == 401) {
       PanelSetStatus("Invalid credentials", CLR_ERR);
@@ -205,6 +210,35 @@ void DoLogin() {
       string err = JsonGetString(response, "error");
       PanelSetStatus("Error: " + err, CLR_ERR);
    }
+}
+
+//+------------------------------------------------------------------+
+//| Send available broker symbols to server                           |
+//+------------------------------------------------------------------+
+void SendBrokerSymbols() {
+   int total = SymbolsTotal(false); // All symbols available from broker
+   if (total <= 0) return;
+
+   string arr = JsonArrayStart();
+   int count = 0;
+   for (int i = 0; i < total && count < 5000; i++) {
+      string sym = SymbolName(i, false);
+      if (sym == "") continue;
+      // Only include symbols that allow trading
+      long tradeMode = SymbolInfoInteger(sym, SYMBOL_TRADE_MODE);
+      if (tradeMode == SYMBOL_TRADE_MODE_DISABLED) continue;
+      arr += "\"" + EscapeJson(sym) + "\",";
+      count++;
+   }
+   JsonArrayEnd(arr);
+
+   string json = JsonStart();
+   json += JsonAddRaw("symbols", arr);
+   JsonEnd(json);
+
+   string response;
+   int code = HttpPost("/api/ea/broker-symbols", json, response);
+   Print("[BrokerSymbols] sent ", count, " symbols, response=", code);
 }
 
 //+------------------------------------------------------------------+
@@ -262,6 +296,29 @@ void SendHeartbeat() {
    JsonArrayEnd(tradesArr);
 
    json += JsonAddRaw("openTrades", tradesArr);
+
+   // Market prices for symbols the server is watching (cross-user price pool)
+   Print("[MarketPrices] g_WatchSymbols count=", ArraySize(g_WatchSymbols));
+   if (ArraySize(g_WatchSymbols) > 0) {
+      string mpArr = JsonArrayStart();
+      for (int w = 0; w < ArraySize(g_WatchSymbols); w++) {
+         SymbolSelect(g_WatchSymbols[w], true); // Ensure symbol is in Market Watch
+         double bid = SymbolInfoDouble(g_WatchSymbols[w], SYMBOL_BID);
+         Print("[MarketPrices] ", g_WatchSymbols[w], " bid=", bid);
+         if (bid > 0) {
+            string mp = JsonStart();
+            mp += JsonAddString("symbol", g_WatchSymbols[w]);
+            mp += JsonAddDouble("bid", bid);
+            mp += JsonAddDouble("high", iHigh(g_WatchSymbols[w], PERIOD_M1, 0));
+            mp += JsonAddDouble("low", iLow(g_WatchSymbols[w], PERIOD_M1, 0));
+            JsonEnd(mp);
+            mpArr += mp + ",";
+         }
+      }
+      JsonArrayEnd(mpArr);
+      json += JsonAddRaw("marketPrices", mpArr);
+   }
+
    JsonEnd(json);
 
    string response;
@@ -273,9 +330,35 @@ void SendHeartbeat() {
          AccountInfoInteger(ACCOUNT_LOGIN),
          AccountInfoDouble(ACCOUNT_BALANCE),
          AccountInfoString(ACCOUNT_CURRENCY));
+      // Parse watchSymbols from server response
+      ParseWatchSymbols(response);
       // Process any pending actions from server
       ProcessPendingActions(response);
    }
+}
+
+//+------------------------------------------------------------------+
+//| Parse watchSymbols from heartbeat response                        |
+//+------------------------------------------------------------------+
+void ParseWatchSymbols(string response) {
+   string watchJson = JsonGetValue(response, "watchSymbols");
+   Print("[WatchSymbols] raw=", watchJson);
+   if (watchJson == "" || watchJson == "[]") {
+      ArrayResize(g_WatchSymbols, 0);
+      Print("[WatchSymbols] empty, cleared");
+      return;
+   }
+   string items[];
+   int count = SplitJsonArray(watchJson, items);
+   ArrayResize(g_WatchSymbols, count);
+   for (int i = 0; i < count; i++) {
+      string sym = items[i];
+      StringReplace(sym, "\"", "");
+      StringTrimLeft(sym);
+      StringTrimRight(sym);
+      g_WatchSymbols[i] = sym;
+   }
+   Print("[WatchSymbols] parsed count=", count, " symbols=", watchJson);
 }
 
 //+------------------------------------------------------------------+

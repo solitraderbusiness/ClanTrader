@@ -26,11 +26,12 @@ import { ChatImageGrid } from "@/components/shared/ChatImageGrid";
 import { TradeCardDetailSheet } from "@/components/chat/TradeCardDetailSheet";
 import { ReactionBar } from "./ReactionBar";
 import { ChannelInput } from "./ChannelInput";
-import { getSocket } from "@/lib/socket-client";
+import { getSocket, joinRoom, leaveRoom } from "@/lib/socket-client";
 import { SOCKET_EVENTS } from "@/lib/chat-constants";
 import { Megaphone, Eye, Lock, Crown, ChevronDown, Loader2, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { getInitials } from "@/lib/utils";
+import { formatPlannedRR } from "@/lib/risk-utils";
 import { toast } from "sonner";
 
 interface TradeCardInfo {
@@ -48,6 +49,11 @@ interface TradeCardInfo {
     finalRR: number | null;
     netProfit: number | null;
     closePrice: number | null;
+    initialRiskAbs?: number | null;
+    initialEntry?: number | null;
+    officialEntryPrice?: number | null;
+    officialInitialRiskAbs?: number | null;
+    officialInitialTargets?: number[] | null;
   } | null;
 }
 
@@ -100,16 +106,7 @@ function formatDate(dateStr: string) {
 const CLOSED_STATUSES = ["TP_HIT", "SL_HIT", "BE", "CLOSED"];
 
 function computeStaticRR(tradeCard: TradeCardInfo): string | null {
-  const { entry, stopLoss, targets, direction } = tradeCard;
-  const target = targets[0];
-  if (!target || !stopLoss || !entry) return null;
-  const risk = Math.abs(entry - stopLoss);
-  if (risk === 0) return null;
-  const reward =
-    direction === "LONG" ? target - entry : entry - target;
-  const rr = reward / risk;
-  if (rr <= 0) return null;
-  return `1:${rr.toFixed(1)}`;
+  return formatPlannedRR(tradeCard.trade, tradeCard);
 }
 
 /* ── R:R Display Cell ── */
@@ -638,7 +635,7 @@ function AnnouncementCard({
       {/* Title + Actions */}
       <div className="mb-2 flex items-start justify-between">
         {post.title ? (
-          <h4 className="text-base font-semibold">{post.title}</h4>
+          <h4 dir="auto" className="text-base font-semibold">{post.title}</h4>
         ) : (
           <div />
         )}
@@ -654,7 +651,7 @@ function AnnouncementCard({
       {post.images.length > 0 && !post.locked ? (
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
           <div className="relative min-w-0 flex-1">
-            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+            <p dir="auto" className="whitespace-pre-wrap break-words text-sm leading-relaxed">
               {post.content}
             </p>
             {post.locked && (
@@ -681,7 +678,7 @@ function AnnouncementCard({
       ) : (
         <>
           <div className="relative">
-            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+            <p dir="auto" className="whitespace-pre-wrap break-words text-sm leading-relaxed">
               {post.content}
             </p>
             {post.locked && (
@@ -775,8 +772,8 @@ export function ChannelStream({
     const socket = getSocket();
     if (!socket.connected) socket.connect();
 
-    // Join clan room to receive PnL broadcasts
-    socket.emit(SOCKET_EVENTS.JOIN_CLAN, { clanId });
+    // Join clan room to receive PnL broadcasts (tracked for auto-rejoin)
+    joinRoom(clanId);
 
     const handlePnlUpdate = (data: {
       updates: Array<{
@@ -807,6 +804,7 @@ export function ChannelStream({
     socket.on(SOCKET_EVENTS.TRADE_PNL_UPDATE, handlePnlUpdate);
 
     return () => {
+      leaveRoom(clanId);
       socket.off(SOCKET_EVENTS.TRADE_PNL_UPDATE, handlePnlUpdate);
     };
   }, [clanId, isMember]);

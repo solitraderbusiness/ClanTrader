@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
-import { getPost, ChannelServiceError } from "@/services/channel.service";
+import { getPost, recordPostView, ChannelServiceError } from "@/services/channel.service";
 import { db } from "@/lib/db";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -62,6 +62,9 @@ export default async function PostDetailPage({
     notFound();
   }
 
+  // Record unique view (fire-and-forget, Telegram-style: 1 per user)
+  recordPostView(postId, session.user.id).catch(() => {});
+
   // Check premium access
   let canView = true;
   if (post.isPremium) {
@@ -120,7 +123,7 @@ export default async function PostDetailPage({
 
       {/* Title */}
       {post.title && (
-        <h1 className="text-2xl font-bold">{post.title}</h1>
+        <h1 dir="auto" className="text-2xl font-bold">{post.title}</h1>
       )}
 
       {/* Content */}
@@ -136,7 +139,7 @@ export default async function PostDetailPage({
             const displayText = tc ? extractNote(post.content) : post.content;
             if (!displayText) return null;
             return (
-              <div className="whitespace-pre-wrap text-sm leading-relaxed">
+              <div dir="auto" className="whitespace-pre-wrap text-sm leading-relaxed">
                 {displayText}
               </div>
             );
@@ -146,6 +149,7 @@ export default async function PostDetailPage({
           {post.images.length > 0 && (
             <div className="space-y-3">
               {post.images.map((img, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   key={i}
                   src={img}

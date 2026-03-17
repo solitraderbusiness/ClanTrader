@@ -9,6 +9,7 @@ const SETTINGS_NAV = [
   { href: "/settings/appearance", label: "Appearance" },
   { href: "/settings/security", label: "Security" },
   { href: "/settings/mt-accounts", label: "MT Accounts" },
+  { href: "/settings/notifications", label: "Notifications" },
 ];
 
 export default function SettingsLayout({

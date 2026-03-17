@@ -257,6 +257,9 @@ export async function computeEffectiveRank(
  * Update equity drawdown tracking on MtAccount during heartbeat.
  * Tracks peak equity and max drawdown percentage.
  */
+// Drawdown thresholds that trigger a notification (crossed once per direction)
+const DRAWDOWN_ALERT_THRESHOLDS = [5, 10, 15, 20];
+
 export async function updateEquityDrawdown(
   accountId: string,
   currentEquity: number
@@ -265,7 +268,7 @@ export async function updateEquityDrawdown(
 
   const account = await db.mtAccount.findUnique({
     where: { id: accountId },
-    select: { peakEquity: true, maxDrawdownPct: true },
+    select: { peakEquity: true, maxDrawdownPct: true, userId: true, accountNumber: true },
   });
 
   if (!account) return;
@@ -274,7 +277,8 @@ export async function updateEquityDrawdown(
   const currentDrawdownPct = peakEquity > 0
     ? ((peakEquity - currentEquity) / peakEquity) * 100
     : 0;
-  const maxDrawdownPct = Math.max(account.maxDrawdownPct ?? 0, currentDrawdownPct);
+  const prevDrawdownPct = account.maxDrawdownPct ?? 0;
+  const maxDrawdownPct = Math.max(prevDrawdownPct, currentDrawdownPct);
   const maxDrawdownMoney = peakEquity - currentEquity > 0
     ? Math.round((peakEquity - currentEquity) * 100) / 100
     : 0;
@@ -287,6 +291,16 @@ export async function updateEquityDrawdown(
       maxDrawdownMoney,
     },
   });
+
+  // Check if drawdown just crossed a threshold
+  for (const threshold of DRAWDOWN_ALERT_THRESHOLDS) {
+    if (currentDrawdownPct >= threshold && prevDrawdownPct < threshold) {
+      import("@/services/notification-triggers").then(({ notifyRiskDrawdown }) =>
+        notifyRiskDrawdown(account.userId, currentDrawdownPct, account.accountNumber).catch(() => {})
+      );
+      break; // Only one notification per heartbeat
+    }
+  }
 }
 
 /**
@@ -296,7 +310,7 @@ export async function updateEquityDrawdown(
 export async function updateTrackingStatus(accountId: string): Promise<string> {
   const account = await db.mtAccount.findUnique({
     where: { id: accountId },
-    select: { lastHeartbeat: true, isActive: true, trackingStatus: true },
+    select: { lastHeartbeat: true, isActive: true, trackingStatus: true, userId: true, accountNumber: true, broker: true },
   });
 
   if (!account || !account.isActive) return "TRACKING_LOST";
@@ -307,6 +321,10 @@ export async function updateTrackingStatus(accountId: string): Promise<string> {
         where: { id: accountId },
         data: { trackingStatus: "TRACKING_LOST" },
       });
+      // Notify user
+      import("@/services/notification-triggers").then(({ notifyTrackingLost }) =>
+        notifyTrackingLost(account.userId, account.accountNumber, account.broker).catch(() => {})
+      );
     }
     return "TRACKING_LOST";
   }
@@ -314,9 +332,9 @@ export async function updateTrackingStatus(accountId: string): Promise<string> {
   const diffMs = Date.now() - account.lastHeartbeat.getTime();
   let newStatus: string;
 
-  if (diffMs < 60_000) {
+  if (diffMs < 180_000) {
     newStatus = "ACTIVE";
-  } else if (diffMs < 120_000) {
+  } else if (diffMs < 300_000) {
     newStatus = "STALE";
   } else {
     newStatus = "TRACKING_LOST";
@@ -327,6 +345,17 @@ export async function updateTrackingStatus(accountId: string): Promise<string> {
       where: { id: accountId },
       data: { trackingStatus: newStatus },
     });
+
+    // Notify on status transitions
+    if (newStatus === "TRACKING_LOST") {
+      import("@/services/notification-triggers").then(({ notifyTrackingLost }) =>
+        notifyTrackingLost(account.userId, account.accountNumber, account.broker).catch(() => {})
+      );
+    } else if (newStatus === "ACTIVE" && (account.trackingStatus === "STALE" || account.trackingStatus === "TRACKING_LOST")) {
+      import("@/services/notification-triggers").then(({ notifyTrackingRestored }) =>
+        notifyTrackingRestored(account.userId, account.accountNumber, account.broker).catch(() => {})
+      );
+    }
   }
 
   return newStatus;

@@ -31,6 +31,10 @@ export interface TradeCardData {
     riskStatus?: string;
     initialRiskAbs?: number;
     initialEntry?: number;
+    officialEntryPrice?: number | null;
+    officialInitialRiskAbs?: number | null;
+    officialInitialTargets?: number[];
+    officialInitialStopLoss?: number | null;
     finalRR?: number | null;
     netProfit?: number | null;
     closePrice?: number | null;
@@ -220,7 +224,11 @@ export const useChatStore = create<ChatState>((set) => ({
 
   setMessages: (messages) => set({ messages }),
   addMessage: (message) =>
-    set((state) => ({ messages: [...state.messages, message] })),
+    set((state) => {
+      // Dedup: EA broadcasts to both topic and clan rooms
+      if (state.messages.some((m) => m.id === message.id)) return state;
+      return { messages: [...state.messages, message] };
+    }),
   updateMessage: (id, updates) =>
     set((state) => ({
       messages: state.messages.map((m) =>

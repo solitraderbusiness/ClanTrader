@@ -44,6 +44,10 @@ export function serializeMessageForSocket(message: any, clanId: string) {
                 riskStatus: trade.riskStatus,
                 initialRiskAbs: trade.initialRiskAbs,
                 initialEntry: trade.initialEntry,
+                officialEntryPrice: trade.officialEntryPrice,
+                officialInitialRiskAbs: trade.officialInitialRiskAbs,
+                officialInitialTargets: trade.officialInitialTargets,
+                officialInitialStopLoss: trade.officialInitialStopLoss,
                 statementEligible: trade.statementEligible,
                 integrityStatus: trade.integrityStatus,
                 cardType: trade.cardType,
@@ -61,6 +65,10 @@ export function topicRoom(clanId: string, topicId: string) {
   return `topic:${clanId}:${topicId}`;
 }
 
+export function clanRoom(clanId: string) {
+  return `clan:${clanId}`;
+}
+
 export const messageInclude = {
   user: { select: { id: true, name: true, username: true, avatar: true, role: true } },
   replyTo: {
@@ -76,6 +84,7 @@ export const messageInclude = {
         select: {
           id: true, status: true, userId: true, mtLinked: true,
           riskStatus: true, initialRiskAbs: true, initialEntry: true,
+          officialEntryPrice: true, officialInitialRiskAbs: true, officialInitialTargets: true, officialInitialStopLoss: true,
           statementEligible: true, integrityStatus: true, cardType: true,
           finalRR: true, netProfit: true, closePrice: true,
         },
@@ -111,12 +120,16 @@ export async function broadcastMessages(
   tradeCardMessageId: string
 ) {
   const io = getIO();
-  if (!io || !topicId) return;
+  if (!io) return;
 
-  io.to(topicRoom(clanId, topicId)).emit(
-    SOCKET_EVENTS.RECEIVE_MESSAGE,
-    serializeMessageForSocket(systemMsg, clanId)
-  );
+  const serialized = serializeMessageForSocket(systemMsg, clanId);
+
+  // Broadcast to both topic and clan rooms for resilience
+  // (client deduplicates if socket is in both rooms)
+  if (topicId) {
+    io.to(topicRoom(clanId, topicId)).emit(SOCKET_EVENTS.RECEIVE_MESSAGE, serialized);
+  }
+  io.to(clanRoom(clanId)).emit(SOCKET_EVENTS.RECEIVE_MESSAGE, serialized);
 
   // Re-fetch and emit MESSAGE_EDITED so clients update the trade card inline
   try {
@@ -125,10 +138,11 @@ export async function broadcastMessages(
       include: messageInclude,
     });
     if (updatedMessage) {
-      io.to(topicRoom(clanId, topicId)).emit(
-        SOCKET_EVENTS.MESSAGE_EDITED,
-        serializeMessageForSocket(updatedMessage, clanId)
-      );
+      const editSerialized = serializeMessageForSocket(updatedMessage, clanId);
+      if (topicId) {
+        io.to(topicRoom(clanId, topicId)).emit(SOCKET_EVENTS.MESSAGE_EDITED, editSerialized);
+      }
+      io.to(clanRoom(clanId)).emit(SOCKET_EVENTS.MESSAGE_EDITED, editSerialized);
     }
   } catch (err) {
     log("ea_signal.broadcast_refetch_error", "ERROR", "EA", { error: String(err) });

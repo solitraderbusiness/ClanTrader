@@ -9,7 +9,7 @@ import { matchTradeToSignal } from "@/services/signal-matcher.service";
 import { generateStatementFromMtAccount } from "@/services/mt-statement.service";
 import { fetchPendingActionsForAccount } from "@/services/ea-action.service";
 import { autoCreateSignalFromMtTrade, syncSignalModification, syncSignalClose } from "@/services/ea-signal.service";
-import { calculateTargetRR } from "@/lib/risk-utils";
+import { calculateTargetRR, getFrozenEntry, getFrozenRiskAbs } from "@/lib/risk-utils";
 import { updateEquityDrawdown } from "@/services/live-risk.service";
 import {
   computeExternalFlow,
@@ -25,6 +25,7 @@ import {
   getVerifiedPrice,
   buildSourceGroup,
   normalizeSymbol,
+  updateAlertHighLow,
 } from "@/services/price-pool.service";
 
 function generateApiKey(): string {
@@ -253,44 +254,48 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
   // Track PnL of trades that closed in THIS heartbeat for external flow detection
   let closedTradesPnL = 0;
 
-  if (data.openTrades.length > 0) {
-    for (const trade of data.openTrades) {
-      // Fetch existing record before upsert for change detection
-      const existing = await db.mtTrade.findUnique({
-        where: { mtAccountId_ticket: { mtAccountId: account.id, ticket: trade.ticket } },
-      });
+  // ─── Upsert open trades from heartbeat ───
+  for (const trade of data.openTrades) {
+    // Fetch existing record before upsert for change detection
+    const existing = await db.mtTrade.findUnique({
+      where: { mtAccountId_ticket: { mtAccountId: account.id, ticket: trade.ticket } },
+    });
 
-      const mtTrade = await upsertMtTrade(account.id, trade);
+    const mtTrade = await upsertMtTrade(account.id, trade);
 
-      if (!existing) {
-        // New trade detected via heartbeat — create signal card
-        autoCreateSignalFromMtTrade(mtTrade, account.userId).catch((err) =>
-          log("ea.auto_signal_error", "ERROR", "EA", { error: String(err), ticket: String(trade.ticket) }, account.userId)
+    if (!existing) {
+      // New trade detected via heartbeat — create signal card
+      autoCreateSignalFromMtTrade(mtTrade, account.userId).catch((err) =>
+        log("ea.auto_signal_error", "ERROR", "EA", { error: String(err), ticket: String(trade.ticket) }, account.userId)
+      );
+    } else if (existing.matchedTradeId) {
+      // Existing linked trade — check for SL/TP changes
+      const slChanged = (trade.stopLoss ?? 0) !== (existing.stopLoss ?? 0);
+      const tpChanged = (trade.takeProfit ?? 0) !== (existing.takeProfit ?? 0);
+      if (slChanged || tpChanged) {
+        syncSignalModification(mtTrade, account.userId).catch((err) =>
+          log("ea.sync_modification_error", "ERROR", "EA", { error: String(err), ticket: String(trade.ticket) }, account.userId)
         );
-      } else if (existing.matchedTradeId) {
-        // Existing linked trade — check for SL/TP changes
-        const slChanged = (trade.stopLoss ?? 0) !== (existing.stopLoss ?? 0);
-        const tpChanged = (trade.takeProfit ?? 0) !== (existing.takeProfit ?? 0);
-        if (slChanged || tpChanged) {
-          syncSignalModification(mtTrade, account.userId).catch((err) =>
-            log("ea.sync_modification_error", "ERROR", "EA", { error: String(err), ticket: String(trade.ticket) }, account.userId)
-          );
-        }
-
-        // Collect for R:R broadcast
-        if (trade.currentPrice && trade.currentPrice > 0) {
-          const mtProfit = (trade.profit ?? 0) + (trade.commission ?? 0) + (trade.swap ?? 0);
-          linkedTrades.push({ matchedTradeId: existing.matchedTradeId, currentPrice: trade.currentPrice, mtProfit });
-        }
-      } else if (mtTrade.matchedTradeId && trade.currentPrice && trade.currentPrice > 0) {
-        // Newly linked trade (from autoCreate earlier in this heartbeat won't have matchedTradeId yet,
-        // but trades linked from previous heartbeats will)
-        const mtProfit = (trade.profit ?? 0) + (trade.commission ?? 0) + (trade.swap ?? 0);
-        linkedTrades.push({ matchedTradeId: mtTrade.matchedTradeId, currentPrice: trade.currentPrice, mtProfit });
       }
-    }
 
-    // Close trades not in the heartbeat's open list
+      // Collect for R:R broadcast
+      if (trade.currentPrice && trade.currentPrice > 0) {
+        const mtProfit = (trade.profit ?? 0) + (trade.commission ?? 0) + (trade.swap ?? 0);
+        linkedTrades.push({ matchedTradeId: existing.matchedTradeId, currentPrice: trade.currentPrice, mtProfit });
+      }
+    } else if (mtTrade.matchedTradeId && trade.currentPrice && trade.currentPrice > 0) {
+      // Newly linked trade (from autoCreate earlier in this heartbeat won't have matchedTradeId yet,
+      // but trades linked from previous heartbeats will)
+      const mtProfit = (trade.profit ?? 0) + (trade.commission ?? 0) + (trade.swap ?? 0);
+      linkedTrades.push({ matchedTradeId: mtTrade.matchedTradeId, currentPrice: trade.currentPrice, mtProfit });
+    }
+  }
+
+  // ─── Close trades not in the heartbeat's open list ───
+  // IMPORTANT: Must run even when openTrades is empty (all trades closed at once),
+  // otherwise closedTradesPnL stays 0 and realized profit is misclassified as a deposit,
+  // causing the equity chart to show a false drop.
+  {
     const openTickets = new Set(data.openTrades.map((t) => BigInt(t.ticket)));
     const dbOpenTrades = await db.mtTrade.findMany({
       where: { mtAccountId: account.id, isOpen: true },
@@ -417,18 +422,21 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
           // Annotate with external flow for chart adjustment
           externalFlowSigned: detectedExternalFlow,
           isBalanceEventBoundary: detectedExternalFlow !== 0,
+          snapshotSource: "EA",
+          estimateQuality: "REAL",
+          chartEligible: true,
         },
       }).catch(() => {});
     }
   }
 
   // Write prices through source-aware price pool (all cache layers)
+  const priceSymbolsSeen = new Set<string>();
   if (data.openTrades.length > 0) {
-    const seen = new Set<string>();
     for (const trade of data.openTrades) {
       const sym = trade.symbol?.toUpperCase();
-      if (sym && trade.currentPrice && trade.currentPrice > 0 && !seen.has(sym)) {
-        seen.add(sym);
+      if (sym && trade.currentPrice && trade.currentPrice > 0 && !priceSymbolsSeen.has(sym)) {
+        priceSymbolsSeen.add(sym);
         writeHeartbeatPrice({
           symbol: sym,
           currentPrice: trade.currentPrice,
@@ -438,6 +446,30 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
           serverName: account.serverName,
           platform: account.platform,
         }).catch(() => {});
+      }
+    }
+  }
+
+  // Write market prices from EA's Market Watch (symbols not already covered by open trades)
+  if (data.marketPrices && data.marketPrices.length > 0) {
+    for (const mp of data.marketPrices) {
+      const sym = mp.symbol.toUpperCase();
+      if (priceSymbolsSeen.has(sym)) continue; // Open trade price is fresher
+      priceSymbolsSeen.add(sym);
+      writeHeartbeatPrice({
+        symbol: sym,
+        currentPrice: mp.bid,
+        accountId: account.id,
+        ticket: "market",
+        broker: account.broker,
+        serverName: account.serverName,
+        platform: account.platform,
+      }).catch(() => {});
+
+      // Use EA's M1 candle high/low for alert tracking (more accurate than bid-only)
+      if (mp.high != null && mp.low != null) {
+        updateAlertHighLow(sym, mp.high);
+        updateAlertHighLow(sym, mp.low);
       }
     }
   }
@@ -481,7 +513,40 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
   // Fetch pending actions for this account (EA will execute them)
   const pendingActions = await fetchPendingActionsForAccount(account.id);
 
-  return { ok: true, pendingActions };
+  // Compute watchSymbols: symbols with open trades across ALL users that need fresh prices
+  const watchSymbols = await getWatchSymbols(priceSymbolsSeen);
+
+  return { ok: true, pendingActions, watchSymbols };
+}
+
+/**
+ * Compute symbols that need fresh prices for fallback estimation.
+ * Returns symbols with open MT trades across ALL users that this EA
+ * doesn't already cover via its own open trades.
+ * Cached in Redis for 60s to avoid per-heartbeat DB queries.
+ */
+async function getWatchSymbols(alreadyCovered: Set<string>): Promise<string[]> {
+  const cacheKey = "watch-symbols";
+  try {
+    let allSymbols: string[];
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      allSymbols = JSON.parse(cached);
+    } else {
+      // Get distinct symbols from all open MT trades across all users
+      const rows = await db.mtTrade.findMany({
+        where: { isOpen: true },
+        select: { symbol: true },
+        distinct: ["symbol"],
+      });
+      allSymbols = rows.map((r) => r.symbol); // Keep original case — MT symbol names are case-sensitive
+      await redis.set(cacheKey, JSON.stringify(allSymbols), "EX", 60);
+    }
+    // Only request symbols this EA doesn't already provide via open trades
+    return allSymbols.filter((s) => !alreadyCovered.has(s.toUpperCase()));
+  } catch {
+    return [];
+  }
 }
 
 export async function syncTradeHistory(apiKey: string, trades: MtTradeInput[]) {
@@ -651,15 +716,13 @@ async function broadcastTradePnl(
     if (!currentPrice) continue;
 
     const card = trade.tradeCard;
-    const entry = trade.initialEntry ?? card.entry;
-    // Prefer initialRiskAbs, fall back to card entry/SL (only if SL is set)
-    const riskDistance = (trade.initialRiskAbs && trade.initialRiskAbs > 0)
-      ? trade.initialRiskAbs
-      : (card.stopLoss > 0 ? Math.abs(entry - card.stopLoss) : 0);
+    const entry = getFrozenEntry(trade, card.entry);
+    const riskDistance = getFrozenRiskAbs(trade, card.entry, card.stopLoss);
 
     const dir = card.direction === "LONG" ? 1 : -1;
     const pricePnl = dir * (currentPrice - entry);
-    const currentRR = riskDistance > 0
+    const isUnprotected = trade.riskStatus === "UNPROTECTED";
+    const currentRR = (!isUnprotected && riskDistance > 0)
       ? Math.round(((dir * (currentPrice - entry)) / riskDistance) * 100) / 100
       : null;
 
@@ -673,7 +736,7 @@ async function broadcastTradePnl(
       messageId: card.message.id,
       currentRR,
       currentPrice,
-      targetRR: riskDistance > 0 ? calculateTargetRR(card.targets[0], entry, riskDistance) : null,
+      targetRR: (!isUnprotected && riskDistance > 0) ? calculateTargetRR(card.targets[0], entry, riskDistance) : null,
       riskStatus: trade.riskStatus,
       pricePnl,
       mtProfit: mtProfit != null ? Math.round(mtProfit * 100) / 100 : undefined,
@@ -783,14 +846,13 @@ async function broadcastUnlinkedTradePnl(
     const currentPrice = priceMap.get(instrument);
     if (!currentPrice) continue;
 
-    const entry = trade.initialEntry ?? card.entry;
-    const riskDistance = (trade.initialRiskAbs && trade.initialRiskAbs > 0)
-      ? trade.initialRiskAbs
-      : (card.stopLoss > 0 ? Math.abs(entry - card.stopLoss) : 0);
+    const entry = getFrozenEntry(trade, card.entry);
+    const riskDistance = getFrozenRiskAbs(trade, card.entry, card.stopLoss);
 
     const dir = card.direction === "LONG" ? 1 : -1;
     const pricePnl = dir * (currentPrice - entry);
-    const currentRR = riskDistance > 0
+    const isUnprotected = trade.riskStatus === "UNPROTECTED";
+    const currentRR = (!isUnprotected && riskDistance > 0)
       ? Math.round(((dir * (currentPrice - entry)) / riskDistance) * 100) / 100
       : null;
 
@@ -802,7 +864,7 @@ async function broadcastUnlinkedTradePnl(
       messageId: card.message.id,
       currentRR,
       currentPrice,
-      targetRR: riskDistance > 0 ? calculateTargetRR(card.targets[0], entry, riskDistance) : null,
+      targetRR: (!isUnprotected && riskDistance > 0) ? calculateTargetRR(card.targets[0], entry, riskDistance) : null,
       riskStatus: trade.riskStatus,
       pricePnl,
       clanId,

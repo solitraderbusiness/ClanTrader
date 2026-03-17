@@ -647,7 +647,7 @@ function V2Content({
   // Equity curve stats — override "current" values with live data from cockpit
   const equityCurveData = useMemo(() => data.equityCurve ?? [], [data.equityCurve]);
   const equityCurveStats = useMemo(() => {
-    const snapshotStats = computeEquityCurveStats(equityCurveData);
+    const snapshotStats = computeEquityCurveStats(equityCurveData, data.anchorBalance);
     if (!snapshotStats || balance === null || c.totalFloatingPnl === null) return snapshotStats;
 
     // Sum cumulative external flows from the period to adjust live values
@@ -680,7 +680,7 @@ function V2Content({
         ? (liveEqChange / snapshotStats.baselineBalance) * 100
         : snapshotStats.lowEquityChangePct,
     };
-  }, [equityCurveData, balance, c.totalFloatingPnl]);
+  }, [equityCurveData, balance, c.totalFloatingPnl, data.anchorBalance]);
 
   // Context line: "5 positions · 250 lots UKBRENT LONG · 5 unprotected"
   const unprotectedCount = allPositions.filter(
@@ -720,7 +720,7 @@ function V2Content({
       )}
 
       {/* ═══ SECTION 3: EQUITY & BALANCE CURVE ═══ */}
-      <EquityCurveCard data={equityCurveData} stats={equityCurveStats} t={t} />
+      <EquityCurveCard data={equityCurveData} stats={equityCurveStats} t={t} anchorBalance={data.anchorBalance} />
 
       {/* ═══ SECTION 4: PRICE LADDER ═══ */}
       {priceLadders.length > 0 && (
@@ -1339,14 +1339,16 @@ function EquityCurveCard({
   data,
   stats,
   t,
+  anchorBalance,
 }: {
   data: EquityDataPoint[];
   stats: NormalizedEquityStats | null;
   t: (key: string, params?: Record<string, string | number>) => string;
+  anchorBalance?: number;
 }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const svgNodeRef = useRef<SVGSVGElement | null>(null);
-  const normalized = useMemo(() => normalizeEquityData(data), [data]);
+  const normalized = useMemo(() => normalizeEquityData(data, anchorBalance), [data, anchorBalance]);
 
   const findNearest = useCallback((clientX: number) => {
     const svg = svgNodeRef.current;
@@ -1403,11 +1405,17 @@ function EquityCurveCard({
   const hasEstimated = normalized.some((d) => d.isEstimated);
 
   // Build equity path segments (solid for real, dashed for estimated)
+  // Also detect time gaps (blind periods where no data was available)
+  const GAP_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes — expected cadence is 5min
+
   type PathSeg = { d: string; estimated: boolean };
   const equitySegments: PathSeg[] = [];
   const balanceSegments: PathSeg[] = [];
+  // Fill segments — one per continuous segment for gap-aware fill
+  const fillSegments: string[] = [];
   let eqSeg = "";
   let balSeg = "";
+  let fillSeg = "";
   let curEstimated = normalized[0].isEstimated ?? false;
   for (let i = 0; i < normalized.length; i++) {
     const pt = normalized[i];
@@ -1415,33 +1423,50 @@ function EquityCurveCard({
     const eqY = sy(pt.equityChange).toFixed(1);
     const balY = sy(pt.balanceChange).toFixed(1);
     const est = pt.isEstimated ?? false;
+
+    // Detect time gap from previous point (blind period)
+    const hasGap = i > 0 &&
+      (new Date(pt.timestamp).getTime() - new Date(normalized[i - 1].timestamp).getTime()) > GAP_THRESHOLD_MS;
+
     if (i === 0) {
       eqSeg = `M${ex},${eqY}`;
       balSeg = `M${ex},${balY}`;
+      fillSeg = `M${ex},${eqY}`;
       curEstimated = est;
-    } else if (est !== curEstimated) {
-      // Close current segment (include this point as end)
-      eqSeg += ` L${ex},${eqY}`;
-      balSeg += ` L${ex},${balY}`;
+    } else if (est !== curEstimated || hasGap) {
+      // Break segment on: estimated transition OR time gap
+      if (!hasGap) {
+        // Include this point as end of previous segment (smooth transition)
+        eqSeg += ` L${ex},${eqY}`;
+        balSeg += ` L${ex},${balY}`;
+        fillSeg += ` L${ex},${eqY}`;
+      }
       equitySegments.push({ d: eqSeg, estimated: curEstimated });
       balanceSegments.push({ d: balSeg, estimated: curEstimated });
+      // Close fill segment back to zero line
+      const prevPt = normalized[hasGap ? i - 1 : i];
+      const prevEx = hasGap ? sx(prevPt.timestamp).toFixed(1) : ex;
+      const firstFillMatch = fillSeg.match(/^M([^,]+)/);
+      const firstFillX = firstFillMatch ? firstFillMatch[1] : prevEx;
+      fillSegments.push(fillSeg + ` L${prevEx},${zeroY.toFixed(1)} L${firstFillX},${zeroY.toFixed(1)} Z`);
       // Start new segment from this point
       eqSeg = `M${ex},${eqY}`;
       balSeg = `M${ex},${balY}`;
+      fillSeg = `M${ex},${eqY}`;
       curEstimated = est;
     } else {
       eqSeg += ` L${ex},${eqY}`;
       balSeg += ` L${ex},${balY}`;
+      fillSeg += ` L${ex},${eqY}`;
     }
   }
   equitySegments.push({ d: eqSeg, estimated: curEstimated });
   balanceSegments.push({ d: balSeg, estimated: curEstimated });
-
-  // Full equity path for fill area
-  const fullEquityPath = normalized.map((d, i) => `${i === 0 ? "M" : "L"}${sx(d.timestamp).toFixed(1)},${sy(d.equityChange).toFixed(1)}`).join(" ");
-
-  // Fill between equity and zero line
-  const fillAbove = fullEquityPath + ` L${sx(normalized[normalized.length - 1].timestamp).toFixed(1)},${zeroY.toFixed(1)} L${sx(normalized[0].timestamp).toFixed(1)},${zeroY.toFixed(1)} Z`;
+  // Close final fill segment
+  const lastEx = sx(normalized[normalized.length - 1].timestamp).toFixed(1);
+  const firstFillMatch = fillSeg.match(/^M([^,]+)/);
+  const firstFillX = firstFillMatch ? firstFillMatch[1] : lastEx;
+  fillSegments.push(fillSeg + ` L${lastEx},${zeroY.toFixed(1)} L${firstFillX},${zeroY.toFixed(1)} Z`);
 
   const isAbove = stats ? stats.currentEquityChange >= 0 : true;
   const lineColor = isAbove ? "#22c55e" : "#ef4444";
@@ -1590,8 +1615,10 @@ function EquityCurveCard({
             </g>
           )}
 
-          {/* Fill between equity and zero */}
-          <path d={fillAbove} fill={fillColor} />
+          {/* Fill between equity and zero (gap-aware: one path per continuous segment) */}
+          {fillSegments.map((d, i) => (
+            <path key={`fill-${i}`} d={d} fill={fillColor} />
+          ))}
 
           {/* Balance line segments (muted, behind) */}
           {balanceSegments.map((seg, i) => (

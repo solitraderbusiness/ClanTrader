@@ -81,13 +81,27 @@ export async function createJoinRequest(
     );
   }
 
-  return db.clanJoinRequest.create({
+  const joinReq = await db.clanJoinRequest.create({
     data: {
       clanId,
       userId,
       message: message || null,
     },
   });
+
+  // Notify clan leader(s) about new join request
+  const requester = await db.user.findUnique({ where: { id: userId }, select: { name: true } });
+  const leaders = await db.clanMember.findMany({
+    where: { clanId, role: { in: ["LEADER", "CO_LEADER"] } },
+    select: { userId: true },
+  });
+  for (const leader of leaders) {
+    import("@/services/notification-triggers").then(({ notifyClanJoinRequest }) =>
+      notifyClanJoinRequest(leader.userId, requester?.name ?? "Someone", clan.name).catch(() => {})
+    );
+  }
+
+  return joinReq;
 }
 
 export async function getClanJoinRequests(clanId: string, reviewerId: string) {
@@ -156,10 +170,14 @@ export async function reviewJoinRequest(
     );
   }
 
+  // Get clan name for notification copy
+  const clan = await db.clan.findUnique({ where: { id: request.clanId }, select: { name: true } });
+  const clanName = clan?.name ?? "the clan";
+
   if (action === "APPROVED") {
     // Approve: update request + add member in a transaction
-    return db.$transaction(async (tx) => {
-      const updated = await tx.clanJoinRequest.update({
+    const updated = await db.$transaction(async (tx) => {
+      const u = await tx.clanJoinRequest.update({
         where: { id: requestId },
         data: {
           status: "APPROVED",
@@ -170,12 +188,25 @@ export async function reviewJoinRequest(
 
       await addMember(request.clanId, request.userId, tx);
 
-      return updated;
+      return u;
     });
+
+    // Notify the requester
+    import("@/services/notification-triggers").then(({ notifyClanJoinApproved }) =>
+      notifyClanJoinApproved(request.userId, clanName).catch(() => {})
+    );
+
+    // Notify leader that member joined
+    const member = await db.user.findUnique({ where: { id: request.userId }, select: { name: true } });
+    import("@/services/notification-triggers").then(({ notifyClanMemberJoined }) =>
+      notifyClanMemberJoined(reviewerId, member?.name ?? "A new member", clanName).catch(() => {})
+    );
+
+    return updated;
   }
 
   // Reject
-  return db.clanJoinRequest.update({
+  const rejected = await db.clanJoinRequest.update({
     where: { id: requestId },
     data: {
       status: "REJECTED",
@@ -184,6 +215,13 @@ export async function reviewJoinRequest(
       rejectReason: rejectReason || null,
     },
   });
+
+  // Notify the requester
+  import("@/services/notification-triggers").then(({ notifyClanJoinRejected }) =>
+    notifyClanJoinRejected(request.userId, clanName).catch(() => {})
+  );
+
+  return rejected;
 }
 
 export async function getUserJoinRequestStatus(clanId: string, userId: string) {

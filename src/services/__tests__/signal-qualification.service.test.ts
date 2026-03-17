@@ -32,6 +32,7 @@ vi.mock("@/services/integrity.service", () => ({
 import {
   computeQualificationDeadline,
   qualifyTrade,
+  reQualifyTrade,
   computeRiskMoney,
   expireUnqualifiedTrades,
 } from "@/services/signal-qualification.service";
@@ -313,6 +314,183 @@ describe("qualifyTrade", () => {
 
     // entry == sl → riskAbs == 0 → rejected
     const result = await qualifyTrade("trade-1", 1.1, 1.12, 1.1, "AT_OPEN");
+
+    expect(result).toBe(false);
+    expect(mockTradeUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// reQualifyTrade
+// ---------------------------------------------------------------------------
+
+function makeQualifiedTrade(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "trade-1",
+    officialSignalQualified: true,
+    qualificationDeadline: new Date(Date.now() + 60_000), // 1 min in future
+    officialEntryPrice: 1.1,
+    officialInitialStopLoss: 1.09,
+    officialInitialTargets: [1.11],
+    officialInitialRiskAbs: 0.01,
+    officialInitialRiskMoney: null,
+    initialEntry: 1.1,
+    ...overrides,
+  };
+}
+
+describe("reQualifyTrade", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTradeUpdate.mockResolvedValue({});
+  });
+
+  it("re-freezes snapshot when SL changes within 20s window", async () => {
+    mockTradeFindUnique.mockResolvedValue(makeQualifiedTrade());
+
+    const result = await reQualifyTrade("trade-1", 1.095, 1.11);
+
+    expect(result).toBe(true);
+    expect(mockTradeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "trade-1" },
+        data: expect.objectContaining({
+          officialInitialStopLoss: 1.095,
+          officialInitialTargets: [1.11],
+          officialInitialRiskAbs: expect.closeTo(0.005, 8), // |1.1 - 1.095|
+          officialSignalOriginType: "WITHIN_WINDOW",
+        }),
+      })
+    );
+  });
+
+  it("re-freezes snapshot when TP changes within window", async () => {
+    mockTradeFindUnique.mockResolvedValue(makeQualifiedTrade());
+
+    const result = await reQualifyTrade("trade-1", 1.09, 1.12);
+
+    expect(result).toBe(true);
+    expect(mockTradeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          officialInitialTargets: [1.12],
+          officialInitialRiskAbs: expect.closeTo(0.01, 8), // SL unchanged
+        }),
+      })
+    );
+  });
+
+  it("rejects when past qualification deadline", async () => {
+    mockTradeFindUnique.mockResolvedValue(
+      makeQualifiedTrade({
+        qualificationDeadline: new Date(Date.now() - 5_000), // 5s ago
+      })
+    );
+
+    const result = await reQualifyTrade("trade-1", 1.095, 1.11);
+
+    expect(result).toBe(false);
+    expect(mockTradeUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects for non-qualified trades", async () => {
+    mockTradeFindUnique.mockResolvedValue(
+      makeQualifiedTrade({ officialSignalQualified: false })
+    );
+
+    const result = await reQualifyTrade("trade-1", 1.095, 1.11);
+
+    expect(result).toBe(false);
+    expect(mockTradeUpdate).not.toHaveBeenCalled();
+  });
+
+  it("is a no-op when SL/TP hasn't changed", async () => {
+    mockTradeFindUnique.mockResolvedValue(makeQualifiedTrade());
+
+    // Same SL and TP as existing snapshot
+    const result = await reQualifyTrade("trade-1", 1.09, 1.11);
+
+    expect(result).toBe(true); // success but no-op
+    expect(mockTradeUpdate).not.toHaveBeenCalled();
+  });
+
+  it("does NOT change officialEntryPrice", async () => {
+    mockTradeFindUnique.mockResolvedValue(makeQualifiedTrade());
+
+    await reQualifyTrade("trade-1", 1.095, 1.12);
+
+    const updateCall = mockTradeUpdate.mock.calls[0][0];
+    // officialEntryPrice should not be in the update data
+    expect(updateCall.data).not.toHaveProperty("officialEntryPrice");
+  });
+
+  it("switches officialSignalOriginType to WITHIN_WINDOW on re-freeze", async () => {
+    mockTradeFindUnique.mockResolvedValue(makeQualifiedTrade());
+
+    await reQualifyTrade("trade-1", 1.095, 1.12);
+
+    expect(mockTradeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          officialSignalOriginType: "WITHIN_WINDOW",
+        }),
+      })
+    );
+  });
+
+  it("uses officialEntryPrice for risk calculation (not tradeCard.entry)", async () => {
+    // officialEntryPrice differs from what tradeCard.entry might be
+    mockTradeFindUnique.mockResolvedValue(
+      makeQualifiedTrade({
+        officialEntryPrice: 1.1005, // actual fill price
+        initialEntry: 1.1,
+      })
+    );
+
+    await reQualifyTrade("trade-1", 1.095, 1.12);
+
+    expect(mockTradeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          // |1.1005 - 1.095| = 0.0055
+          officialInitialRiskAbs: expect.closeTo(0.0055, 8),
+        }),
+      })
+    );
+  });
+
+  it("falls back to initialEntry when officialEntryPrice is null", async () => {
+    mockTradeFindUnique.mockResolvedValue(
+      makeQualifiedTrade({
+        officialEntryPrice: null,
+        initialEntry: 1.1,
+      })
+    );
+
+    await reQualifyTrade("trade-1", 1.095, 1.12);
+
+    expect(mockTradeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          // |1.1 - 1.095| = 0.005
+          officialInitialRiskAbs: expect.closeTo(0.005, 8),
+        }),
+      })
+    );
+  });
+
+  it("rejects when trade not found", async () => {
+    mockTradeFindUnique.mockResolvedValue(null);
+
+    const result = await reQualifyTrade("nonexistent", 1.095, 1.11);
+
+    expect(result).toBe(false);
+  });
+
+  it("rejects when SL is zero", async () => {
+    mockTradeFindUnique.mockResolvedValue(makeQualifiedTrade());
+
+    const result = await reQualifyTrade("trade-1", 0, 1.11);
 
     expect(result).toBe(false);
     expect(mockTradeUpdate).not.toHaveBeenCalled();

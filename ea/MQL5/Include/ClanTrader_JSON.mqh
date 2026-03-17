@@ -86,7 +86,7 @@ string JsonGetValue(string json, string key) {
 
 //--- JSON array splitter ---
 
-int SplitJsonArray(string jsonArray, string &items[], int maxItems = 20) {
+int SplitJsonArray(string jsonArray, string &items[], int maxItems = 100) {
    ArrayResize(items, 0);
    int len = StringLen(jsonArray);
    if (len < 2) return 0;

@@ -142,6 +142,16 @@ export async function calculateRankings(seasonId: string) {
     lensScores[lens] = scored;
   }
 
+  // Get old ranks for change detection (composite lens only to avoid spam)
+  const oldRanks = new Map<string, number>();
+  const oldCompositeEntries = await db.leaderboardEntry.findMany({
+    where: { seasonId, entityType: "TRADER", lens: "composite" },
+    select: { entityId: true, rank: true },
+  });
+  for (const e of oldCompositeEntries) {
+    if (e.rank != null) oldRanks.set(e.entityId, e.rank);
+  }
+
   // Upsert leaderboard entries
   const entries = [];
   for (const lens of config.lenses) {
@@ -182,6 +192,20 @@ export async function calculateRankings(seasonId: string) {
       });
 
       entries.push(result);
+    }
+  }
+
+  // Fire-and-forget rank change notifications (composite lens only)
+  const compositeScored = lensScores["composite"];
+  if (compositeScored) {
+    for (let i = 0; i < compositeScored.length; i++) {
+      const userId = compositeScored[i].userId;
+      const newRank = i + 1;
+      const oldRank = oldRanks.get(userId) ?? null;
+
+      import("@/services/notification-triggers").then(({ notifyRankChange }) =>
+        notifyRankChange(userId, oldRank, newRank, "composite").catch(() => {})
+      );
     }
   }
 

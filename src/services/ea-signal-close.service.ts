@@ -7,7 +7,7 @@ import { computeAndSetEligibility } from "@/services/integrity.service";
 import { evaluateUserBadges } from "@/services/badge-engine.service";
 import { generateStatementFromMtAccount } from "@/services/mt-statement.service";
 import { calculateStatement } from "@/services/statement-calc.service";
-import { serializeMessageForSocket, topicRoom, CLOSE_TOLERANCE_PIPS } from "./ea-signal-helpers";
+import { serializeMessageForSocket, messageInclude, topicRoom, clanRoom, CLOSE_TOLERANCE_PIPS } from "./ea-signal-helpers";
 import type { MtTrade } from "@prisma/client";
 
 export async function syncSignalClose(
@@ -35,15 +35,17 @@ export async function syncSignalClose(
       if (!newClosePrice || newClosePrice === trade.closePrice) return;
       // We have a better close price — update the trade with correct data
       const tradeCard = trade.tradeCard;
-      const initialEntry = trade.initialEntry ?? tradeCard.entry;
+      const effectiveEntry = trade.officialEntryPrice ?? trade.initialEntry ?? tradeCard.entry;
       const sl = tradeCard.stopLoss;
-      const riskAbs = (trade.initialRiskAbs && trade.initialRiskAbs > 0)
-        ? trade.initialRiskAbs
-        : Math.abs(initialEntry - sl);
+      const effectiveRiskAbs = (trade.officialInitialRiskAbs && trade.officialInitialRiskAbs > 0)
+        ? trade.officialInitialRiskAbs
+        : (trade.initialRiskAbs && trade.initialRiskAbs > 0)
+          ? trade.initialRiskAbs
+          : Math.abs(effectiveEntry - sl);
       let finalRR: number | null = null;
-      if (riskAbs > 0) {
+      if (effectiveRiskAbs > 0) {
         const dir = tradeCard.direction === "LONG" ? 1 : -1;
-        finalRR = Math.round((dir * (newClosePrice - initialEntry)) / riskAbs * 100) / 100;
+        finalRR = Math.round((dir * (newClosePrice - effectiveEntry)) / effectiveRiskAbs * 100) / 100;
       }
       const netProfit = (mtTrade.profit ?? 0) + (mtTrade.commission ?? 0) + (mtTrade.swap ?? 0);
       const instrument = tradeCard.instrument;
@@ -54,7 +56,7 @@ export async function syncSignalClose(
         outcome = "TP_HIT";
       } else if (sl > 0 && pipDistance(instrument, newClosePrice, sl) <= CLOSE_TOLERANCE_PIPS) {
         outcome = "SL_HIT";
-      } else if (pipDistance(instrument, newClosePrice, initialEntry) <= CLOSE_TOLERANCE_PIPS) {
+      } else if (pipDistance(instrument, newClosePrice, effectiveEntry) <= CLOSE_TOLERANCE_PIPS) {
         outcome = "BE";
       }
 
@@ -64,8 +66,64 @@ export async function syncSignalClose(
       });
       await computeAndSetEligibility(trade.id);
 
+      // Update the original close system message so card and message converge
+      const { clanId, topicId } = tradeCard.message;
+      const replyToId = tradeCard.message.id;
+      const rrText = finalRR != null ? ` | ${finalRR > 0 ? "+" : ""}${finalRR}R` : "";
+      const originalCloseMsg = await db.message.findFirst({
+        where: {
+          replyToId,
+          type: "TRADE_ACTION",
+          content: { startsWith: "Trade closed at" },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      });
+      if (originalCloseMsg) {
+        await db.message.update({
+          where: { id: originalCloseMsg.id },
+          data: {
+            content: `Trade closed at ${newClosePrice} → ${outcome}${rrText}`,
+            isEdited: true,
+          },
+        });
+      }
+
+      // Broadcast correction so connected clients update in real-time
+      const io = getIO();
+      if (io && topicId) {
+        const tradePayload = {
+          id: trade.id, status: outcome, userId: trade.userId,
+          finalRR, netProfit: Math.round(netProfit * 100) / 100, closePrice: newClosePrice,
+        };
+        io.to(topicRoom(clanId, topicId)).emit(SOCKET_EVENTS.TRADE_STATUS_UPDATED, {
+          tradeId: trade.id,
+          messageId: replyToId,
+          status: outcome,
+          trade: tradePayload,
+        });
+        io.to(`clan:${clanId}`).emit(SOCKET_EVENTS.TRADE_STATUS_UPDATED, {
+          tradeId: trade.id,
+          messageId: replyToId,
+          status: outcome,
+          trade: tradePayload,
+        });
+
+        // Broadcast edited message so chat text updates
+        if (originalCloseMsg) {
+          const updatedMsg = await db.message.findUnique({
+            where: { id: originalCloseMsg.id },
+            include: messageInclude,
+          });
+          if (updatedMsg) {
+            const editSerialized = serializeMessageForSocket(updatedMsg, clanId);
+            io.to(topicRoom(clanId, topicId)).emit(SOCKET_EVENTS.MESSAGE_EDITED, editSerialized);
+            io.to(clanRoom(clanId)).emit(SOCKET_EVENTS.MESSAGE_EDITED, editSerialized);
+          }
+        }
+      }
+
       // Recalculate statement with corrected data
-      const { clanId } = tradeCard.message;
       const now = new Date();
       const periodKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
       calculateStatement(userId, clanId, "MONTHLY", periodKey).catch(() => {});
@@ -95,15 +153,17 @@ export async function syncSignalClose(
       outcome = "BE";
     }
 
-    // Compute final R:R — prefer initialRiskAbs, fall back to card entry/SL
-    const initialEntry = trade.initialEntry ?? entry;
-    const riskAbs = (trade.initialRiskAbs && trade.initialRiskAbs > 0)
-      ? trade.initialRiskAbs
-      : Math.abs(initialEntry - sl);
+    // Compute final R:R — prefer official frozen snapshot, fall back to initial fields
+    const effectiveEntry = trade.officialEntryPrice ?? trade.initialEntry ?? entry;
+    const effectiveRiskAbs = (trade.officialInitialRiskAbs && trade.officialInitialRiskAbs > 0)
+      ? trade.officialInitialRiskAbs
+      : (trade.initialRiskAbs && trade.initialRiskAbs > 0)
+        ? trade.initialRiskAbs
+        : Math.abs(effectiveEntry - sl);
     let finalRR: number | null = null;
-    if (riskAbs > 0) {
+    if (effectiveRiskAbs > 0) {
       const dir = tradeCard.direction === "LONG" ? 1 : -1;
-      finalRR = Math.round((dir * (closePrice - initialEntry)) / riskAbs * 100) / 100;
+      finalRR = Math.round((dir * (closePrice - effectiveEntry)) / effectiveRiskAbs * 100) / 100;
     }
 
     // Net P&L = profit + commission + swap (MT reports commission/swap as negatives)
@@ -174,7 +234,7 @@ export async function syncSignalClose(
         },
         tradeCard: {
           include: {
-            trade: { select: { id: true, status: true, userId: true, mtLinked: true, riskStatus: true, initialRiskAbs: true, initialEntry: true } },
+            trade: { select: { id: true, status: true, userId: true, mtLinked: true, riskStatus: true, initialRiskAbs: true, initialEntry: true, officialEntryPrice: true, officialInitialRiskAbs: true, officialInitialTargets: true } },
           },
         },
       },
@@ -182,29 +242,27 @@ export async function syncSignalClose(
 
     // Broadcast
     const io = getIO();
-    if (io && topicId) {
-      io.to(topicRoom(clanId, topicId)).emit(
-        SOCKET_EVENTS.RECEIVE_MESSAGE,
-        serializeMessageForSocket(systemMsg, clanId)
-      );
+    if (io) {
+      const serialized = serializeMessageForSocket(systemMsg, clanId);
+      if (topicId) {
+        io.to(topicRoom(clanId, topicId)).emit(SOCKET_EVENTS.RECEIVE_MESSAGE, serialized);
+      }
+      io.to(clanRoom(clanId)).emit(SOCKET_EVENTS.RECEIVE_MESSAGE, serialized);
 
       const tradePayload = {
         id: trade.id, status: outcome, userId: trade.userId,
         finalRR, netProfit: Math.round(netProfit * 100) / 100, closePrice,
       };
-      io.to(topicRoom(clanId, topicId)).emit(SOCKET_EVENTS.TRADE_STATUS_UPDATED, {
+      const statusData = {
         tradeId: trade.id,
         messageId: tradeCard.message.id,
         status: outcome,
         trade: tradePayload,
-      });
-      // Also emit to clan room for subscribers outside the topic (e.g. statements page)
-      io.to(`clan:${clanId}`).emit(SOCKET_EVENTS.TRADE_STATUS_UPDATED, {
-        tradeId: trade.id,
-        messageId: tradeCard.message.id,
-        status: outcome,
-        trade: tradePayload,
-      });
+      };
+      if (topicId) {
+        io.to(topicRoom(clanId, topicId)).emit(SOCKET_EVENTS.TRADE_STATUS_UPDATED, statusData);
+      }
+      io.to(clanRoom(clanId)).emit(SOCKET_EVENTS.TRADE_STATUS_UPDATED, statusData);
     }
 
     // Fire-and-forget: badges + statement generation
@@ -230,6 +288,11 @@ export async function syncSignalClose(
     );
     calculateStatement(userId, clanId, "ALL_TIME", "all-time").catch((err) =>
       log("ea_signal.statement_calc_error", "ERROR", "EA", { error: String(err) }, userId)
+    );
+
+    // Fire-and-forget: user notification for trade close
+    import("@/services/notification-triggers").then(({ notifyTradeClosed }) =>
+      notifyTradeClosed(userId, tradeCard.instrument, tradeCard.direction, outcome, finalRR).catch(() => {})
     );
   } catch (err) {
     log("ea_signal.sync_close_error", "ERROR", "EA", { error: String(err), tradeId: mtTrade.matchedTradeId }, userId);

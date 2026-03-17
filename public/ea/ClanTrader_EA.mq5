@@ -1,17 +1,15 @@
 //+------------------------------------------------------------------+
 //| ClanTrader_EA.mq5 — MetaTrader 5 Expert Advisor                |
 //| Connects MT5 to ClanTrader platform                             |
-//| Single-file version — no separate includes needed               |
+//| Single-file build (all includes merged)                         |
 //+------------------------------------------------------------------+
 #property copyright "ClanTrader"
 #property link      "https://clantrader.com"
-#property version   "1.00"
+#property version   "2.10"
 
-//+==================================================================+
-//| === JSON UTILITIES ===                                           |
-//+==================================================================+
-
-//--- Simple JSON builder ---
+//====================================================================
+//  ClanTrader_JSON — Minimal JSON builder/parser
+//====================================================================
 
 string JsonStart() { return "{"; }
 string JsonEnd(string &json) {
@@ -59,8 +57,6 @@ string EscapeJson(string s) {
    return result;
 }
 
-//--- Simple JSON value extraction ---
-
 string JsonGetString(string json, string key) {
    string search = "\"" + key + "\":\"";
    int pos = StringFind(json, search);
@@ -92,9 +88,7 @@ string JsonGetValue(string json, string key) {
    return StringSubstr(json, start, end - start);
 }
 
-//--- JSON array splitter ---
-
-int SplitJsonArray(string jsonArray, string &items[], int maxItems = 20) {
+int SplitJsonArray(string jsonArray, string &items[], int maxItems = 100) {
    ArrayResize(items, 0);
    int len = StringLen(jsonArray);
    if (len < 2) return 0;
@@ -140,8 +134,6 @@ int SplitJsonArray(string jsonArray, string &items[], int maxItems = 20) {
    return count;
 }
 
-//--- DateTime conversion: MQL5 -> ISO 8601 ---
-
 string DateTimeToISO(datetime dt) {
    MqlDateTime mdt;
    TimeToStruct(dt, mdt);
@@ -149,19 +141,16 @@ string DateTimeToISO(datetime dt) {
       mdt.year, mdt.mon, mdt.day, mdt.hour, mdt.min, mdt.sec);
 }
 
-//+==================================================================+
-//| === HTTP UTILITIES ===                                           |
-//+==================================================================+
+//====================================================================
+//  ClanTrader_HTTP — WebRequest wrapper
+//====================================================================
 
-//--- Configuration ---
 string g_BaseUrl = "https://clantrader.com";
 string g_ApiKey = "";
 int    g_HttpTimeout = 10000;
 
 void SetBaseUrl(string url)   { g_BaseUrl = url; }
 void SetApiKey(string key)    { g_ApiKey = key; }
-
-//--- HTTP POST with JSON body ---
 
 int HttpPost(string endpoint, string jsonBody, string &response) {
    string url = g_BaseUrl + endpoint;
@@ -177,13 +166,7 @@ int HttpPost(string endpoint, string jsonBody, string &response) {
    ArrayResize(post, ArraySize(post) - 1);
 
    int httpCode = WebRequest(
-      "POST",
-      url,
-      headers,
-      g_HttpTimeout,
-      post,
-      result,
-      resultHeaders
+      "POST", url, headers, g_HttpTimeout, post, result, resultHeaders
    );
 
    if (httpCode == -1) {
@@ -196,8 +179,6 @@ int HttpPost(string endpoint, string jsonBody, string &response) {
    return httpCode;
 }
 
-//--- HTTP GET ---
-
 int HttpGet(string endpoint, string &response) {
    string url = g_BaseUrl + endpoint;
    string headers = "";
@@ -209,13 +190,7 @@ int HttpGet(string endpoint, string &response) {
    string resultHeaders;
 
    int httpCode = WebRequest(
-      "GET",
-      url,
-      headers,
-      g_HttpTimeout,
-      post,
-      result,
-      resultHeaders
+      "GET", url, headers, g_HttpTimeout, post, result, resultHeaders
    );
 
    if (httpCode == -1) {
@@ -228,11 +203,10 @@ int HttpGet(string endpoint, string &response) {
    return httpCode;
 }
 
-//+==================================================================+
-//| === PANEL UI ===                                                 |
-//+==================================================================+
+//====================================================================
+//  ClanTrader_Panel — Panel UI
+//====================================================================
 
-//--- Panel object names ---
 #define PANEL_BG         "CT_PanelBG"
 #define PANEL_TITLE      "CT_Title"
 #define PANEL_USER_LABEL "CT_UserLabel"
@@ -245,13 +219,11 @@ int HttpGet(string endpoint, string &response) {
 #define PANEL_STATUS     "CT_Status"
 #define PANEL_ACCT_INFO  "CT_AcctInfo"
 
-//--- Panel dimensions ---
 #define PANEL_X     20
 #define PANEL_Y     30
 #define PANEL_W     260
 #define PANEL_H     280
 
-//--- Colors ---
 #define CLR_BG      C'30,30,40'
 #define CLR_BORDER  C'60,60,80'
 #define CLR_TEXT    clrWhite
@@ -262,125 +234,15 @@ int HttpGet(string endpoint, string &response) {
 #define CLR_OK     clrLime
 #define CLR_ERR    clrRed
 
-//--- Password masking state ---
 string g_RealPassword = "";
 bool   g_PasswordVisible = false;
 
-//--- Create dot mask of given length ---
 string MakeDotMask(int len) {
    string mask = "";
-   for (int i = 0; i < len; i++)
-      mask += "*";
+   for (int i = 0; i < len; i++) mask += "*";
    return mask;
 }
 
-//--- Create the panel ---
-void PanelCreate() {
-   ObjectCreate(0, PANEL_BG, OBJ_RECTANGLE_LABEL, 0, 0, 0);
-   ObjectSetInteger(0, PANEL_BG, OBJPROP_XDISTANCE, PANEL_X);
-   ObjectSetInteger(0, PANEL_BG, OBJPROP_YDISTANCE, PANEL_Y);
-   ObjectSetInteger(0, PANEL_BG, OBJPROP_XSIZE, PANEL_W);
-   ObjectSetInteger(0, PANEL_BG, OBJPROP_YSIZE, PANEL_H);
-   ObjectSetInteger(0, PANEL_BG, OBJPROP_BGCOLOR, CLR_BG);
-   ObjectSetInteger(0, PANEL_BG, OBJPROP_BORDER_COLOR, CLR_BORDER);
-   ObjectSetInteger(0, PANEL_BG, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-
-   CreateLabel(PANEL_TITLE, PANEL_X + 10, PANEL_Y + 10, "ClanTrader EA", CLR_TEXT, 12);
-
-   CreateLabel(PANEL_USER_LABEL, PANEL_X + 10, PANEL_Y + 40, "Username / Email:", CLR_LABEL, 9);
-   CreateEdit(PANEL_USER_INPUT, PANEL_X + 10, PANEL_Y + 58, 240, 22, "");
-
-   CreateLabel(PANEL_PASS_LABEL, PANEL_X + 10, PANEL_Y + 90, "Password:", CLR_LABEL, 9);
-   CreateEdit(PANEL_PASS_INPUT, PANEL_X + 10, PANEL_Y + 108, 212, 22, "");
-
-   // Eye toggle button (next to password field)
-   CreateButton(PANEL_BTN_EYE, PANEL_X + 222, PANEL_Y + 108, 28, 22, "O", CLR_INPUT);
-   ObjectSetInteger(0, PANEL_BTN_EYE, OBJPROP_BORDER_COLOR, CLR_BORDER);
-
-   CreateButton(PANEL_BTN_LOGIN, PANEL_X + 10, PANEL_Y + 145, 115, 30, "Login", CLR_BTN);
-   CreateButton(PANEL_BTN_REG, PANEL_X + 135, PANEL_Y + 145, 115, 30, "Sign Up", CLR_BTN2);
-
-   CreateLabel(PANEL_STATUS, PANEL_X + 10, PANEL_Y + 185, "Disconnected", CLR_LABEL, 9);
-   CreateLabel(PANEL_ACCT_INFO, PANEL_X + 10, PANEL_Y + 210, " ", CLR_LABEL, 8);
-
-   ChartRedraw();
-}
-
-void PanelDestroy() {
-   ObjectDelete(0, PANEL_BG);
-   ObjectDelete(0, PANEL_TITLE);
-   ObjectDelete(0, PANEL_USER_LABEL);
-   ObjectDelete(0, PANEL_USER_INPUT);
-   ObjectDelete(0, PANEL_PASS_LABEL);
-   ObjectDelete(0, PANEL_PASS_INPUT);
-   ObjectDelete(0, PANEL_BTN_EYE);
-   ObjectDelete(0, PANEL_BTN_LOGIN);
-   ObjectDelete(0, PANEL_BTN_REG);
-   ObjectDelete(0, PANEL_STATUS);
-   ObjectDelete(0, PANEL_ACCT_INFO);
-   ChartRedraw();
-}
-
-string PanelGetUsername() {
-   return ObjectGetString(0, PANEL_USER_INPUT, OBJPROP_TEXT);
-}
-
-string PanelGetPassword() {
-   return g_RealPassword;
-}
-
-//--- Called when password field loses focus (CHARTEVENT_OBJECT_ENDEDIT) ---
-void PanelOnPasswordEndEdit() {
-   string fieldText = ObjectGetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT);
-
-   // If field shows the mask, user didn't change it -- keep existing password
-   if (fieldText == MakeDotMask(StringLen(g_RealPassword)) && g_RealPassword != "")
-      return;
-
-   // Otherwise user typed a new password
-   g_RealPassword = fieldText;
-
-   // Auto-mask if not in visible mode
-   if (!g_PasswordVisible && g_RealPassword != "") {
-      ObjectSetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT, MakeDotMask(StringLen(g_RealPassword)));
-      ChartRedraw();
-   }
-}
-
-//--- Toggle password visibility ---
-void PanelTogglePasswordVisibility() {
-   g_PasswordVisible = !g_PasswordVisible;
-
-   if (g_PasswordVisible) {
-      ObjectSetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT, g_RealPassword);
-      ObjectSetString(0, PANEL_BTN_EYE, OBJPROP_TEXT, "#");
-   } else {
-      if (g_RealPassword != "")
-         ObjectSetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT, MakeDotMask(StringLen(g_RealPassword)));
-      ObjectSetString(0, PANEL_BTN_EYE, OBJPROP_TEXT, "O");
-   }
-   ChartRedraw();
-}
-
-void PanelSetStatus(string text, color clr = CLR_LABEL) {
-   ObjectSetString(0, PANEL_STATUS, OBJPROP_TEXT, text);
-   ObjectSetInteger(0, PANEL_STATUS, OBJPROP_COLOR, clr);
-   ChartRedraw();
-}
-
-void PanelSetAccountInfo(string text) {
-   ObjectSetString(0, PANEL_ACCT_INFO, OBJPROP_TEXT, text);
-   ChartRedraw();
-}
-
-void PanelShowConnected(string broker, long acctNum, double balance, string currency) {
-   PanelSetStatus("Connected", CLR_OK);
-   string info = broker + " #" + IntegerToString(acctNum)
-               + " | " + DoubleToString(balance, 2) + " " + currency;
-   PanelSetAccountInfo(info);
-}
-
-//--- Helpers ---
 void CreateLabel(string name, int x, int y, string text, color clr, int fontSize) {
    ObjectCreate(0, name, OBJ_LABEL, 0, 0, 0);
    ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
@@ -418,9 +280,102 @@ void CreateButton(string name, int x, int y, int w, int h, string text, color bg
    ObjectSetInteger(0, name, OBJPROP_FONTSIZE, 10);
 }
 
-//+==================================================================+
-//| === MAIN EA CODE ===                                             |
-//+==================================================================+
+void PanelCreate() {
+   ObjectCreate(0, PANEL_BG, OBJ_RECTANGLE_LABEL, 0, 0, 0);
+   ObjectSetInteger(0, PANEL_BG, OBJPROP_XDISTANCE, PANEL_X);
+   ObjectSetInteger(0, PANEL_BG, OBJPROP_YDISTANCE, PANEL_Y);
+   ObjectSetInteger(0, PANEL_BG, OBJPROP_XSIZE, PANEL_W);
+   ObjectSetInteger(0, PANEL_BG, OBJPROP_YSIZE, PANEL_H);
+   ObjectSetInteger(0, PANEL_BG, OBJPROP_BGCOLOR, CLR_BG);
+   ObjectSetInteger(0, PANEL_BG, OBJPROP_BORDER_COLOR, CLR_BORDER);
+   ObjectSetInteger(0, PANEL_BG, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+
+   CreateLabel(PANEL_TITLE, PANEL_X + 10, PANEL_Y + 10, "ClanTrader EA", CLR_TEXT, 12);
+   CreateLabel(PANEL_USER_LABEL, PANEL_X + 10, PANEL_Y + 40, "Username / Email:", CLR_LABEL, 9);
+   CreateEdit(PANEL_USER_INPUT, PANEL_X + 10, PANEL_Y + 58, 240, 22, "");
+   CreateLabel(PANEL_PASS_LABEL, PANEL_X + 10, PANEL_Y + 90, "Password:", CLR_LABEL, 9);
+   CreateEdit(PANEL_PASS_INPUT, PANEL_X + 10, PANEL_Y + 108, 212, 22, "");
+
+   CreateButton(PANEL_BTN_EYE, PANEL_X + 222, PANEL_Y + 108, 28, 22, "O", CLR_INPUT);
+   ObjectSetInteger(0, PANEL_BTN_EYE, OBJPROP_BORDER_COLOR, CLR_BORDER);
+
+   CreateButton(PANEL_BTN_LOGIN, PANEL_X + 10, PANEL_Y + 145, 115, 30, "Login", CLR_BTN);
+   CreateButton(PANEL_BTN_REG, PANEL_X + 135, PANEL_Y + 145, 115, 30, "Sign Up", CLR_BTN2);
+
+   CreateLabel(PANEL_STATUS, PANEL_X + 10, PANEL_Y + 185, "Disconnected", CLR_LABEL, 9);
+   CreateLabel(PANEL_ACCT_INFO, PANEL_X + 10, PANEL_Y + 210, " ", CLR_LABEL, 8);
+
+   ChartRedraw();
+}
+
+void PanelDestroy() {
+   ObjectDelete(0, PANEL_BG);
+   ObjectDelete(0, PANEL_TITLE);
+   ObjectDelete(0, PANEL_USER_LABEL);
+   ObjectDelete(0, PANEL_USER_INPUT);
+   ObjectDelete(0, PANEL_PASS_LABEL);
+   ObjectDelete(0, PANEL_PASS_INPUT);
+   ObjectDelete(0, PANEL_BTN_EYE);
+   ObjectDelete(0, PANEL_BTN_LOGIN);
+   ObjectDelete(0, PANEL_BTN_REG);
+   ObjectDelete(0, PANEL_STATUS);
+   ObjectDelete(0, PANEL_ACCT_INFO);
+   ChartRedraw();
+}
+
+string PanelGetUsername() {
+   return ObjectGetString(0, PANEL_USER_INPUT, OBJPROP_TEXT);
+}
+
+string PanelGetPassword() {
+   return g_RealPassword;
+}
+
+void PanelOnPasswordEndEdit() {
+   string fieldText = ObjectGetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT);
+   if (fieldText == MakeDotMask(StringLen(g_RealPassword)) && g_RealPassword != "")
+      return;
+   g_RealPassword = fieldText;
+   if (!g_PasswordVisible && g_RealPassword != "") {
+      ObjectSetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT, MakeDotMask(StringLen(g_RealPassword)));
+      ChartRedraw();
+   }
+}
+
+void PanelTogglePasswordVisibility() {
+   g_PasswordVisible = !g_PasswordVisible;
+   if (g_PasswordVisible) {
+      ObjectSetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT, g_RealPassword);
+      ObjectSetString(0, PANEL_BTN_EYE, OBJPROP_TEXT, "#");
+   } else {
+      if (g_RealPassword != "")
+         ObjectSetString(0, PANEL_PASS_INPUT, OBJPROP_TEXT, MakeDotMask(StringLen(g_RealPassword)));
+      ObjectSetString(0, PANEL_BTN_EYE, OBJPROP_TEXT, "O");
+   }
+   ChartRedraw();
+}
+
+void PanelSetStatus(string text, color clr = CLR_LABEL) {
+   ObjectSetString(0, PANEL_STATUS, OBJPROP_TEXT, text);
+   ObjectSetInteger(0, PANEL_STATUS, OBJPROP_COLOR, clr);
+   ChartRedraw();
+}
+
+void PanelSetAccountInfo(string text) {
+   ObjectSetString(0, PANEL_ACCT_INFO, OBJPROP_TEXT, text);
+   ChartRedraw();
+}
+
+void PanelShowConnected(string broker, long acctNum, double balance, string currency) {
+   PanelSetStatus("Connected", CLR_OK);
+   string info = broker + " #" + IntegerToString(acctNum)
+               + " | " + DoubleToString(balance, 2) + " " + currency;
+   PanelSetAccountInfo(info);
+}
+
+//====================================================================
+//  Main EA Logic
+//====================================================================
 
 //--- Input parameters ---
 input string InpBaseUrl = "https://clantrader.com"; // Server URL
@@ -430,11 +385,13 @@ bool     g_Connected = false;
 ulong    g_KnownPositions[];
 datetime g_LastHistorySync = 0;
 int      g_TimerTick = 0;
+string   g_WatchSymbols[];  // Symbols server wants prices for
 
 //+------------------------------------------------------------------+
 //| Expert initialization                                             |
 //+------------------------------------------------------------------+
 int OnInit() {
+   Print("[ClanTrader] EA v2.1 initialized");
    SetBaseUrl(InpBaseUrl);
    PanelCreate();
    EventSetTimer(3);
@@ -450,18 +407,16 @@ void OnDeinit(const int reason) {
 }
 
 //+------------------------------------------------------------------+
-//| Timer handler -- fast poll + heartbeat                             |
+//| Timer handler — fast poll + heartbeat                              |
 //+------------------------------------------------------------------+
 void OnTimer() {
    if (!g_Connected) return;
    g_TimerTick++;
 
-   // Poll for pending actions every 3 seconds (fast action delivery)
    if (g_TimerTick % 10 != 0) {
       PollPendingActions();
    }
 
-   // Full heartbeat every 30 seconds (every 10th tick)
    if (g_TimerTick % 10 == 0) {
       SendHeartbeat();
       if (TimeCurrent() - g_LastHistorySync > 300) {
@@ -482,15 +437,10 @@ void PollPendingActions() {
    }
 }
 
-//+------------------------------------------------------------------+
-//| Tick handler -- not used in MT5 (OnTradeTransaction handles it)   |
-//+------------------------------------------------------------------+
-void OnTick() {
-   // Trade events handled via OnTradeTransaction
-}
+void OnTick() { }
 
 //+------------------------------------------------------------------+
-//| Trade transaction handler -- real-time trade events               |
+//| Trade transaction handler                                         |
 //+------------------------------------------------------------------+
 void OnTradeTransaction(const MqlTradeTransaction &trans,
                         const MqlTradeRequest &request,
@@ -498,25 +448,21 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
    if (!g_Connected) return;
 
    if (trans.type == TRADE_TRANSACTION_DEAL_ADD) {
-      // Get deal entry type
       if (!HistoryDealSelect(trans.deal)) return;
       long entry = HistoryDealGetInteger(trans.deal, DEAL_ENTRY);
 
       if (entry == DEAL_ENTRY_IN) {
-         // New position opened
          ulong posId = (ulong)HistoryDealGetInteger(trans.deal, DEAL_POSITION_ID);
          if (PositionSelectByTicket(posId)) {
             SendPositionEvent("open", posId);
          }
       }
       else if (entry == DEAL_ENTRY_OUT) {
-         // Position closed -- reconstruct from history
          ulong posId = (ulong)HistoryDealGetInteger(trans.deal, DEAL_POSITION_ID);
          SendClosedTradeFromHistory(posId);
       }
    }
    else if (trans.type == TRADE_TRANSACTION_REQUEST) {
-      // SL/TP modification
       if (request.action == TRADE_ACTION_SLTP && request.position > 0) {
          if (PositionSelectByTicket(request.position)) {
             SendPositionEvent("modify", request.position);
@@ -526,7 +472,7 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
 }
 
 //+------------------------------------------------------------------+
-//| Chart event handler -- button clicks                              |
+//| Chart event handler — button clicks                               |
 //+------------------------------------------------------------------+
 void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam) {
    if (id == CHARTEVENT_OBJECT_ENDEDIT && sparam == PANEL_PASS_INPUT) {
@@ -575,7 +521,6 @@ void DoLogin() {
    json += JsonAddString("broker", broker);
    json += JsonAddString("platform", "MT5");
    json += JsonAddString("serverName", server);
-   // Extended account info
    json += JsonAddString("accountName", AccountInfoString(ACCOUNT_NAME));
    json += JsonAddString("currency", AccountInfoString(ACCOUNT_CURRENCY));
    json += JsonAddInt("leverage", AccountInfoInteger(ACCOUNT_LEVERAGE));
@@ -603,12 +548,12 @@ void DoLogin() {
          AccountInfoString(ACCOUNT_CURRENCY));
 
       CacheOpenPositions();
-
-      // Send immediate heartbeat so live R:R updates right away
       SendHeartbeat();
-
       SyncTradeHistory();
       g_LastHistorySync = TimeCurrent();
+
+      // Send broker symbol list for price alert autocomplete
+      SendBrokerSymbols();
    }
    else if (code == 401) {
       PanelSetStatus("Invalid credentials", CLR_ERR);
@@ -617,6 +562,35 @@ void DoLogin() {
       string err = JsonGetString(response, "error");
       PanelSetStatus("Error: " + err, CLR_ERR);
    }
+}
+
+//+------------------------------------------------------------------+
+//| Send available broker symbols to server                           |
+//+------------------------------------------------------------------+
+void SendBrokerSymbols() {
+   int total = SymbolsTotal(false); // All symbols available from broker
+   if (total <= 0) return;
+
+   string arr = JsonArrayStart();
+   int count = 0;
+   for (int i = 0; i < total && count < 5000; i++) {
+      string sym = SymbolName(i, false);
+      if (sym == "") continue;
+      // Only include symbols that allow trading
+      long tradeMode = SymbolInfoInteger(sym, SYMBOL_TRADE_MODE);
+      if (tradeMode == SYMBOL_TRADE_MODE_DISABLED) continue;
+      arr += "\"" + EscapeJson(sym) + "\",";
+      count++;
+   }
+   JsonArrayEnd(arr);
+
+   string json = JsonStart();
+   json += JsonAddRaw("symbols", arr);
+   JsonEnd(json);
+
+   string response;
+   int code = HttpPost("/api/ea/broker-symbols", json, response);
+   Print("[BrokerSymbols] sent ", count, " symbols, response=", code);
 }
 
 //+------------------------------------------------------------------+
@@ -633,7 +607,7 @@ void DoOpenSignup() {
 }
 
 //+------------------------------------------------------------------+
-//| Send heartbeat with balance + open positions                      |
+//| Send heartbeat with balance + open positions + market prices      |
 //+------------------------------------------------------------------+
 void SendHeartbeat() {
    string json = JsonStart();
@@ -674,6 +648,29 @@ void SendHeartbeat() {
    JsonArrayEnd(tradesArr);
 
    json += JsonAddRaw("openTrades", tradesArr);
+
+   // Market prices for symbols the server is watching (cross-user price pool)
+   Print("[MarketPrices] g_WatchSymbols count=", ArraySize(g_WatchSymbols));
+   if (ArraySize(g_WatchSymbols) > 0) {
+      string mpArr = JsonArrayStart();
+      for (int w = 0; w < ArraySize(g_WatchSymbols); w++) {
+         SymbolSelect(g_WatchSymbols[w], true); // Ensure symbol is in Market Watch
+         double bid = SymbolInfoDouble(g_WatchSymbols[w], SYMBOL_BID);
+         Print("[MarketPrices] ", g_WatchSymbols[w], " bid=", bid);
+         if (bid > 0) {
+            string mp = JsonStart();
+            mp += JsonAddString("symbol", g_WatchSymbols[w]);
+            mp += JsonAddDouble("bid", bid);
+            mp += JsonAddDouble("high", iHigh(g_WatchSymbols[w], PERIOD_M1, 0));
+            mp += JsonAddDouble("low", iLow(g_WatchSymbols[w], PERIOD_M1, 0));
+            JsonEnd(mp);
+            mpArr += mp + ",";
+         }
+      }
+      JsonArrayEnd(mpArr);
+      json += JsonAddRaw("marketPrices", mpArr);
+   }
+
    JsonEnd(json);
 
    string response;
@@ -685,9 +682,33 @@ void SendHeartbeat() {
          AccountInfoInteger(ACCOUNT_LOGIN),
          AccountInfoDouble(ACCOUNT_BALANCE),
          AccountInfoString(ACCOUNT_CURRENCY));
-      // Process any pending actions from server
+      ParseWatchSymbols(response);
       ProcessPendingActions(response);
    }
+}
+
+//+------------------------------------------------------------------+
+//| Parse watchSymbols from heartbeat response                        |
+//+------------------------------------------------------------------+
+void ParseWatchSymbols(string response) {
+   string watchJson = JsonGetValue(response, "watchSymbols");
+   Print("[WatchSymbols] raw=", watchJson);
+   if (watchJson == "" || watchJson == "[]") {
+      ArrayResize(g_WatchSymbols, 0);
+      Print("[WatchSymbols] empty, cleared");
+      return;
+   }
+   string items[];
+   int count = SplitJsonArray(watchJson, items);
+   ArrayResize(g_WatchSymbols, count);
+   for (int i = 0; i < count; i++) {
+      string sym = items[i];
+      StringReplace(sym, "\"", "");
+      StringTrimLeft(sym);
+      StringTrimRight(sym);
+      g_WatchSymbols[i] = sym;
+   }
+   Print("[WatchSymbols] parsed count=", count, " symbols=", watchJson);
 }
 
 //+------------------------------------------------------------------+
@@ -702,7 +723,7 @@ ENUM_ORDER_TYPE_FILLING GetFillMode(string symbol) {
    return ORDER_FILLING_RETURN;
 }
 
-string g_ActionError = ""; // Captures the actual error from ExecuteMtAction
+string g_ActionError = "";
 
 //+------------------------------------------------------------------+
 //| Process pending actions from heartbeat response                    |
@@ -851,18 +872,14 @@ void ReportActionResult(string actionId, bool success) {
 }
 
 //+------------------------------------------------------------------+
-//| Sync full trade history (MT5: reconstruct from deals)             |
+//| Sync full trade history                                           |
 //+------------------------------------------------------------------+
 void SyncTradeHistory() {
-   // Select history for last 90 days
    datetime from = TimeCurrent() - 90 * 86400;
    datetime to = TimeCurrent();
    HistorySelect(from, to);
 
-   // Group deals by position ID to reconstruct trades
    int totalDeals = HistoryDealsTotal();
-
-   // Track processed position IDs
    ulong processedPositions[];
 
    string tradesArr = JsonArrayStart();
@@ -873,11 +890,10 @@ void SyncTradeHistory() {
       if (dealTicket == 0) continue;
 
       long dealEntry = HistoryDealGetInteger(dealTicket, DEAL_ENTRY);
-      if (dealEntry != DEAL_ENTRY_OUT) continue; // Only process closing deals
+      if (dealEntry != DEAL_ENTRY_OUT) continue;
 
       ulong posId = (ulong)HistoryDealGetInteger(dealTicket, DEAL_POSITION_ID);
 
-      // Check if already processed
       bool processed = false;
       for (int j = 0; j < ArraySize(processedPositions); j++) {
          if (processedPositions[j] == posId) { processed = true; break; }
@@ -888,7 +904,6 @@ void SyncTradeHistory() {
       ArrayResize(processedPositions, sz + 1);
       processedPositions[sz] = posId;
 
-      // Find the opening deal for this position
       double openPrice = 0;
       datetime openTime = 0;
       long dealType = 0;
@@ -988,7 +1003,7 @@ void SendPositionEvent(string eventType, ulong posTicket) {
 //| Send closed trade from history deals                              |
 //+------------------------------------------------------------------+
 void SendClosedTradeFromHistory(ulong posId) {
-   datetime from = TimeCurrent() - 86400; // Last 24h
+   datetime from = TimeCurrent() - 86400;
    HistorySelect(from, TimeCurrent());
 
    double openPrice = 0, closePrice = 0, lots = 0, profit = 0, commission = 0, swap = 0;

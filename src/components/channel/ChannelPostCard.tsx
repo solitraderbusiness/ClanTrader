@@ -12,6 +12,7 @@ import { toThumbUrl, isThumbUrl } from "@/lib/image-urls";
 import { TRADE_POLICY } from "@/lib/trade-policy";
 import { useTranslation } from "@/lib/i18n";
 import { getInitials } from "@/lib/utils";
+import { formatPlannedRR } from "@/lib/risk-utils";
 
 interface TradeCardInfo {
   instrument: string;
@@ -27,6 +28,11 @@ interface TradeCardInfo {
     finalRR: number | null;
     netProfit: number | null;
     closePrice: number | null;
+    initialRiskAbs?: number | null;
+    initialEntry?: number | null;
+    officialEntryPrice?: number | null;
+    officialInitialRiskAbs?: number | null;
+    officialInitialTargets?: number[] | null;
   } | null;
 }
 
@@ -66,15 +72,7 @@ function extractNote(content: string): string | null {
 }
 
 function computeStaticRR(tc: TradeCardInfo): string | null {
-  const { entry, stopLoss, targets, direction } = tc;
-  const target = targets[0];
-  if (!target || !stopLoss || !entry) return null;
-  const risk = Math.abs(entry - stopLoss);
-  if (risk === 0) return null;
-  const reward = direction === "LONG" ? target - entry : entry - target;
-  const rr = reward / risk;
-  if (rr <= 0) return null;
-  return `1:${rr.toFixed(1)}`;
+  return formatPlannedRR(tc.trade, tc);
 }
 
 export function ChannelPostCard({
@@ -253,7 +251,7 @@ export function ChannelPostCard({
 
           {/* Note from content */}
           {note && (
-            <p className="text-sm text-muted-foreground italic">
+            <p dir="auto" className="text-sm text-muted-foreground italic">
               {note}
             </p>
           )}
@@ -268,6 +266,7 @@ export function ChannelPostCard({
               }`}
             >
               {post.images.map((img, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   key={i}
                   src={isThumbUrl(img) ? img : toThumbUrl(img)}
@@ -357,12 +356,12 @@ export function ChannelPostCard({
 
         {/* Title */}
         {post.title && (
-          <h3 className="text-lg font-semibold">{post.title}</h3>
+          <h3 dir="auto" className="text-lg font-semibold">{post.title}</h3>
         )}
 
         {/* Content */}
         <div className="relative">
-          <p className="whitespace-pre-wrap text-sm">{post.content}</p>
+          <p dir="auto" className="whitespace-pre-wrap text-sm">{post.content}</p>
           {post.locked && (
             <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-t from-background via-background/80 to-transparent pt-8">
               <div className="flex items-center gap-2 rounded-full bg-muted px-4 py-2 text-sm">
@@ -385,6 +384,7 @@ export function ChannelPostCard({
             }`}
           >
             {post.images.map((img, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 key={i}
                 src={isThumbUrl(img) ? img : toThumbUrl(img)}

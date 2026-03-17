@@ -4,13 +4,14 @@ import { log } from "@/lib/audit";
 /**
  * Integrity Contract — deny-by-default eligibility engine.
  *
- * A trade is statement-eligible ONLY if ALL 6 conditions pass:
+ * A trade is statement-eligible ONLY if ALL 7 conditions pass:
  *   1. MT-linked
  *   2. integrityStatus is not UNVERIFIED
  *   3. resolutionSource is EA_VERIFIED or EVALUATOR
  *   4. Signal card existed BEFORE MT trade opened
  *   5. Initial risk snapshot exists (SL captured)
  *   6. No duplicate MT ticket already counted
+ *   7. Official signal qualified
  */
 
 export type IntegrityReasonCode = keyof typeof INTEGRITY_REASON_CODES;
@@ -40,7 +41,7 @@ export async function computeAndSetEligibility(
     where: { id: tradeId },
     include: {
       tradeCard: {
-        select: { createdAt: true, cardType: true },
+        select: { createdAt: true, cardType: true, instrument: true },
       },
       mtTradeMatches: {
         select: { ticket: true, openTime: true },
@@ -136,6 +137,14 @@ export async function computeAndSetEligibility(
       { tradeId, reasons },
       trade.userId
     );
+
+    // Notify user if trade was previously eligible but lost eligibility
+    if (trade.statementEligible && !isEligible && trade.tradeCard) {
+      const instrument = trade.tradeCard.instrument ?? "Trade";
+      import("@/services/notification-triggers").then(({ notifyIntegrityLost }) =>
+        notifyIntegrityLost(trade.userId, instrument, reasons[0]).catch(() => {})
+      );
+    }
   }
 
   return isEligible;

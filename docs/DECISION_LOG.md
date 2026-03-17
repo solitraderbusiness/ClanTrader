@@ -5,6 +5,83 @@ Newest entries first.
 
 ---
 
+## 2026-03-15 — Equity Chart Hardening: Stop fake flat history from stale fallback prices
+
+- **Task:** heartbeat-fallback (hardening)
+- **Decision:** Gate fallback snapshot creation on price freshness (90s threshold). Added `SnapshotSource` (EA/FALLBACK) and `EstimateQuality` (REAL/FALLBACK_FRESH/FALLBACK_STALE/NO_PRICE) enums to EquitySnapshot. Only FALLBACK_FRESH snapshots are `chartEligible`, update MtAccount.equity, and broadcast socket PnL. Stale/no-price estimates silently skipped. Chart queries filter `chartEligible: true`, use anchor baseline for normalization, and detect time gaps >10min as visual breaks.
+- **Why:** Fallback service created snapshots from hours-old prices, producing fake flat dashed lines on equity charts. When fresh prices resumed, a misleading jump appeared. The fix separates "we have an estimate" from "we have a trustworthy estimate."
+- **Affected files/rules:** schema.prisma (2 enums, 4 fields), heartbeat-fallback.service.ts, ea.service.ts, digest-v2.service.ts, digest-engines.ts, digest-v2-schema.ts, DigestSheetV2.tsx
+- **Needs SOURCE_OF_TRUTH update now?:** yes — done in same session
+- **Needs manual testing?:** yes — disconnect MT for 5+ min, verify no new flat dashed lines, reconnect and verify chart resumes with gap
+
+---
+
+## 2026-03-14 — Ghost Trade Resolution: Auto-evaluate disconnected trades
+
+- **Task:** ghost-trade-resolution
+- **Decision:** When a user's MT disconnects permanently, the system should auto-evaluate open trades in two phases: (1) immediate advisory chat message when fallback price crosses SL/TP, (2) auto-close via trade evaluator after 7 days of TRACKING_LOST
+- **Why:** Without this, trade cards stay "open" forever if a user never reconnects, distorting statements, rankings, and live risk
+- **Affected files/rules:** heartbeat-fallback.service.ts, trade-evaluator.service.ts, ea-signal-close.service.ts
+- **Needs SOURCE_OF_TRUTH update now?:** no (post-MVP task, not yet implemented)
+- **Needs manual testing?:** no (backlog item)
+
+---
+
+## 2026-03-14 — Cross-user price pool via watchSymbols/marketPrices
+
+- **Task:** heartbeat-fallback
+- **Decision:** EAs with no open trades now send market prices for symbols other users need. Server sends `watchSymbols` in heartbeat response, EA sends back `marketPrices` with bid prices from its Market Watch. Symbol names preserved in original case (MT is case-sensitive).
+- **Why:** Without this, the fallback system had no fresh prices when the only connected EAs had zero open trades
+- **Affected files/rules:** ea.service.ts (watchSymbols/marketPrices), price-pool.service.ts (uppercase fix), validators.ts (marketPrices schema), EA MQL4/MQL5 (ParseWatchSymbols, SymbolSelect)
+- **Needs SOURCE_OF_TRUTH update now?:** yes
+- **Needs manual testing?:** yes — verify aliso's trade cards show updating BTC price via ali's EA
+
+---
+
+## 2026-03-14 — EA download serves from public/ea/ (single-file build)
+
+- **Task:** heartbeat-fallback
+- **Decision:** The download page serves EA files from `public/ea/`, not `ea/MQL5/`. The public version is now a single merged file (no separate Include files needed). Source-of-truth EA code remains in `ea/MQL5/` with includes; `public/ea/` is the distribution copy.
+- **Why:** Users couldn't compile the EA because Include files weren't available for download
+- **Affected files/rules:** public/ea/ClanTrader_EA.mq5, ea/MQL5/ (source of truth)
+- **Needs SOURCE_OF_TRUTH update now?:** no (infrastructure detail)
+- **Needs manual testing?:** no (already verified)
+
+---
+
+## 2026-03-13 — Tracking Lost Notifications: Reduce Sensitivity
+
+- **Task:** notification-alarm-mvp
+- **Decision:** (1) Raise TRACKING_LOST threshold from 120s (2min) to 300s (5min). (2) Raise STALE threshold from 60s to 180s (3min). (3) Increase tracking notification cooldown from 600s (10min) to 3600s (1hr). (4) Demote TRACKING_LOST from CRITICAL to IMPORTANT severity — brief disconnects are not emergencies. (5) Keep TRACKING_RESTORED at IMPORTANT.
+- **Why:** User feedback: "all of my notifications are Connection lost — too sensitive to connection." On Iranian internet, brief EA disconnects are common. The 2-minute threshold caused constant false alarms. Each flap cycle produced 2 notifications (lost + restored). The 10-min cooldown wasn't enough — users got a new pair every 10 minutes during unstable periods. The EA heartbeat runs every 30s, so a 5-minute threshold means ~10 missed heartbeats before alarming, which indicates a real problem rather than a network hiccup.
+- **Affected files/rules:** `live-risk.service.ts` (thresholds), `notification-types.ts` (cooldown + severity), notification-triggers (unchanged)
+- **Needs SOURCE_OF_TRUTH update now?:** no — tuning existing feature, no new capability
+- **Needs manual testing?:** yes — disconnect EA for 3min (should NOT notify), disconnect for 6min (should notify), reconnect (should notify restored after 1hr cooldown window)
+
+---
+
+## 2026-03-13 — Notification MVP: Hardening Pass
+
+- **Task:** notification-alarm-mvp
+- **Decision:** (1) Replace `db push` with proper Prisma migration (`20260313120000_add_notifications_price_alerts`) for 3 models + 4 enums. (2) Rename "In-app notifications" toggle to "Live popups" with explicit description: "Your notification history is always available regardless of this setting." The toggle controls Socket.io real-time delivery + toasts, NOT inbox persistence. (3) Add E2E REST test (`e2e/simulator/11-notifications.spec.ts`) covering notification CRUD, preferences, price alert CRUD + validation + max limit + immediate trigger. (4) Drawdown notifications use 4 threshold levels (5%/10%/15%/20%) — only fire once per crossing direction, not repeatedly.
+- **Why:** MVP was functional but had three production-discipline gaps: no migration file (risky for staging/prod deploy), ambiguous UX label (users might think OFF = no history), and no E2E test coverage. Closing these before considering the task done.
+- **Affected files/rules:** `prisma/migrations/20260313120000_*`, `en.json`/`fa.json` (toggle wording), `e2e/simulator/11-notifications.spec.ts`, `SOURCE_OF_TRUTH.md`
+- **Needs SOURCE_OF_TRUTH update now?:** yes — done in same session
+- **Needs manual testing?:** yes — verify toggle wording on `/settings/notifications`, run E2E suite
+
+---
+
+## 2026-03-13 — Notification + Alarm MVP Implementation
+
+- **Task:** notification-alarm-mvp
+- **Decision:** Implement full in-app notification system with: (A) Persisted notification center (bell icon, dropdown, `/notifications` page, mark read, severity tabs), (B) Simple preferences (live popups on/off, critical-only/all), (C) Server-side price alerts (ABOVE/BELOW, 15s eval interval, source-group aware, one-time trigger), (D) 12 notification types wired from real event sources (tracking, trade close, action results, risk warnings, integrity, qualification, rank, clan). Architecture: centralized `notification.service.ts` with Redis cooldown, dynamic import pattern for fire-and-forget hooks, Socket.io user rooms for targeted delivery. No Telegram/push/email/SMS/webhooks.
+- **Why:** ClanTrader had no way to inform users about important events (tracking loss, trade outcomes, risk). Price alerts are a basic expectation. Design principle: "only interrupt when something actually matters" — smart underneath, simple surface.
+- **Affected files/rules:** 16 new files (services, components, API routes, pages), 12 modified services (event hooks), schema (3 models, 4 enums), ~45 i18n keys
+- **Needs SOURCE_OF_TRUTH update now?:** yes — done in same session
+- **Needs manual testing?:** yes — full test plan at `docs/testing/notification-alarm-mvp-test-plan.md`
+
+---
+
 ## 2026-03-13 — Price Ladder v2.4: Asset Tabs, SHORT Fix, TP Levels, Collision Resolver
 
 - **Task:** activity-digest

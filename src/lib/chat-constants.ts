@@ -112,5 +112,9 @@ export const SOCKET_EVENTS = {
   // Server -> Client (Events)
   EVENT_REMINDER: "event_reminder",
 
+  // Server -> Client (Notifications)
+  NOTIFICATION_NEW: "notification_new",
+  NOTIFICATION_COUNT_UPDATE: "notification_count_update",
+
   ERROR: "error",
 } as const;

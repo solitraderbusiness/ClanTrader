@@ -422,5 +422,15 @@ export async function reportActionResult(
     );
   }
 
+  // Notify the user who requested the action
+  import("@/services/notification-triggers").then((triggers) => {
+    const symbol = tradeCard.instrument;
+    if (success) {
+      triggers.notifyTradeActionSuccess(action.requestedById, symbol, action.actionType).catch(() => {});
+    } else {
+      triggers.notifyTradeActionFailed(action.requestedById, symbol, action.actionType, errorMessage).catch(() => {});
+    }
+  });
+
   return updatedAction;
 }

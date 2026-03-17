@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
+import { redis } from "@/lib/redis";
 import { CHANNEL_POSTS_PER_PAGE } from "@/lib/clan-constants";
 import { getDisplayPrices } from "@/services/price-pool.service";
+import { getFrozenEntry, getFrozenRiskAbs } from "@/lib/risk-utils";
 import type {
   CreateChannelPostInput,
   UpdateChannelPostInput,
@@ -71,6 +73,11 @@ export async function getPost(postId: string) {
               finalRR: true,
               netProfit: true,
               closePrice: true,
+              initialEntry: true,
+              initialRiskAbs: true,
+              officialEntryPrice: true,
+              officialInitialRiskAbs: true,
+              officialInitialTargets: true,
             },
           },
         },
@@ -82,15 +89,27 @@ export async function getPost(postId: string) {
     throw new ChannelServiceError("Post not found", "NOT_FOUND", 404);
   }
 
-  // Increment view count (fire and forget)
-  db.channelPost
-    .update({
+  return post;
+}
+
+/**
+ * Record a unique view for a channel post (Telegram-style: 1 view per user).
+ * Uses Redis SADD for dedup — only increments the DB counter when the user
+ * is seeing this post for the first time.
+ */
+export async function recordPostView(
+  postId: string,
+  userId: string
+): Promise<void> {
+  const key = `channel-post-views:${postId}`;
+  // SADD returns 1 if the member was added (new), 0 if already existed
+  const added = await redis.sadd(key, userId);
+  if (added === 1) {
+    await db.channelPost.update({
       where: { id: postId },
       data: { viewCount: { increment: 1 } },
-    })
-    .catch(() => {});
-
-  return post;
+    });
+  }
 }
 
 export async function updatePost(
@@ -202,6 +221,9 @@ export async function getChannelPosts(
                 closePrice: true,
                 initialEntry: true,
                 initialRiskAbs: true,
+                officialEntryPrice: true,
+                officialInitialRiskAbs: true,
+                officialInitialTargets: true,
                 riskStatus: true,
                 mtTradeMatches: {
                   where: { isOpen: true },
@@ -260,11 +282,8 @@ export async function getChannelPosts(
       for (const { tradeId, symbol, trade, card } of openTrades) {
         const currentPrice = priceMap.get(symbol);
         if (!currentPrice) continue;
-        const entry = trade.initialEntry ?? card.entry;
-        const riskAbs =
-          trade.initialRiskAbs && trade.initialRiskAbs > 0
-            ? trade.initialRiskAbs
-            : (card.stopLoss > 0 ? Math.abs(entry - card.stopLoss) : 0);
+        const entry = getFrozenEntry(trade, card.entry);
+        const riskAbs = getFrozenRiskAbs(trade, card.entry, card.stopLoss);
         const dir = card.direction === "LONG" ? 1 : -1;
         const pricePnl = dir * (currentPrice - entry);
         const currentRR = riskAbs > 0

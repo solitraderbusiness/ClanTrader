@@ -1,7 +1,8 @@
 # Task Brief — Deposit/Withdrawal Fix
 
 > Started: 2026-03-13
-> Status: IN_PROGRESS
+> Status: DONE (2026-03-13)
+> Completed: TWR/NAV + adjusted equity series, BalanceEvent model, cash-flow-neutral charts
 
 ## 1. Goal
 Fix all balance-based performance metrics so deposits and withdrawals don't distort equity charts, hero P/L %, drawdown %, or any other percentage derived from account balance/equity changes.

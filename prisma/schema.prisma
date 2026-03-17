@@ -55,6 +55,10 @@ model User {
   referralEvents      ReferralEvent[]    @relation("ReferralEvents")
   referredEvents      ReferralEvent[]    @relation("ReferredEvents")
   mtAccounts          MtAccount[]
+  notifications       Notification[]
+  notificationPreference NotificationPreference?
+  priceAlerts         PriceAlert[]
+  pushSubscriptions   PushSubscription[]
 
   @@index([email])
   @@index([phone])
@@ -990,7 +994,30 @@ model EquitySnapshot {
   // True if this snapshot was recorded at a deposit/withdrawal boundary
   isBalanceEventBoundary   Boolean @default(false)
 
+  // Snapshot quality metadata (added for equity chart hardening)
+  // Legacy rows without these fields default to EA/REAL/true — see note below
+  snapshotSource           SnapshotSource   @default(EA)
+  estimateQuality          EstimateQuality  @default(REAL)
+  sourcePriceAgeMs         Int?             // null for EA; max age across prices used
+  // true only for EA and FALLBACK_FRESH; false for FALLBACK_STALE/NO_PRICE
+  // Legacy note: old isEstimated=true rows default to REAL/chartEligible=true
+  // which is technically wrong but conservative — they were the best data at the time.
+  // No backfill needed since these are from a small dev-period dataset.
+  chartEligible            Boolean          @default(true)
+
   @@index([mtAccountId, timestamp])
+}
+
+enum SnapshotSource {
+  EA
+  FALLBACK
+}
+
+enum EstimateQuality {
+  REAL
+  FALLBACK_FRESH
+  FALLBACK_STALE
+  NO_PRICE
 }
 
 // --- Balance Event Detection (deposit/withdrawal tracking) ---
@@ -1076,6 +1103,101 @@ model EaPendingAction {
 
   @@index([mtAccountId, status])
   @@index([tradeId])
+  @@index([status, expiresAt])
+}
+
+// --- Notifications ---
+
+enum NotificationSeverity {
+  CRITICAL
+  IMPORTANT
+  UPDATE
+}
+
+enum NotificationFamily {
+  ACCOUNT
+  MARKET
+  CLAN
+  SYSTEM
+}
+
+model Notification {
+  id         String               @id @default(cuid())
+  userId     String
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       String               // e.g. "tracking_lost", "trade_closed", "price_alert_triggered"
+  family     NotificationFamily
+  severity   NotificationSeverity
+  title      String
+  body       String
+  ctaLabel   String?
+  ctaHref    String?
+  payload    Json?
+  isRead     Boolean              @default(false)
+  readAt     DateTime?
+  dedupeKey  String?
+  createdAt  DateTime             @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, isRead])
+  @@index([dedupeKey])
+}
+
+model NotificationPreference {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inAppEnabled   Boolean  @default(true)
+  pushEnabled    Boolean  @default(false)
+  deliveryMode   String   @default("all") // "all" | "critical_only"
+  pushCategories Json     @default("{}") // Per-category push toggles; empty = all enabled
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+enum PriceAlertCondition {
+  ABOVE
+  BELOW
+}
+
+enum PriceAlertStatus {
+  ACTIVE
+  TRIGGERED
+  CANCELLED
+  EXPIRED
+}
+
+model PriceAlert {
+  id              String              @id @default(cuid())
+  userId          String
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  symbol          String
+  condition       PriceAlertCondition
+  targetPrice     Float
+  sourceGroup     String?
+  status          PriceAlertStatus    @default(ACTIVE)
+  triggeredAt     DateTime?
+  lastSeenPrice   Float?
+  priceAtCreation Float?
+  expiresAt       DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([userId, status])
+  @@index([status, symbol])
   @@index([status, expiresAt])
 }
 

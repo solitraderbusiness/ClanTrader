@@ -9,9 +9,12 @@ import { computeAndSetEligibility } from "@/services/integrity.service";
  *   Option A: At open (first heartbeat with SL+TP)
  *   Option B: Within 20 seconds of MT open time
  *
- * At qualification, an immutable official risk snapshot is frozen:
+ * At qualification, an official risk snapshot is frozen:
  *   officialEntryPrice, officialInitialStopLoss, officialInitialTargets,
  *   officialInitialRiskAbs, officialInitialRiskMoney
+ *
+ * The snapshot is MUTABLE within the 20-second window (re-frozen on each
+ * SL/TP change via reQualifyTrade) and IMMUTABLE after the deadline.
  *
  * Trades that miss the 20-second window become analysis-origin forever.
  */
@@ -118,6 +121,104 @@ export async function qualifyTrade(
 }
 
 /**
+ * Re-freeze the official snapshot when SL/TP changes within the 20-second
+ * qualification window. After the deadline, the snapshot is immutable.
+ *
+ * Uses officialEntryPrice ?? initialEntry as the entry reference (never
+ * tradeCard.entry which the user may have edited).
+ *
+ * Returns true if the snapshot was updated.
+ */
+export async function reQualifyTrade(
+  tradeId: string,
+  sl: number,
+  tp: number,
+  mtTradeData?: { lots: number; currentPrice: number; profit: number; direction: "BUY" | "SELL" }
+): Promise<boolean> {
+  const trade = await db.trade.findUnique({
+    where: { id: tradeId },
+    select: {
+      officialSignalQualified: true,
+      qualificationDeadline: true,
+      officialEntryPrice: true,
+      officialInitialStopLoss: true,
+      officialInitialTargets: true,
+      officialInitialRiskAbs: true,
+      officialInitialRiskMoney: true,
+      initialEntry: true,
+    },
+  });
+
+  if (!trade) return false;
+
+  // Only applies to already-qualified trades
+  if (!trade.officialSignalQualified) return false;
+
+  // Past deadline — snapshot is immutable
+  if (!trade.qualificationDeadline || new Date() > trade.qualificationDeadline) {
+    return false;
+  }
+
+  // Validate SL and TP
+  if (sl <= 0 || tp <= 0) return false;
+
+  // Use the official entry (from first qualification), never tradeCard.entry
+  const entry = trade.officialEntryPrice ?? trade.initialEntry ?? 0;
+  if (entry <= 0) return false;
+
+  const officialRiskAbs = Math.abs(entry - sl);
+  if (officialRiskAbs <= 0) return false;
+
+  // Skip if snapshot hasn't actually changed
+  const oldSL = trade.officialInitialStopLoss ?? 0;
+  const oldTP = (trade.officialInitialTargets ?? [])[0] ?? 0;
+  if (sl === oldSL && tp === oldTP) return true; // no-op
+
+  // Compute risk money if MT trade data is available
+  let officialRiskMoney: number | null = null;
+  if (mtTradeData) {
+    officialRiskMoney = computeRiskMoney(
+      mtTradeData.lots,
+      mtTradeData.currentPrice,
+      entry,
+      mtTradeData.profit,
+      mtTradeData.direction,
+      officialRiskAbs
+    );
+  }
+
+  // Re-freeze the official snapshot; switch origin to WITHIN_WINDOW
+  await db.trade.update({
+    where: { id: tradeId },
+    data: {
+      officialQualifiedAt: new Date(),
+      officialSignalOriginType: "WITHIN_WINDOW",
+      officialInitialStopLoss: sl,
+      officialInitialTargets: [tp],
+      officialInitialRiskAbs: officialRiskAbs,
+      officialInitialRiskMoney: officialRiskMoney,
+      // officialEntryPrice stays unchanged — entry doesn't move
+    },
+  });
+
+  log("signal.requalified", "INFO", "TRADE", {
+    tradeId,
+    oldSL,
+    newSL: sl,
+    oldTP,
+    newTP: tp,
+    oldRiskAbs: trade.officialInitialRiskAbs,
+    newRiskAbs: officialRiskAbs,
+    entry,
+  });
+
+  // Re-evaluate eligibility with updated snapshot
+  await computeAndSetEligibility(tradeId);
+
+  return true;
+}
+
+/**
  * Compute risk in account currency from MT trade data.
  *
  * Uses the relationship: dollarPerPoint = |profit / priceMove|
@@ -209,7 +310,7 @@ export async function expireUnqualifiedTrades(userId: string): Promise<number> {
       status: { in: ["PENDING", "OPEN"] },
       mtLinked: true,
     },
-    select: { id: true, cardType: true },
+    select: { id: true, cardType: true, tradeCard: { select: { instrument: true, direction: true } } },
   });
 
   if (expired.length === 0) return 0;
@@ -234,6 +335,13 @@ export async function expireUnqualifiedTrades(userId: string): Promise<number> {
           source: "SYSTEM",
         },
       });
+
+      // Notify user that trade became analysis-only
+      if (trade.tradeCard) {
+        import("@/services/notification-triggers").then(({ notifyQualificationMissed }) =>
+          notifyQualificationMissed(userId, trade.tradeCard!.instrument, trade.tradeCard!.direction).catch(() => {})
+        );
+      }
     }
   }
 

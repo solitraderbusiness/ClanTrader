@@ -36,9 +36,10 @@ ClanTrader uses a **single public statement page** per trader with three concept
 
 ### Signal Qualification
 - **20-second window**: Trade must have valid SL+TP at open OR within ~20s of MT open time
-- Qualified trades get a **frozen official risk snapshot** (entry, SL, TP, risk abs, risk money) — immutable
+- Qualified trades get a **frozen official risk snapshot** (entry, SL, TP, risk abs, risk money) — mutable within 20s window via `reQualifyTrade()`, immutable after deadline
 - Missed window → analysis-origin forever (journal/digest only, never statements/leaderboard)
 - Origin types: `AT_OPEN` (instant) or `WITHIN_WINDOW` (late but within deadline)
+- **R:R display semantics**: planned/original R:R uses frozen snapshot (never mutable card SL/TP). Centralized in `risk-utils.ts` (`formatPlannedRR`/`getPlannedRRRatio`). Priority chain: `officialSnapshot > initialFields > tradeCard`
 
 ### Integrity Contract (deny-by-default)
 All 7 conditions must pass for `statementEligible = true`:
@@ -92,6 +93,7 @@ All 7 conditions must pass for `statementEligible = true`:
 - After `npm run build`, must `pm2 restart clantrader` — stale chunks cause 500s
 - `broadcastMessages` in `ea-signal.service.ts` **must be awaited** — never fire-and-forget
 - `messageInclude` must include ALL fields used by `serializeMessageForSocket`
+- **Socket is a singleton** (`getSocket()`) shared by ChatPanel, ChannelStream, etc. — NEVER call `socket.disconnect()` from a single component's cleanup, and ALWAYS use `socket.off(EVENT, specificHandler)` with the handler reference (not unscoped `socket.off(EVENT)` which strips ALL listeners)
 - **Iranian-first**: no external CDNs, fonts, or international API deps at runtime
 - Never commit `.env` — reference `.env.example`
 
@@ -111,7 +113,11 @@ All 7 conditions must pass for `statementEligible = true`:
 | Balance Events | `balance-event.service.ts` (deposit/withdrawal detection, TWR/NAV, adjusted series) |
 | Trade Evaluation | `trade-evaluator.service.ts` (candle-based auto-evaluation) |
 | Badges | `badge-engine.service.ts` (rank/perf/trophy badges) |
-| Price Data | `price-pool.service.ts` (Redis-cached from EA heartbeat) |
+| R:R / Risk Helpers | `risk-utils.ts` (frozen snapshot resolution, planned/live/target/final R:R, risk status) |
+| Price Data | `price-pool.service.ts` (Redis-cached from EA heartbeat, M1 candles with atomic Lua OHLC) |
+| Heartbeat Fallback | `heartbeat-fallback.service.ts` (freshness-gated cross-user price estimation) |
+| Notifications | `notification.service.ts`, `notification-triggers.ts`, `notification-types.ts` |
+| Price Alerts | `price-alert.service.ts` (candle-style eval using M1 high/low, broker symbol list, source-group aware) |
 
 ## Vocabulary
 
@@ -126,10 +132,13 @@ Use these terms consistently — do not invent synonyms:
 | effective rank | `closedOfficialR + openLossPenaltyR` — conservative ranking |
 | MT account | MetaTrader 4/5 account connected via EA bridge |
 | statement-eligible | Passes all 7 integrity conditions |
-| frozen risk snapshot | Immutable `officialEntry/SL/TP/RiskAbs/RiskMoney` set at qualification |
+| frozen risk snapshot | `officialEntry/SL/TP/RiskAbs/RiskMoney` — mutable within 20s window, immutable after deadline |
+| planned/original setup R:R | `1:X.X` display from frozen snapshot — never changes after 20s window. Distinct from live R:R and target R:R |
 | balance event | Detected deposit/withdrawal/credit/correction stored as `BalanceEvent` |
 | cash-flow-neutral performance | TWR/NAV-based metrics immune to deposits/withdrawals |
-| equity snapshot | Balance + equity recorded every 5min by EA heartbeat, annotated with external flows |
+| equity snapshot | Balance + equity recorded every 5min by EA heartbeat, annotated with external flows and quality metadata (source, freshness, chart eligibility) |
+| M1 candle | Server-side 1-minute OHLC candle per symbol in Redis, built from EA heartbeat prices, used for candle-style price alert evaluation |
+| broker symbol list | All tradeable symbols from a broker, sent by EA on login, stored in Redis with 48h TTL |
 
 ## Infrastructure
 
@@ -157,7 +166,8 @@ Canonical docs live in `docs/`. Stale/historical docs are in `docs/archive/` wit
 | `docs/price-system-report.md` | Price data flow architecture |
 | `docs/price-system-review-response.md` | Price system review + improvements |
 | `docs/DECISION_LOG.md` | Running decision log for in-progress tasks |
-| `docs/tasks/*.md` | Per-task briefs (activity-digest, deposit-withdrawal-fix, heartbeat-fallback) |
+| `docs/STRATEGIC_ROADMAP.md` | 7-phase product strategy (MVP → Full Vibe Trading) |
+| `docs/tasks/*.md` | Per-task briefs (activity-digest, deposit-withdrawal-fix, heartbeat-fallback, notification-alarm-mvp, ghost-trade-resolution) |
 | `docs/testing/*-test-plan.md` | Per-task test plans with scenarios and expected results |
 | `docs/archive/*` | 12 archived docs with deprecation banners |
 

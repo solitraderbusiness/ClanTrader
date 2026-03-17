@@ -10,7 +10,7 @@ import { maybeAutoPost } from "@/services/auto-post.service";
 import { normalizeInstrument, mapDirection } from "@/services/signal-matcher.service";
 import { computeAndSetEligibility } from "@/services/integrity.service";
 import { computeQualificationDeadline, qualifyTrade } from "@/services/signal-qualification.service";
-import { serializeMessageForSocket, topicRoom } from "./ea-signal-helpers";
+import { serializeMessageForSocket, topicRoom, clanRoom } from "./ea-signal-helpers";
 import type { MtTrade } from "@prisma/client";
 
 export async function autoCreateSignalFromMtTrade(
@@ -136,18 +136,19 @@ export async function autoCreateSignalFromMtTrade(
       });
 
       if (fullMessage) {
-        io.to(topicRoom(clanId, topic.id)).emit(
-          SOCKET_EVENTS.RECEIVE_MESSAGE,
-          serializeMessageForSocket(fullMessage, clanId)
-        );
+        const serialized = serializeMessageForSocket(fullMessage, clanId);
+        io.to(topicRoom(clanId, topic.id)).emit(SOCKET_EVENTS.RECEIVE_MESSAGE, serialized);
+        io.to(clanRoom(clanId)).emit(SOCKET_EVENTS.RECEIVE_MESSAGE, serialized);
       }
 
-      io.to(topicRoom(clanId, topic.id)).emit(SOCKET_EVENTS.TRADE_STATUS_UPDATED, {
+      const statusPayload = {
         tradeId: trade.id,
         messageId: message.id,
         status: trade.status,
         trade: { id: trade.id, status: trade.status, userId: trade.userId },
-      });
+      };
+      io.to(topicRoom(clanId, topic.id)).emit(SOCKET_EVENTS.TRADE_STATUS_UPDATED, statusPayload);
+      io.to(clanRoom(clanId)).emit(SOCKET_EVENTS.TRADE_STATUS_UPDATED, statusPayload);
     }
 
     // Auto-post (fire-and-forget) — only for SIGNAL cards

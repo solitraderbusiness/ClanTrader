@@ -38,11 +38,23 @@ app.prepare().then(() => {
   });
 
   setIO(io);
+
+  // Set notification service IO reference for real-time delivery
+  import("@/services/notification.service").then(({ setNotificationIO }) => {
+    setNotificationIO(io);
+  });
+
   io.use(authenticateSocket);
 
   io.on("connection", (socket) => {
     const user = (socket as Socket & { user?: { id: string } }).user;
     console.log(`Socket connected: ${user?.id}`);
+
+    // Join user-specific room for targeted notifications
+    if (user?.id) {
+      socket.join(`user:${user.id}`);
+    }
+
     registerSocketHandlers(io, socket);
   });
 
@@ -123,6 +135,27 @@ app.prepare().then(() => {
       fallbackRunning = false;
     }
   }, 30_000);
+
+  // Price alert evaluation — runs every 15s
+  let alertEvalRunning = false;
+
+  setInterval(async () => {
+    if (alertEvalRunning) return;
+    try {
+      alertEvalRunning = true;
+      const { evaluatePriceAlerts } = await import(
+        "@/services/price-alert.service"
+      );
+      const triggered = await evaluatePriceAlerts();
+      if (triggered > 0) {
+        console.log(`[PriceAlerts] triggered=${triggered}`);
+      }
+    } catch (err) {
+      console.error("[PriceAlerts] error:", err);
+    } finally {
+      alertEvalRunning = false;
+    }
+  }, 15_000);
 
   httpServer.listen(port, hostname, () => {
     console.log(`> Ready on http://${hostname}:${port}`);

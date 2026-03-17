@@ -18,6 +18,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useTranslation } from "@/lib/i18n";
+import { getPlannedRRRatio } from "@/lib/risk-utils";
 
 interface TradeCardInlineProps {
   tradeCard: TradeCardData;
@@ -83,10 +84,7 @@ export function TradeCardInline({
 
   const isAnalysis = tradeCard.cardType === "ANALYSIS";
 
-  const riskReward = tradeCard.stopLoss > 0 && tradeCard.targets[0] > 0
-    ? Math.abs(tradeCard.targets[0] - tradeCard.entry) /
-      Math.abs(tradeCard.entry - tradeCard.stopLoss)
-    : null;
+  const riskReward = getPlannedRRRatio(tradeCard.trade, tradeCard);
 
   const livePnl = useChatStore((s) =>
     tradeCard.trade?.id ? s.tradePnl[tradeCard.trade.id] : undefined
@@ -207,6 +205,11 @@ export function TradeCardInline({
           <span className="text-muted-foreground">{t("trade.stopLoss")}</span>
           {tradeCard.stopLoss > 0 ? (
             <p className="font-mono font-medium text-red-500">{tradeCard.stopLoss}</p>
+          ) : tradeCard.trade?.officialInitialStopLoss && tradeCard.trade.officialInitialStopLoss > 0 ? (
+            <div>
+              <p className="font-mono font-medium text-muted-foreground/50">—</p>
+              <p className="font-mono text-[10px] text-muted-foreground/40">{t("trade.wasSl", { sl: tradeCard.trade.officialInitialStopLoss })}</p>
+            </div>
           ) : (
             <p className="font-mono font-medium text-muted-foreground/50">{t("trade.notSet")}</p>
           )}
