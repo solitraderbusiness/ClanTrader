@@ -23,7 +23,8 @@
 |-------|-------|
 | **Phase** | MVP Hardening (Phase B: Mar 14–20, 2026) |
 | **MVP timeline** | Mar 9 – Apr 8, 2026 (5 phases: QA → Harden → Infra → Beta → Launch) |
-| **Target users** | Farsi-speaking forex/gold traders (Iran-first), competing in clans |
+| **Target users** | Farsi-speaking forex/gold traders (diaspora-first launch, Iran-optimized product) |
+| **Product identity** | Trust-first trader tool platform evolving toward Trading Command Center and Vibe Trading |
 | **Stack** | Next.js 16.1, React 19, Prisma 7, PostgreSQL 16, Socket.io 4.8, Redis 7, TypeScript strict |
 | **Dev server** | 31.97.211.86 (clantrader.com), root user |
 | **Prod/Stage** | Germany VPS — TBD, staging port 3001, prod port 3000 |
@@ -61,6 +62,7 @@
 - Health endpoint (`/api/health` — DB/Redis/Socket.io checks, public + admin views)
 - Service worker (network-first for JS/CSS chunks, cache-first for static assets, offline fallback)
 - Onboarding (minimal modal)
+- AI data capture foundation: DigestOutput (persisted digest v2 outputs with CLAN/TRADER scope), TraderStatementSnapshot (append-only statement history), LiveRiskSnapshot (heartbeat-driven 5-min portfolio risk snapshots)
 
 ### What Is Blocking Launch
 
@@ -176,6 +178,7 @@ See Section 6.
 
 ### Integrity Contract
 **Status: LIVE**
+- **In plain English**: The integrity contract is the set of rules that decide whether ClanTrader is ALLOWED to present a trade or performance result as trustworthy. If data is stale, incomplete, manipulated, or unverifiable, the platform must not pretend it knows more than it does. A trade that fails any condition is excluded from public statements and rankings — it still exists in the journal, but it cannot affect the trader's public credibility.
 - 7 conditions, ALL must pass for `statementEligible = true`:
   1. MT-linked
   2. Not manually unverified
@@ -204,6 +207,7 @@ See Section 6.
 
 ### Live Open Risk
 **Status: LIVE**
+- **In plain English**: Live risk = what is happening RIGHT NOW with a trader's open positions. It answers: "How much money is at risk? How are open trades performing? Is the data fresh or stale?" Live risk is NOT the digest — it is the real-time open-trade exposure layer that the digest, statement page, and rankings all consume.
 - Overlay on statement page showing floating PnL, floating R, equity drawdown, biggest open loser, unprotected count
 - 15-second Redis cache
 - `staleWarning` flag when any MT account is STALE or TRACKING_LOST
@@ -376,9 +380,14 @@ See Section 6.
 ## 4. Active Business / Scope Decisions
 
 ### Launch Market
-- **Primary audience**: Iranian forex/gold traders
-- **Iran-first** applies to: no external CDN dependencies, self-hosted fonts, Farsi translations, RTL support
-- **Iran-first does NOT mean**: hosted in Iran. Dev server is in Iran, but prod/staging will be Germany VPS
+- **Primary audience**: Iranian / Farsi-speaking forex/gold traders
+- **Initial launch cohort**: Farsi-speaking traders OUTSIDE Iran (diaspora, Dubai, Turkey, etc.) via invite waves through Instagram close friends / trusted audience
+  - Wave 1: ~10 users (inner circle)
+  - Wave 2: ~50 users (expanded trusted audience)
+  - Wave 3: ~150 users (broader early adopters)
+  - Then broader rollout if stable
+- **Iran-first** means: language/product fit (Farsi, RTL, no external CDN dependencies, self-hosted fonts) and technical constraints (sanctions-resilient architecture). It does NOT mean dependency on immediate in-Iran rollout or in-Iran hosting.
+- **Iran-first does NOT mean**: hosted in Iran. Dev server is in Iran, but prod/staging will be Germany VPS.
 - Kavenegar (SMS) and ZarinPal (payments) are API-based services that work from any server
 
 ### Phone OTP / Kavenegar
@@ -395,17 +404,83 @@ See Section 6.
 
 ### Priority Lens
 The product prioritizes:
-1. **Risk reduction**: Integrity contract prevents fake/manipulated trading records
-2. **Time saving**: Auto-generated statements, auto-created signals from EA, real-time data
-3. **Trust**: Deny-by-default eligibility, frozen snapshots, source-aware pricing
-4. **Competition**: Clan-based leaderboards, effective rank that penalizes hiding losses
+1. **Trust**: Deny-by-default eligibility, frozen snapshots, source-aware pricing — the foundation everything else builds on
+2. **Risk reduction**: Integrity contract prevents fake/manipulated trading records
+3. **Time saving**: Auto-generated statements, auto-created signals from EA, real-time data
+4. **Credibility & discovery**: Rankings and badges serve as trust/discovery tools — they help users find credible traders and prove track records. Rankings are NOT the core emotional identity of the product; they support the trust layer.
+
+### Product Identity
+ClanTrader is a **trust-first trader tool platform** evolving toward a **Trading Command Center** and ultimately **Vibe Trading**.
+
+It is NOT primarily:
+- a signal-copy app (signals exist but serve trust verification, not distribution)
+- a rankings-first competition app (rankings exist but serve discovery/credibility)
+- a social feed app (chat/posts exist but serve structured context, not engagement farming)
+
+Core product direction: **verified trader activity + useful trader tools + structured market context → later AI-powered decision support**.
 
 ### Product Philosophy
 - **Deny-by-default**: Trades must earn eligibility through 7 verified conditions
 - **No trust without verification**: EA bridge provides real-time verification, not self-reported stats
-- **Conservative ranking**: Open losses penalize rank, open profits do not help
+- **Conservative ranking**: Open losses penalize rank, open profits do not help — rankings support trust/discovery, not competition as the primary emotion
 - **Transparency**: Stale data is flagged, not hidden. Tracking status is public.
 - **One statement per trader per clan**: All MT accounts feed one public record
+- **If the platform doesn't know, it must not pretend it knows**: Stale, incomplete, or unverifiable data is surfaced honestly, never hidden behind a clean facade
+
+### Product Direction — Layer Roadmap
+**Status: PLANNED (strategic direction, not implementation claim)**
+
+ClanTrader evolves through layers. Each layer builds on the previous. Only Layer 1 is in active development.
+
+| Layer | Name | Description | Status |
+|-------|------|-------------|--------|
+| 1 | **Trust Foundation** | Verified statements, integrity contract, rankings/badges, digest, journal, live risk visibility, useful free trader features, bug reporting/trust hardening, AI/SLM data preparation | IN PROGRESS |
+| 2 | **News & Events** | Economic calendar, geopolitical context, market-moving event feeds | PLANNED |
+| 3 | **Fundamentals** | Structured fundamental data layers relevant to forex/gold | PLANNED |
+| 4 | **Command Center** | Unified trading dashboard — positions, risk, context, alerts in one view | PLANNED |
+| 5 | **Trader Sentiment + AI Grounding** | Aggregated trader behavior patterns, narrow-task SLM systems grounded in platform data | PLANNED |
+| 6 | **Vibe Trading Alpha** | AI-assisted trade context, scenario analysis, decision support (early/experimental) | PLANNED |
+| 7 | **Full Vibe Trading** | AI-native trading experience inside ClanTrader | PLANNED |
+
+See `docs/STRATEGIC_ROADMAP.md` for the expanded 7-phase plan.
+
+#### Layer 1 — Trust Foundation (Current Focus)
+
+Layer 1 is the MVP and near-term roadmap. It includes:
+- **Verified statements**: Auto-generated from MT data with integrity contract enforcement
+- **Integrity contract**: The rules that decide whether ClanTrader can present a trade/performance result as trustworthy (see Section 2)
+- **Rankings & badges**: Support trust and discovery — help users find credible traders and prove track records
+- **Activity digest**: Trading intelligence dashboard with risk insight, price ladder, equity curve
+- **Trader journal**: Personal trade log with official and analysis tabs
+- **Live risk visibility**: Current open-trade exposure (floating PnL, floating R, drawdown, stale warnings)
+- **Useful free trader features**: Price alerts, notifications, trade cards, chat
+- **Bug reporting / trust hardening**: User-facing problem reporting to surface data issues early (NOT YET IMPLEMENTED — see Known Gaps)
+- **AI/SLM data preparation**: Structured data capture from Layer 1 onward that can later support narrow-task AI systems (see below)
+
+#### Future AI / SLM Data Preparation
+**Status: PLANNED (strategy, not implementation)**
+
+From Layer 1 onward, the platform should gather structured data that can later support narrow-task SLM/AI systems. This is a data hygiene practice, not an AI feature claim.
+
+Examples of data being captured or planned for capture:
+- Labeled trade scenarios (entry quality, outcome, context)
+- Clean structured inputs/outputs (digest outputs, statement snapshots, live risk snapshots)
+- Bug reports and user corrections (when bug reporting is built)
+- Asset-level behavior patterns (price ladder scenarios, concentration patterns)
+- Signal outcomes (planned R:R vs actual, win/loss distribution)
+- Trader behavior data (hold times, SL management patterns, scaling behavior)
+
+The existing `DigestOutput`, `TraderStatementSnapshot`, and `LiveRiskSnapshot` models are early examples of this data capture strategy.
+
+#### Future Chart / Canonical Market Data
+**Status: PLANNED (strategic direction)**
+
+Later layers (Command Center onward) will likely require a site-native chart and canonical market-data layer for:
+- AI interaction and visual explanation
+- Independent price verification
+- Cross-broker symbol normalization
+
+This should NOT be tied solely to broker candles from the EA. Future charting should rely on a canonical instrument/history layer with symbol normalization that can serve as a platform-wide price truth independent of any single broker's feed.
 
 ---
 
@@ -576,6 +651,7 @@ Most decision-sensitive rules in one place. All verified in code (2026-03-10).
 3. **Trade card staleness indicator in chat** — cards don't show stale warning, only statement page does
 4. **No user moderation tools** — no blocking, muting, reporting, or content filtering exists
 5. **Admin impersonation audit logging** — impersonation creates JWT but does not log to audit trail
+6. **User-facing bug/problem reporting** — no way for users to report data issues, incorrect trades, or platform problems. Important for trust hardening: early users finding and reporting issues is a core part of the Layer 1 trust foundation. NOT YET IMPLEMENTED.
 
 ### Deferred by Decision
 1. AI features — post-MVP
@@ -688,6 +764,7 @@ Newest first. Append-only.
 
 | Date | Change | Reason | Affected Files |
 |------|--------|--------|----------------|
+| 2026-03-18 | Strategy/scope clarification pass: refined launch market (diaspora-first invite waves), sharpened product identity (trust-first trader tool platform → Trading Command Center → Vibe Trading), reframed priority lens (competition → credibility/discovery), added 7-layer product direction roadmap, added plain-English definitions for live risk and integrity contract, added AI/SLM data preparation strategy note, added future chart/canonical market data direction, added bug reporting to known gaps. No implementation-truth changes. | Founder strategy alignment session — clarify what ClanTrader IS (trust-first tools) vs what it is NOT (signal app, rankings app, social feed app) | SOURCE_OF_TRUTH.md |
 | 2026-03-17 | UNPROTECTED R:R suppression + frozen SL reference display + frozen hierarchy hardening | When SL is deleted post-qualification, all 4 broadcast paths (`broadcastTradePnl`, `broadcastUnlinkedTradePnl`, `sendInitialPnl`, `broadcastEstimatedPnl`) now emit `currentRR: null` / `targetRR: null` for UNPROTECTED trades — UI falls through to $ P&L display. New "— (was X.XX)" SL reference when current SL = 0 but official snapshot exists. `sendInitialPnl` and `broadcastEstimatedPnl` upgraded from 2-level to 3-level frozen hierarchy. `getPost()` in channel.service.ts missing official fields — fixed. Integrity comment corrected 6→7 conditions. `officialInitialStopLoss` plumbed through serializer/types. 907 tests pass, lint clean, build clean. | ea.service.ts, heartbeat-fallback.service.ts, socket-handlers/shared.ts, channel.service.ts, integrity.service.ts, ea-signal-helpers.ts, chat-store.ts, TradeCardInline.tsx, en.json, fa.json, SOURCE_OF_TRUTH.md |
 | 2026-03-17 | Fix static R:R display + centralize frozen snapshot resolution | Static "1:X.X" R:R on trade cards used mutable card SL/TP — inflated when SL moved (e.g., trailing). Root cause: official frozen fields existed in DB but were not selected/serialized to UI. Fix: (1) Added `getFrozenEntry`/`getFrozenRiskAbs`/`getFrozenTP`/`getPlannedRRRatio`/`formatPlannedRR` to `risk-utils.ts` with strict priority chain: officialSnapshot > initialFields > card. (2) Plumbed `officialEntryPrice`/`officialInitialRiskAbs`/`officialInitialTargets` through `messageInclude`, `serializeMessageForSocket`, `TradeCardData`, channel.service.ts select. (3) All 3 UI components (ChannelStream, ChannelPostCard, TradeCardInline) now use centralized helpers. (4) Both `broadcastTradePnl` and `broadcastUnlinkedTradePnl` now prefer official frozen fields. 30 new regression tests. Verified: 896 tests pass, lint clean, build clean. | risk-utils.ts, ea-signal-helpers.ts, chat-store.ts, channel.service.ts, ea.service.ts, ea-signal-close.service.ts, ChannelStream.tsx, ChannelPostCard.tsx, TradeCardInline.tsx, risk-utils.test.ts |
 | 2026-03-16 | Candle-style price alert evaluation, notification reliability, EA broker symbols | Three changes: (1) Price alerts now use M1 candle high/low instead of current price — ABOVE checks HIGH, BELOW checks LOW — catches spikes that reverse between 15s evaluation cycles. Server-side M1 candles in Redis (atomic Lua OHLC, 1h TTL, 2-min lookback). EA sends M1 `iHigh()`/`iLow()` in heartbeat marketPrices. (2) Notification reliability: 30s polling fallback + Web Audio API alerts (double-beep for CRITICAL types) + IMPORTANT toast upgraded to 6s with body text. Price alert severity → CRITICAL (8s toast). (3) EA sends broker symbol list on login (`/api/ea/broker-symbols`, Redis 48h TTL). Symbol autocomplete merges broker + traded symbols. Verified in code — tests pass, build clean. | ea/MQL4/ClanTrader_EA.mq4, ea/MQL5/ClanTrader_EA.mq5, public/ea/*.mq4/*.mq5, price-pool.service.ts (M1 candles), price-alert.service.ts (broker symbols + candle eval), ea.service.ts (candle feed), NotificationBell.tsx (polling + audio), notification-types.ts (severity), validators.ts (schemas), api/ea/broker-symbols/route.ts (NEW) |
