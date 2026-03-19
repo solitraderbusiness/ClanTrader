@@ -122,17 +122,25 @@ export function MessageBubble({
           <button
             type="button"
             onClick={() => {
-              const el = document.getElementById(`msg-${message.replyTo!.id}`);
+              const targetId = message.replyTo!.id;
+              const el = document.getElementById(`msg-${targetId}`);
               if (el) {
                 el.scrollIntoView({ behavior: "smooth", block: "center" });
                 el.classList.add("animate-highlight");
                 setTimeout(() => el.classList.remove("animate-highlight"), 2000);
+              } else {
+                useChatStore.getState().setSeekMessageId(targetId);
               }
             }}
-            className="mb-0.5 flex items-center gap-1 truncate text-[10px] text-muted-foreground/70 hover:text-muted-foreground"
+            className="mb-1 flex items-center gap-1 rounded-lg border-s-2 border-primary/50 bg-muted/30 px-2.5 py-1.5 text-xs cursor-pointer hover:bg-muted/50 transition-colors"
           >
-            <Reply className="h-2.5 w-2.5 shrink-0" />
-            <span className="truncate">{message.replyTo.user.name}</span>
+            <Reply className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <span className="font-medium">{message.replyTo.user.name}:</span>
+            <span className="truncate text-muted-foreground">
+              {message.replyTo.content.length > 50
+                ? message.replyTo.content.slice(0, 50) + "..."
+                : message.replyTo.content}
+            </span>
           </button>
         )}
         <TradeEventLine content={message.content} createdAt={message.createdAt} />
