@@ -10,7 +10,7 @@ import { generateStatementFromMtAccount } from "@/services/mt-statement.service"
 import { fetchPendingActionsForAccount } from "@/services/ea-action.service";
 import { autoCreateSignalFromMtTrade, syncSignalModification, syncSignalClose } from "@/services/ea-signal.service";
 import { calculateTargetRR, getFrozenEntry, getFrozenRiskAbs } from "@/lib/risk-utils";
-import { updateEquityDrawdown } from "@/services/live-risk.service";
+import { updateEquityDrawdown, persistLiveRiskSnapshots } from "@/services/live-risk.service";
 import {
   computeExternalFlow,
   recordBalanceEvent,
@@ -430,6 +430,11 @@ export async function processHeartbeat(apiKey: string, data: EaHeartbeatInput) {
     }
   }
 
+  // Persist live risk snapshots (5-min throttled, heartbeat-driven cadence)
+  persistLiveRiskSnapshots(account.userId).catch((err) =>
+    console.warn("[LiveRiskSnapshot] heartbeat persist error:", err)
+  );
+
   // Write prices through source-aware price pool (all cache layers)
   const priceSymbolsSeen = new Set<string>();
   if (data.openTrades.length > 0) {
@@ -721,8 +726,7 @@ async function broadcastTradePnl(
 
     const dir = card.direction === "LONG" ? 1 : -1;
     const pricePnl = dir * (currentPrice - entry);
-    const isUnprotected = trade.riskStatus === "UNPROTECTED";
-    const currentRR = (!isUnprotected && riskDistance > 0)
+    const currentRR = (riskDistance > 0)
       ? Math.round(((dir * (currentPrice - entry)) / riskDistance) * 100) / 100
       : null;
 
@@ -736,7 +740,7 @@ async function broadcastTradePnl(
       messageId: card.message.id,
       currentRR,
       currentPrice,
-      targetRR: (!isUnprotected && riskDistance > 0) ? calculateTargetRR(card.targets[0], entry, riskDistance) : null,
+      targetRR: (riskDistance > 0) ? calculateTargetRR(card.targets[0], entry, riskDistance) : null,
       riskStatus: trade.riskStatus,
       pricePnl,
       mtProfit: mtProfit != null ? Math.round(mtProfit * 100) / 100 : undefined,
@@ -851,8 +855,7 @@ async function broadcastUnlinkedTradePnl(
 
     const dir = card.direction === "LONG" ? 1 : -1;
     const pricePnl = dir * (currentPrice - entry);
-    const isUnprotected = trade.riskStatus === "UNPROTECTED";
-    const currentRR = (!isUnprotected && riskDistance > 0)
+    const currentRR = (riskDistance > 0)
       ? Math.round(((dir * (currentPrice - entry)) / riskDistance) * 100) / 100
       : null;
 
@@ -864,7 +867,7 @@ async function broadcastUnlinkedTradePnl(
       messageId: card.message.id,
       currentRR,
       currentPrice,
-      targetRR: (!isUnprotected && riskDistance > 0) ? calculateTargetRR(card.targets[0], entry, riskDistance) : null,
+      targetRR: (riskDistance > 0) ? calculateTargetRR(card.targets[0], entry, riskDistance) : null,
       riskStatus: trade.riskStatus,
       pricePnl,
       clanId,

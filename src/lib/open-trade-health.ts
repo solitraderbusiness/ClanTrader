@@ -488,10 +488,46 @@ export function buildAttentionQueue(trades: TradeWithHealth[]): AttentionItem[] 
     }
   }
 
-  // Enforce per-member cap
+  // Group tracking-lost items by member (collapse "X lost tracking on EURUSD" + "X lost tracking on GBPUSD" → "X — tracking lost on 2 trades")
+  const trackingLostByMember = new Map<string, AttentionItem[]>();
+  const nonTrackingLost: AttentionItem[] = [];
+  for (const item of candidates) {
+    if (item.kind === "TRACKING_LOST_OPEN_RISK") {
+      const arr = trackingLostByMember.get(item.userId) ?? [];
+      arr.push(item);
+      trackingLostByMember.set(item.userId, arr);
+    } else {
+      nonTrackingLost.push(item);
+    }
+  }
+
+  const grouped: AttentionItem[] = [...nonTrackingLost];
+  for (const [userId, items] of trackingLostByMember) {
+    if (items.length <= 1) {
+      grouped.push(items[0]);
+    } else {
+      // Merge into one grouped item
+      grouped.push({
+        kind: "TRACKING_LOST_OPEN_RISK",
+        severity: "CRITICAL",
+        userId,
+        username: items[0].username,
+        tradeId: items[0].tradeId,
+        instrument: "",
+        messageKey: "digest.cockpit.trackingLostGroup",
+        messageParams: { username: items[0].username, count: items.length },
+      });
+    }
+  }
+
+  // Sort: CRITICAL first, then WARNING, then INFO
+  const sevOrder: Record<string, number> = { CRITICAL: 0, WARNING: 1, INFO: 2 };
+  grouped.sort((a, b) => (sevOrder[a.severity] ?? 2) - (sevOrder[b.severity] ?? 2));
+
+  // Enforce per-member cap + total cap
   const memberCount = new Map<string, number>();
   const result: AttentionItem[] = [];
-  for (const item of candidates) {
+  for (const item of grouped) {
     const count = memberCount.get(item.userId) ?? 0;
     if (count >= ATTENTION_PER_MEMBER_MAX) continue;
     memberCount.set(item.userId, count + 1);

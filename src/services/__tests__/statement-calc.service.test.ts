@@ -14,6 +14,9 @@ vi.mock("@/lib/db", () => ({
     traderStatement: {
       upsert: (...args: unknown[]) => mockUpsert(...args),
     },
+    traderStatementSnapshot: {
+      create: vi.fn(() => Promise.resolve({ id: "snap-1" })),
+    },
     clanMember: {
       findMany: vi.fn(),
     },

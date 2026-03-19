@@ -173,43 +173,6 @@ function getAction(
 
 // ─── Position Grouping ───
 
-interface PositionGroup {
-  instrument: string;
-  direction: string;
-  positions: OpenPositionV2[];
-  totalLots: number;
-  totalPnl: number;
-  avgEntry: number | null;
-}
-
-function groupPositionsBySymbol(positions: OpenPositionV2[]): PositionGroup[] {
-  const map = new Map<string, PositionGroup>();
-  for (const p of positions) {
-    const key = `${p.instrument}:${p.direction}`;
-    let g = map.get(key);
-    if (!g) {
-      g = { instrument: p.instrument, direction: p.direction, positions: [], totalLots: 0, totalPnl: 0, avgEntry: null };
-      map.set(key, g);
-    }
-    g.positions.push(p);
-    g.totalLots += p.lots ?? 0;
-    g.totalPnl += p.floatingPnl ?? 0;
-  }
-  // Compute weighted avg entry per group
-  for (const g of map.values()) {
-    let totalLotPrice = 0;
-    let totalLots = 0;
-    for (const p of g.positions) {
-      if (p.openPrice != null && p.lots != null && p.lots > 0) {
-        totalLotPrice += p.openPrice * p.lots;
-        totalLots += p.lots;
-      }
-    }
-    g.avgEntry = totalLots > 0 ? Math.round((totalLotPrice / totalLots) * 100000) / 100000 : null;
-  }
-  return Array.from(map.values()).sort((a, b) => Math.abs(b.totalPnl) - Math.abs(a.totalPnl));
-}
-
 // ─── Scope Types ───
 
 type DigestScope = "trader" | "clan";
@@ -593,12 +556,6 @@ function V2Content({
     [data.members]
   );
 
-  // Group positions by symbol
-  const positionGroups = useMemo(() =>
-    groupPositionsBySymbol(allPositions),
-    [allPositions]
-  );
-
   const equity = data.riskBudget?.totalEquity ?? null;
   const balance = data.accountBalance ?? data.riskBudget?.totalBalance ?? null;
 
@@ -639,8 +596,9 @@ function V2Content({
         currentTP: p.currentTP ?? null,
       })),
       accountEquity: equity,
+      accountBalance: data.riskBudget?.totalBalance ?? null,
     }),
-    [allPositions, equity]
+    [allPositions, equity, data.riskBudget?.totalBalance]
   );
 
 
@@ -689,13 +647,13 @@ function V2Content({
   const contextLine = useMemo(() => {
     const parts: string[] = [];
     parts.push(`${allPositions.length} positions`);
-    if (positionGroups.length > 0) {
-      const top = positionGroups[0];
-      parts.push(`${top.totalLots}L ${top.instrument} ${top.direction}`);
-    }
-    if (unprotectedCount > 0) parts.push(`${unprotectedCount} unprotected`);
+    if (c.totalFloatingR !== null) parts.push(`${c.totalFloatingR >= 0 ? "+" : ""}${c.totalFloatingR.toFixed(1)}R`);
+    if (c.currentOpenRiskR !== null) parts.push(`${c.currentOpenRiskR.toFixed(1)}R risk`);
+    if (unprotectedCount > 0) parts.push(`${unprotectedCount} no SL`);
+    if (c.tradesNeedingAction > 0) parts.push(`${c.tradesNeedingAction} need action`);
+    if (c.liveConfidence !== "HIGH") parts.push(c.liveConfidence === "PARTIAL" ? "partial data" : "low confidence");
     return parts.join(" · ");
-  }, [allPositions.length, positionGroups, unprotectedCount]);
+  }, [allPositions.length, c.totalFloatingR, c.currentOpenRiskR, unprotectedCount, c.tradesNeedingAction, c.liveConfidence]);
 
   return (
     <div className="space-y-3">
@@ -714,9 +672,55 @@ function V2Content({
         <HeroStats pnl={c.totalFloatingPnl} balance={balance} contextLine={contextLine} />
       )}
 
+      {/* Today strip — realized results */}
+      {c.closedCount > 0 && (
+        <div className="flex items-center gap-3 rounded-lg bg-muted/20 px-3 py-1.5 text-[11px]">
+          <span className="text-muted-foreground">{t("digest.today")}</span>
+          <span className={cn("font-mono font-semibold", pnlColor(c.realizedPnl))}>
+            {c.realizedPnl !== null ? fmtCurrency(c.realizedPnl) : "—"}
+          </span>
+          {c.realizedR !== null && (
+            <span className={cn("font-mono", pnlColor(c.realizedR))}>
+              {c.realizedR >= 0 ? "+" : ""}{c.realizedR.toFixed(1)}R
+            </span>
+          )}
+          <span className="text-muted-foreground">{c.closedCount} closed</span>
+          {c.officialWinRate !== null && (
+            <span className="text-muted-foreground">{Math.round(c.officialWinRate * 100)}% WR</span>
+          )}
+        </div>
+      )}
+
       {/* ═══ SECTION 2: SMART ACTIONS ═══ */}
       {smartActions.length > 0 && (
         <SmartActionsBlock actions={smartActions} t={t} />
+      )}
+
+      {/* ═══ NEEDS ATTENTION ═══ */}
+      {data.attentionQueue.length > 0 && (
+        <div className="space-y-1">
+          {data.attentionQueue.slice(0, 5).map((item, i) => (
+            <div
+              key={`att-${item.userId}-${i}`}
+              className={cn("flex items-start gap-2 rounded-lg px-3 py-1.5 text-[11px]",
+                item.severity === "CRITICAL" ? "bg-red-500/[0.07]" :
+                item.severity === "WARNING" ? "bg-yellow-500/[0.05]" : "bg-muted/20"
+              )}
+            >
+              <AlertTriangle className={cn("mt-0.5 h-3 w-3 shrink-0",
+                item.severity === "CRITICAL" ? "text-red-500" :
+                item.severity === "WARNING" ? "text-yellow-500" : "text-blue-500"
+              )} />
+              <span>
+                <span className="font-semibold">{item.username}</span>
+                {item.instrument && <span className="ms-1 font-mono text-muted-foreground">{item.instrument}</span>}
+                <span className="ms-1 text-muted-foreground">
+                  {t(item.messageKey, item.messageParams as Record<string, string | number>)}
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* ═══ SECTION 3: EQUITY & BALANCE CURVE ═══ */}
@@ -724,7 +728,13 @@ function V2Content({
 
       {/* ═══ SECTION 4: PRICE LADDER ═══ */}
       {priceLadders.length > 0 && (
-        <PriceLadderSection ladders={priceLadders} t={t} />
+        <PriceLadderSection
+          ladders={priceLadders}
+          t={t}
+          riskMoney={c.totalFloatingR && c.totalFloatingPnl && Math.abs(c.totalFloatingR) > 0.01
+            ? c.totalFloatingPnl / c.totalFloatingR
+            : null}
+        />
       )}
 
       {/* ═══ SECTION 4: POSITION PROFILE ═══ */}
@@ -898,9 +908,11 @@ const ZONE_COLORS: Record<PriceLadderLevel["zone"], string> = {
 function PriceLadderSection({
   ladders,
   t,
+  riskMoney,
 }: {
   ladders: PriceLadderData[];
   t: (key: string, params?: Record<string, string | number>) => string;
+  riskMoney?: number | null;
 }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const ladder = ladders[activeIdx] ?? ladders[0];
@@ -935,7 +947,7 @@ function PriceLadderSection({
         </div>
       )}
 
-      {/* Context line: "LONG · 4 trades · 250 lots · +$29,955" */}
+      {/* Context line */}
       <p className="mb-2 text-[11px] text-muted-foreground">
         <span className={cn("font-semibold", ladder.direction === "LONG" ? "text-green-500" : "text-red-500")}>
           {ladder.direction}
@@ -946,20 +958,33 @@ function PriceLadderSection({
         <span className={cn("font-mono", ladder.totalPnl >= 0 ? "text-green-500" : "text-red-500")}>
           {fmtChange(ladder.totalPnl)}
         </span>
+        {ladder.hasUnprotected && (
+          <span className="ms-1 text-red-400"> · {t("scenario.noSL")}</span>
+        )}
       </p>
 
-      <PriceLadderCard ladder={ladder} />
+      <InteractiveScenarioLadder ladder={ladder} t={t} riskMoney={riskMoney ?? null} />
     </div>
   );
 }
 
-function PriceLadderCard({
+// ─── Interactive Scenario Ladder ───
+
+function InteractiveScenarioLadder({
   ladder,
+  t,
+  riskMoney,
 }: {
   ladder: PriceLadderData;
+  t: (key: string, params?: Record<string, string | number>) => string;
+  riskMoney: number | null;
 }) {
   const levels = ladder.levels;
   const isLong = ladder.direction === "LONG";
+
+  const [scenarioPrice, setScenarioPrice] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const svgRef = useRef<SVGSVGElement>(null);
 
   const BAR_EQ_H = 300;
   const BAR_EQ_W = 32;
@@ -969,7 +994,6 @@ function PriceLadderCard({
   const TOP_PAD = 20;
   const MIN_LABEL_GAP = 22;
 
-  // Resolve label collisions: ensure min gap between consecutive labels
   const { resolvedY, minPrice, range, bePct } = useMemo(() => {
     if (levels.length < 2) return { resolvedY: [], minPrice: 0, range: 0, bePct: 50 };
     const mn = levels[levels.length - 1].price;
@@ -988,25 +1012,133 @@ function PriceLadderCard({
     return { resolvedY: resolved, minPrice: mn, range: r, bePct: bp };
   }, [levels]);
 
+  // Scenario math — projected P/L + human-readable sentence
+  const scenario = useMemo(() => {
+    if (scenarioPrice === null || !ladder.dollarsPerPoint || ladder.dollarsPerPoint <= 0) return null;
+    const priceDiff = isLong ? scenarioPrice - ladder.avgEntry : ladder.avgEntry - scenarioPrice;
+    const projectedPnl = priceDiff * ladder.dollarsPerPoint;
+    const additionalPnl = projectedPnl - ladder.totalPnl;
+    const bal = ladder.accountBalance;
+    const balancePct = bal && bal > 0 ? (additionalPnl / bal) * 100 : null;
+    const totalBalancePct = bal && bal > 0 ? (projectedPnl / bal) * 100 : null;
+    const projectedR = riskMoney && Math.abs(riskMoney) > 0.01 ? projectedPnl / riskMoney : null;
+
+    // Build a human sentence
+    let sentence = "";
+    const absPnl = Math.abs(additionalPnl);
+    const fmtAbs = `$${Math.round(absPnl).toLocaleString()}`;
+    const isGain = additionalPnl >= 0;
+    const atBE = Math.abs(scenarioPrice - ladder.avgEntry) < ladder.currentPrice * 0.001;
+    const atTP = ladder.firstTP !== null && Math.abs(scenarioPrice - ladder.firstTP) < ladder.currentPrice * 0.001;
+
+    if (atBE) {
+      sentence = t("scenario.sentence.breakeven");
+    } else if (atTP) {
+      sentence = t("scenario.sentence.atTP");
+    } else if (balancePct !== null) {
+      const absPct = Math.abs(balancePct).toFixed(1);
+      if (isGain) {
+        sentence = t("scenario.sentence.gain", { amount: fmtAbs, pct: absPct });
+      } else {
+        sentence = t("scenario.sentence.loss", { amount: fmtAbs, pct: absPct });
+      }
+    } else {
+      if (isGain) {
+        sentence = t("scenario.sentence.gainNoBalance", { amount: fmtAbs });
+      } else {
+        sentence = t("scenario.sentence.lossNoBalance", { amount: fmtAbs });
+      }
+    }
+
+    return { projectedPnl, additionalPnl, balancePct, totalBalancePct, projectedR, sentence };
+  }, [scenarioPrice, ladder, isLong, t, riskMoney]);
+
   if (levels.length < 2 || range <= 0) return null;
 
   function priceToY(price: number): number {
     return TOP_PAD + (1 - (price - minPrice) / range) * BAR_EQ_H;
   }
+  function yToPrice(y: number): number {
+    return minPrice + (1 - (y - TOP_PAD) / BAR_EQ_H) * range;
+  }
 
   const SVG_EQ_H = Math.max(BAR_EQ_H + 40, (resolvedY[resolvedY.length - 1] ?? BAR_EQ_H) + 30);
-
-  // Gradient: green-top for LONG (profit up), red-top for SHORT (loss up)
   const gradTop = isLong ? "#22c55e" : "#ef4444";
   const gradBottom = isLong ? "#ef4444" : "#22c55e";
 
+  // Drag — clamp to bar range (top level to bottom level)
+  function clampPrice(price: number): number {
+    return Math.max(minPrice, Math.min(minPrice + range, price));
+  }
+  function handlePointerMove(e: React.PointerEvent) {
+    if (!isDragging || !svgRef.current) return;
+    e.preventDefault();
+    const rect = svgRef.current.getBoundingClientRect();
+    const scaleFactor = SVG_EQ_H / rect.height;
+    const localY = (e.clientY - rect.top) * scaleFactor;
+    setScenarioPrice(clampPrice(yToPrice(localY)));
+  }
+  function handlePointerDown(e: React.PointerEvent) {
+    e.preventDefault();
+    setIsDragging(true);
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    if (svgRef.current) {
+      const rect = svgRef.current.getBoundingClientRect();
+      const scaleFactor = SVG_EQ_H / rect.height;
+      const localY = (e.clientY - rect.top) * scaleFactor;
+      setScenarioPrice(clampPrice(yToPrice(localY)));
+    }
+  }
+  function handlePointerUp() { setIsDragging(false); }
+
+  // Click a level label → snap scenario there
+  function handleLevelClick(price: number, e: React.MouseEvent) {
+    e.stopPropagation();
+    setScenarioPrice(scenarioPrice === price ? null : price);
+  }
+
+  const scenarioY = scenarioPrice !== null ? priceToY(scenarioPrice) : null;
+  const decimals = ladder.currentPrice > 100 ? 2 : 5;
+
   return (
     <>
+      {/* Scenario info — big P/L + one sentence */}
+      {scenario && scenarioPrice !== null && (
+        <div className="mb-2 rounded-lg border border-purple-500/20 bg-purple-500/[0.05] px-3 py-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className={cn("font-mono text-xl font-black tabular-nums", pnlColor(scenario.projectedPnl))}>
+              {fmtCurrency(scenario.projectedPnl)}
+            </span>
+            {scenario.totalBalancePct !== null && (
+              <span className={cn("font-mono text-sm font-bold tabular-nums", pnlColor(scenario.totalBalancePct))}>
+                {scenario.totalBalancePct >= 0 ? "+" : ""}{scenario.totalBalancePct.toFixed(1)}%
+              </span>
+            )}
+            {scenario.projectedR !== null && (
+              <span className={cn("font-mono text-sm tabular-nums", pnlColor(scenario.projectedR))}>
+                {scenario.projectedR >= 0 ? "+" : ""}{scenario.projectedR.toFixed(1)}R
+              </span>
+            )}
+            <button onClick={() => setScenarioPrice(null)}
+              className="ms-auto rounded p-0.5 text-muted-foreground/40 hover:text-muted-foreground">
+              <span className="text-xs">✕</span>
+            </button>
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">{scenario.sentence}</p>
+        </div>
+      )}
+
       <svg
+        ref={svgRef}
         width="100%"
         viewBox={`0 0 ${SVG_EQ_W} ${SVG_EQ_H}`}
-        className="overflow-visible"
-        aria-label={`Price ladder for ${ladder.symbol}`}
+        className={cn("overflow-visible", isDragging ? "cursor-grabbing" : "cursor-crosshair")}
+        aria-label={`${ladder.symbol} ${ladder.direction}`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+        style={{ touchAction: "none" }}
       >
         <defs>
           <linearGradient id={`grad-${ladder.symbol}-${ladder.direction}`} x1="0" y1="0" x2="0" y2="1">
@@ -1016,97 +1148,86 @@ function PriceLadderCard({
           </linearGradient>
         </defs>
 
-        {/* Main thermometer bar */}
-        <rect
-          x={LEFT_MARGIN}
-          y={TOP_PAD}
-          width={BAR_EQ_W}
-          height={BAR_EQ_H}
-          rx={6}
-          fill={`url(#grad-${ladder.symbol}-${ladder.direction})`}
-        />
+        {/* Thermometer bar */}
+        <rect x={LEFT_MARGIN} y={TOP_PAD} width={BAR_EQ_W} height={BAR_EQ_H} rx={6}
+          fill={`url(#grad-${ladder.symbol}-${ladder.direction})`} />
 
-        {/* Level markers */}
+        {/* Scenario highlight zone */}
+        {scenarioY !== null && (() => {
+          const curY = priceToY(ladder.currentPrice);
+          const topY = Math.min(curY, scenarioY);
+          const h = Math.abs(scenarioY - curY);
+          const isGain = (isLong && scenarioPrice! > ladder.currentPrice) || (!isLong && scenarioPrice! < ladder.currentPrice);
+          return <rect x={LEFT_MARGIN} y={topY} width={BAR_EQ_W} height={h} fill={isGain ? "#22c55e" : "#ef4444"} opacity={0.25} />;
+        })()}
+
+        {/* Level markers — clickable labels */}
         {levels.map((level, i) => {
           const y = priceToY(level.price);
           const labelY = resolvedY[i];
           const color = ZONE_COLORS[level.zone];
           const isCur = level.isCurrent;
+          const isSelected = scenarioPrice !== null && Math.abs(scenarioPrice - level.price) < range * 0.005;
 
           return (
-            <g key={`${level.label}-${i}`}>
-              {/* Horizontal tick line at actual price position */}
-              <line
-                x1={LEFT_MARGIN}
-                y1={y}
-                x2={LEFT_MARGIN + BAR_EQ_W}
-                y2={y}
-                stroke="currentColor"
-                className={isCur ? "text-white" : "text-white/30"}
-                strokeWidth={isCur ? 2 : 1}
-              />
+            <g key={`${level.label}-${i}`} className="cursor-pointer" onClick={(e) => handleLevelClick(level.price, e)}>
+              {/* Hit area — invisible wider rect for easier tapping */}
+              <rect x={LEFT_MARGIN + BAR_EQ_W + 2} y={labelY - 8} width={RIGHT_MARGIN} height={24} fill="transparent" />
 
-              {/* Connector line from tick to offset label if needed */}
+              {/* Tick line */}
+              <line x1={LEFT_MARGIN} y1={y} x2={LEFT_MARGIN + BAR_EQ_W} y2={y}
+                stroke="currentColor" className={isCur ? "text-white" : "text-white/30"} strokeWidth={isCur ? 2 : 1} />
+
+              {/* Connector */}
               {Math.abs(y - labelY) > 2 && (
-                <line
-                  x1={LEFT_MARGIN + BAR_EQ_W + 2}
-                  y1={y}
-                  x2={LEFT_MARGIN + BAR_EQ_W + 6}
-                  y2={labelY}
-                  stroke="currentColor"
-                  className="text-white/10"
-                  strokeWidth={0.5}
-                />
+                <line x1={LEFT_MARGIN + BAR_EQ_W + 2} y1={y} x2={LEFT_MARGIN + BAR_EQ_W + 6} y2={labelY}
+                  stroke="currentColor" className="text-white/10" strokeWidth={0.5} />
               )}
 
-              {/* Current price marker */}
-              {isCur && (
-                <circle
-                  cx={LEFT_MARGIN + BAR_EQ_W / 2}
-                  cy={y}
-                  r={5}
-                  fill="white"
-                  className="drop-shadow-md"
-                />
-              )}
+              {/* Current price dot */}
+              {isCur && <circle cx={LEFT_MARGIN + BAR_EQ_W / 2} cy={y} r={5} fill="white" className="drop-shadow-md" />}
 
-              {/* Price label (left) */}
-              <text
-                x={LEFT_MARGIN - 4}
-                y={labelY + 4}
-                textAnchor="end"
-                className={cn("fill-current text-[10px] tabular-nums", color)}
-              >
-                {level.price.toFixed(2)}
+              {/* Price (left) */}
+              <text x={LEFT_MARGIN - 4} y={labelY + 4} textAnchor="end"
+                className={cn("fill-current text-[10px] tabular-nums", color)}>
+                {level.price.toFixed(decimals)}
               </text>
 
-              {/* Level label + sublabel (right) */}
-              <text
-                x={LEFT_MARGIN + BAR_EQ_W + 8}
-                y={labelY + 4}
-                className={cn("fill-current text-[11px] font-medium", color)}
-              >
+              {/* Label (right) — highlight when selected */}
+              <text x={LEFT_MARGIN + BAR_EQ_W + 8} y={labelY + 4}
+                className={cn("fill-current text-[11px] font-medium",
+                  isSelected ? "fill-purple-400" : color
+                )}>
                 {level.label}
               </text>
               {level.sublabel && (
-                <text
-                  x={LEFT_MARGIN + BAR_EQ_W + 8}
-                  y={labelY + 16}
-                  className="fill-current text-[9px] text-muted-foreground"
-                >
+                <text x={LEFT_MARGIN + BAR_EQ_W + 8} y={labelY + 16}
+                  className="fill-current text-[9px] text-muted-foreground">
                   {level.sublabel}
                 </text>
               )}
             </g>
           );
         })}
+
+        {/* Scenario marker */}
+        {scenarioY !== null && (
+          <g>
+            <line x1={LEFT_MARGIN - 10} y1={scenarioY} x2={LEFT_MARGIN + BAR_EQ_W + 10} y2={scenarioY}
+              stroke="#a855f7" strokeWidth={2} strokeDasharray="6 3" />
+            <circle cx={LEFT_MARGIN + BAR_EQ_W / 2} cy={scenarioY} r={6} fill="#a855f7" stroke="white" strokeWidth={1.5}
+              className="drop-shadow-lg" />
+            <text x={LEFT_MARGIN - 4} y={scenarioY - 8} textAnchor="end"
+              className="fill-purple-400 text-[10px] font-semibold tabular-nums">
+              {scenarioPrice!.toFixed(decimals)}
+            </text>
+          </g>
+        )}
       </svg>
 
-      {/* Risk context insight below ladder */}
-      {ladder.insight && (
-        <p className="mt-2 border-t border-white/[0.06] pt-2 text-[11px] leading-relaxed text-muted-foreground">
-          {ladder.insight}
-        </p>
+      {/* Insight — only when no scenario */}
+      {ladder.insight && !scenario && (
+        <p className="mt-1 text-[10px] text-muted-foreground/70">{ladder.insight}</p>
       )}
     </>
   );
@@ -2073,39 +2194,53 @@ function MemberCard({
 }) {
   return (
     <div className={cn("rounded-xl transition-colors", expanded ? "bg-muted/30" : "bg-muted/20")}>
-      <button type="button" className="flex w-full items-center gap-3 p-3 text-start" onClick={onToggle}>
-        <Avatar className="h-9 w-9 shrink-0">
+      <button type="button" className="flex w-full items-center gap-2 p-3 text-start" onClick={onToggle}>
+        <Avatar className="h-8 w-8 shrink-0">
           {member.avatar && <AvatarImage src={member.avatar} />}
-          <AvatarFallback className="text-sm font-medium">{member.name.charAt(0).toUpperCase()}</AvatarFallback>
+          <AvatarFallback className="text-xs font-medium">{member.name.charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="truncate text-sm font-semibold">{member.name}</span>
-            {member.memberImpactLabel && (
-              <span className="rounded-full bg-orange-500/15 px-2 py-0.5 text-[9px] font-medium text-orange-600 dark:text-orange-400">
-                {t(`digest.${member.memberImpactLabel.replace("digest.", "")}`)}
-              </span>
+            <span className="truncate text-[13px] font-semibold">{member.name}</span>
+            {member.openCount > 0 && (
+              <span className="text-[10px] text-muted-foreground">{member.openCount} {t("digest.open")}</span>
             )}
             {member.memberTrend && member.memberTrend !== "new" && member.memberTrend !== "stable" && (
               <MemberTrendBadge trend={member.memberTrend} t={t} />
             )}
           </div>
-          <div className="mt-0.5 flex items-center gap-2.5 text-xs text-muted-foreground">
-            {member.openCount > 0 && <span>{member.openCount} {t("digest.open")}</span>}
-            {member.openCount > 0 && member.memberFloatingR !== null && (
-              <span className={cn("font-mono", pnlColor(member.memberFloatingR))}>{fmtR(member.memberFloatingR)}</span>
+          {/* Primary: numbers row */}
+          <div className="mt-0.5 flex items-center gap-2 text-[11px] font-mono">
+            {member.memberFloatingPnl !== null && (
+              <span className={cn("font-semibold", pnlColor(member.memberFloatingPnl))}>
+                {fmtPnl(member.memberFloatingPnl)}
+              </span>
+            )}
+            {member.memberFloatingR !== null && (
+              <span className={cn(pnlColor(member.memberFloatingR))}>
+                {fmtR(member.memberFloatingR)}
+              </span>
+            )}
+            {member.memberRiskToSLR !== null && (
+              <span className="text-orange-500">{fmtR(member.memberRiskToSLR)} SL</span>
             )}
             {member.memberActionsNeeded > 0 && (
-              <span className="text-red-600 dark:text-red-400">{member.memberActionsNeeded} {t("digest.cockpit.needAction")}</span>
+              <span className="text-red-400">{member.memberActionsNeeded} {t("digest.cockpit.needAction")}</span>
             )}
           </div>
         </div>
+        {/* Total R at right */}
         <div className="shrink-0 text-end">
-          <p className={cn("text-base font-bold tabular-nums", member.totalR >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400")}>
+          <p className={cn("text-sm font-bold tabular-nums", pnlColor(member.totalR))}>
             {member.totalR >= 0 ? "+" : ""}{member.totalR}R
           </p>
+          {member.memberImpactLabel && (
+            <span className="text-[8px] text-orange-400">
+              {t(`digest.${member.memberImpactLabel.replace("digest.", "")}`)}
+            </span>
+          )}
         </div>
-        {expanded ? <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />}
+        {expanded ? <ChevronUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
       </button>
 
       {expanded && (
@@ -2185,47 +2320,74 @@ function OpenTradeRow({
         {position.lots != null && position.lots > 0 && (
           <span className="text-[10px] text-muted-foreground">{position.lots}L</span>
         )}
-        {position.accountLabel && (
-          <span className="hidden truncate text-[9px] text-muted-foreground sm:inline">{position.accountLabel}</span>
-        )}
-        <span className="ms-auto flex items-center gap-2 font-mono">
+
+        {/* Primary: P/L + R + SL risk */}
+        <span className="ms-auto flex items-center gap-1.5 font-mono">
           {position.floatingPnl !== null && (
-            <span className={cn("font-medium", pnlColor(position.floatingPnl))}>{fmtPnl(position.floatingPnl)}</span>
+            <span className={cn("font-semibold", pnlColor(position.floatingPnl))}>{fmtPnl(position.floatingPnl)}</span>
           )}
           {position.rComputable && position.floatingR !== null ? (
-            <span className={cn("font-medium", pnlColor(position.floatingR))}>{fmtR(position.floatingR)}</span>
+            <span className={cn("text-[10px]", pnlColor(position.floatingR))}>{fmtR(position.floatingR)}</span>
           ) : (
-            <span className="text-[10px] text-muted-foreground">R?</span>
+            <span className="rounded bg-yellow-500/15 px-1 text-[8px] text-yellow-500">R?</span>
+          )}
+          {position.riskToSLR !== null && (
+            <span className="text-[10px] text-orange-500">{fmtR(position.riskToSLR)}SL</span>
           )}
         </span>
+
+        {/* Action indicator */}
+        {action && <AlertTriangle className="h-3 w-3 shrink-0 text-orange-400" />}
         {expanded ? <ChevronUp className="h-3 w-3 shrink-0 text-muted-foreground" /> : <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />}
       </button>
 
       {expanded && (
         <div className="space-y-1 border-t border-border/30 px-2.5 py-1.5">
+          {/* Primary expanded: action + key numbers */}
+          {action && (
+            <div className="flex items-center gap-1 text-[10px] font-medium text-orange-500">
+              <AlertTriangle className="h-2.5 w-2.5" />{action}
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px]">
             {position.openPrice != null && (
               <span className="text-muted-foreground">@ {position.openPrice}</span>
             )}
             <span className="text-muted-foreground">{holdDuration(position.createdAt)}</span>
-            {position.riskToSLR !== null && (
-              <span className="text-orange-600 dark:text-orange-400">{t("digest.cockpit.slRisk")}: {fmtR(position.riskToSLR)}</span>
+            {position.currentSL != null && position.currentSL > 0 && position.currentPrice != null && (
+              <span className="text-muted-foreground">
+                SL: {position.currentSL}
+                <span className="ms-1 text-orange-500">
+                  ({Math.abs(position.currentPrice - position.currentSL).toFixed(position.currentPrice > 100 ? 1 : 4)} away)
+                </span>
+              </span>
             )}
-            <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold", healthColors.bg, healthColors.text)}>
+            {position.currentTP != null && (position.currentTP as number) > 0 && position.currentPrice != null && (
+              <span className="text-muted-foreground">
+                TP: {position.currentTP}
+                <span className="ms-1 text-green-500">
+                  ({Math.abs(position.currentPrice - (position.currentTP as number)).toFixed(position.currentPrice > 100 ? 1 : 4)} away)
+                </span>
+              </span>
+            )}
+          </div>
+          {/* Secondary: health + protection (demoted) */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[9px]">
+            <span className={cn("rounded-full px-1.5 py-0.5 font-medium", healthColors.bg, healthColors.text)}>
               {t(`digest.health.${position.health.overall.toLowerCase()}`)}
             </span>
             {position.health.protectionStatus === "UNPROTECTED" && (
-              <span className="flex items-center gap-0.5 text-red-600 dark:text-red-400">
+              <span className="flex items-center gap-0.5 text-red-400">
                 <ShieldOff className="h-2.5 w-2.5" />{t("digest.protection.unprotected")}
               </span>
             )}
             {position.health.protectionStatus === "BREAKEVEN_LOCKED" && (
-              <span className="flex items-center gap-0.5 text-green-600 dark:text-green-400">
+              <span className="flex items-center gap-0.5 text-green-500">
                 <Shield className="h-2.5 w-2.5" />{t("digest.protection.breakevenLocked")}
               </span>
             )}
             {position.health.protectionStatus === "PROTECTED" && (
-              <span className="flex items-center gap-0.5 text-green-600 dark:text-green-400">
+              <span className="flex items-center gap-0.5 text-green-500">
                 <Shield className="h-2.5 w-2.5" />{t("digest.protection.protected")}
               </span>
             )}
@@ -2241,12 +2403,7 @@ function OpenTradeRow({
             )}
           </div>
           {position.accountLabel && (
-            <div className="text-[10px] text-muted-foreground sm:hidden">{position.accountLabel}</div>
-          )}
-          {action && (
-            <div className="flex items-center gap-1 text-[10px] text-orange-600 dark:text-orange-400">
-              <AlertTriangle className="h-2.5 w-2.5" />{action}
-            </div>
+            <div className="text-[9px] text-muted-foreground sm:hidden">{position.accountLabel}</div>
           )}
         </div>
       )}

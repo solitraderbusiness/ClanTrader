@@ -73,6 +73,26 @@ export async function calculateRankings(seasonId: string) {
       },
     });
 
+    // Enrich the most recent snapshot with ranking data (exact-row by ID lookup)
+    db.traderStatementSnapshot.findFirst({
+      where: { traderStatementId: s.id },
+      orderBy: { snapshotAt: "desc" },
+      select: { id: true },
+    }).then((snap) => {
+      if (snap) {
+        return db.traderStatementSnapshot.update({
+          where: { id: snap.id },
+          data: {
+            effectiveRankR: effectiveRank.effectiveRankR,
+            openRiskPenalty: effectiveRank.openRiskPenalty,
+            rankingStatus: s.rankingStatus ?? "RANKED",
+          },
+        });
+      }
+    }).catch((err) => {
+      console.warn("[StatementSnapshot] Failed to enrich ranking:", err);
+    });
+
     metricsMap.push({
       userId: s.userId,
       userName: s.user.name,

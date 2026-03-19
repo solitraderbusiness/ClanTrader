@@ -1263,6 +1263,12 @@ export interface PriceLadderData {
   insight?: string;
   hiddenLossLevels: number;
   tradeCount: number;
+  // Scenario ladder extensions
+  accountBalance: number | null;
+  accountEquity: number | null;
+  firstSL: number | null;
+  firstTP: number | null;
+  hasUnprotected: boolean;
 }
 
 export interface PriceLadderInput {
@@ -1277,6 +1283,7 @@ export interface PriceLadderInput {
     currentTP: number | null;
   }>;
   accountEquity: number | null;
+  accountBalance: number | null;
 }
 
 /**
@@ -1324,7 +1331,7 @@ export function generateLadderInsight(
 }
 
 export function computePriceLadder(input: PriceLadderInput): PriceLadderData[] {
-  const { positions, accountEquity } = input;
+  const { positions, accountEquity, accountBalance } = input;
 
   // Group by symbol+direction
   const groups = new Map<string, typeof positions>();
@@ -1399,13 +1406,31 @@ export function computePriceLadder(input: PriceLadderInput): PriceLadderData[] {
       });
     }
 
-    // Account loss levels (-10%, -20%, -50%) — filter unrealistic prices
+    // Account loss levels — filter unrealistic prices
+    // Pain levels: -1%, -2%, -5% from current (scenario-relevant), -10%, -20%, -50% from entry (structural)
     let hiddenLossLevels = 0;
     const maxReasonable = curPrice * 2.0;
     const minReasonable = curPrice * 0.2;
+    const dpp = totalLots * pv; // dollars per point
     if (accountEquity && accountEquity > 0 && pv > 0) {
+      // Scenario pain levels: from CURRENT price (how much more can I lose from here?)
+      for (const pct of [0.01, 0.02, 0.05]) {
+        const lossDelta = (accountEquity * pct) / dpp;
+        const lossPrice = isLong ? curPrice - lossDelta : curPrice + lossDelta;
+        if (lossPrice > minReasonable && lossPrice < maxReasonable) {
+          levels.push({
+            price: lossPrice,
+            label: `-${Math.round(pct * 100)}%`,
+            sublabel: `-$${Math.round(accountEquity * pct).toLocaleString()} more`,
+            zone: "danger",
+          });
+        } else {
+          hiddenLossLevels++;
+        }
+      }
+      // Structural loss levels: from entry (total account damage)
       for (const pct of [0.10, 0.20, 0.50]) {
-        const lossDelta = (accountEquity * pct) / (totalLots * pv);
+        const lossDelta = (accountEquity * pct) / dpp;
         const lossPrice = isLong ? avgEntry - lossDelta : avgEntry + lossDelta;
         if (lossPrice > minReasonable && lossPrice < maxReasonable) {
           levels.push({
@@ -1451,6 +1476,23 @@ export function computePriceLadder(input: PriceLadderInput): PriceLadderData[] {
       }
     }
 
+    // Suggested SL levels — only when NO trades have SL
+    if (!hasStopLoss && accountEquity && accountEquity > 0 && dpp > 0) {
+      for (const pct of [0.01, 0.02, 0.05]) {
+        const maxLoss = accountEquity * pct;
+        const priceMove = maxLoss / dpp;
+        const slPrice = isLong ? curPrice - priceMove : curPrice + priceMove;
+        if (slPrice > minReasonable && slPrice < maxReasonable && slPrice > 0) {
+          levels.push({
+            price: slPrice,
+            label: `SL at ${Math.round(pct * 100)}%`,
+            sublabel: `-$${Math.round(maxLoss).toLocaleString()} max loss`,
+            zone: "warning",
+          });
+        }
+      }
+    }
+
     // TP levels
     const withTP = group.filter((p) => p.currentTP !== null && (p.currentTP ?? 0) > 0);
     if (withTP.length > 0) {
@@ -1483,7 +1525,9 @@ export function computePriceLadder(input: PriceLadderInput): PriceLadderData[] {
         const minGap = totalRange * 0.03;
         const priority: Record<string, number> = {
           Current: 10, Breakeven: 9, "Half Profit": 8,
+          "-1%": 7, "-2%": 7, "-5%": 7,
           "-10% Account": 7, "-20% Account": 7, "-50% Account": 7,
+          "SL at 1%": 6, "SL at 2%": 6, "SL at 5%": 6,
           "Stop Loss": 6, "First SL": 6, "All SLs Hit": 6,
           "Take Profit": 5, "First TP": 5, "Worst Entry": 3,
         };
@@ -1512,10 +1556,19 @@ export function computePriceLadder(input: PriceLadderInput): PriceLadderData[] {
     }
 
     // Generate risk context insight
-    const dpp = totalLots * pv;
     const insight = accountEquity && accountEquity > 0 && dpp > 0
       ? generateLadderInsight(curPrice, dpp, accountEquity, symbol, hasStopLoss, hiddenLossLevels)
       : undefined;
+
+    // Compute first SL/TP for scenario extensions
+    const slPricesAll = withSL.map((p) => p.currentSL!);
+    const tpPricesAll = withTP.map((p) => p.currentTP!);
+    const computedFirstSL = slPricesAll.length > 0
+      ? (isLong ? Math.max(...slPricesAll) : Math.min(...slPricesAll))
+      : null;
+    const computedFirstTP = tpPricesAll.length > 0
+      ? (isLong ? Math.min(...tpPricesAll) : Math.max(...tpPricesAll))
+      : null;
 
     ladders.push({
       symbol,
@@ -1529,6 +1582,11 @@ export function computePriceLadder(input: PriceLadderInput): PriceLadderData[] {
       insight,
       hiddenLossLevels,
       tradeCount: group.length,
+      accountBalance: accountBalance ?? accountEquity,
+      accountEquity: accountEquity,
+      firstSL: computedFirstSL,
+      firstTP: computedFirstTP,
+      hasUnprotected: group.some((p) => !p.currentSL || p.currentSL <= 0),
     });
   }
 

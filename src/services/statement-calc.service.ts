@@ -188,6 +188,22 @@ export async function calculateStatement(
     },
   });
 
+  // Persist snapshot for historical tracking (append-only, never overwrites)
+  db.traderStatementSnapshot.create({
+    data: {
+      traderStatementId: statement.id,
+      userId,
+      clanId,
+      periodType,
+      periodKey,
+      seasonId: seasonId || null,
+      metrics: metrics as unknown as Prisma.InputJsonValue,
+      tradeCount: trades.length,
+    },
+  }).catch((err) => {
+    console.warn("[StatementSnapshot] Failed to persist:", err);
+  });
+
   return statement;
 }
 

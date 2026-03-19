@@ -405,3 +405,52 @@ export async function checkRankingEligibility(userId: string): Promise<"RANKED" 
 
   return "RANKED";
 }
+
+const LIVE_RISK_PERSIST_TTL = 300; // 5 minutes — matches equity snapshot cadence
+
+/**
+ * Persist live risk snapshots for a user across all clans.
+ * Called from heartbeat processing — server-driven cadence, NOT page-view-driven.
+ * Throttled to max 1 write per user per 5 minutes.
+ */
+export async function persistLiveRiskSnapshots(userId: string): Promise<void> {
+  const throttleKey = `live-risk-persist:${userId}`;
+  const existing = await redis.get(throttleKey);
+  if (existing) return; // Already persisted within last 5 min
+
+  // Find user's clan memberships
+  const memberships = await db.clanMember.findMany({
+    where: { userId },
+    select: { clanId: true },
+  });
+  if (memberships.length === 0) return;
+
+  // Set throttle BEFORE computation to avoid race conditions between concurrent heartbeats
+  await redis.set(throttleKey, "1", "EX", LIVE_RISK_PERSIST_TTL);
+
+  for (const { clanId } of memberships) {
+    try {
+      const risk = await getLiveOpenRisk(userId, clanId);
+      // Only snapshot if trader has open official trades (empty state is not useful)
+      if (risk.openOfficialCount === 0) continue;
+
+      await db.liveRiskSnapshot.create({
+        data: {
+          userId,
+          clanId,
+          openOfficialCount: risk.openOfficialCount,
+          totalFloatingPnl: risk.liveFloatingPnl,
+          totalFloatingR: risk.liveFloatingR,
+          biggestLoserR: risk.biggestOpenLoserR,
+          unprotectedCount: risk.unprotectedCount,
+          currentDrawdownPct: risk.currentEquityDrawdownPct,
+          maxDrawdownPct: risk.maxEquityDrawdownPct,
+          isEstimated: risk.isEstimated,
+          staleWarning: risk.staleWarning,
+        },
+      });
+    } catch (err) {
+      console.warn(`[LiveRiskSnapshot] Failed to persist for clan ${clanId}:`, err);
+    }
+  }
+}

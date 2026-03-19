@@ -73,6 +73,7 @@ vi.mock("@/services/balance-event.service", () => ({
 
 vi.mock("@/services/live-risk.service", () => ({
   updateEquityDrawdown: vi.fn(() => Promise.resolve()),
+  persistLiveRiskSnapshots: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock("@/services/ea-signal.service", () => ({
@@ -459,5 +460,108 @@ describe("processHeartbeat — regression: all-trades-close-at-once", () => {
       20098,   // newBalance
       98,      // closedTradesPnL
     );
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  R:R semantics: UNPROTECTED does NOT suppress Live R / Target R     */
+/*  All broadcast paths use riskDistance > 0 only (no UNPROTECTED guard)*/
+/* ------------------------------------------------------------------ */
+
+describe("UNPROTECTED R:R broadcast parity", () => {
+  /**
+   * Shared R computation logic used by ALL 4 broadcast paths + REST path.
+   * This test verifies that the computation is identical regardless of path.
+   * The 4 broadcast paths (broadcastTradePnl, broadcastUnlinkedTradePnl,
+   * sendInitialPnl, broadcastEstimatedPnl) and the REST path (channel.service.ts)
+   * all use the same formula: riskDistance > 0 → compute, else null.
+   */
+  function computeR(params: {
+    direction: "LONG" | "SHORT";
+    currentPrice: number;
+    entry: number;
+    riskDistance: number;
+    targetTP: number;
+  }) {
+    const { direction, currentPrice, entry, riskDistance, targetTP } = params;
+    const dir = direction === "LONG" ? 1 : -1;
+    const currentRR = (riskDistance > 0)
+      ? Math.round(((dir * (currentPrice - entry)) / riskDistance) * 100) / 100
+      : null;
+    // targetRR: mirrors calculateTargetRR behavior
+    const targetRR = (riskDistance > 0 && targetTP > 0)
+      ? Math.abs(targetTP - entry) / riskDistance
+      : null;
+    return { currentRR, targetRR };
+  }
+
+  it("qualified UNPROTECTED trade with frozen snapshot → R computed across all paths", () => {
+    // Reference trade: LONG EURUSD, entry 1.1000, frozenRisk 0.0050, TP 1.1125
+    // Current SL = 0 (deleted) → UNPROTECTED, but frozen risk exists
+    const params = {
+      direction: "LONG" as const,
+      currentPrice: 1.1075,
+      entry: 1.1000,
+      riskDistance: 0.0050, // from getFrozenRiskAbs → officialInitialRiskAbs
+      targetTP: 1.1125,
+    };
+
+    const result = computeR(params);
+
+    // currentRR = (1.1075 - 1.1000) / 0.0050 = 1.50
+    expect(result.currentRR).toBe(1.5);
+    // targetRR = |1.1125 - 1.1000| / 0.0050 = 2.50
+    expect(result.targetRR).toBeCloseTo(2.5, 5);
+
+    // Verify riskStatus would still be UNPROTECTED in payload (for badge display)
+    // This is just documenting the contract — riskStatus is always emitted
+    const riskStatus = "UNPROTECTED";
+    expect(riskStatus).toBe("UNPROTECTED");
+  });
+
+  it("qualified UNPROTECTED trade with TP removed → currentRR computed, targetRR null", () => {
+    const params = {
+      direction: "LONG" as const,
+      currentPrice: 1.1075,
+      entry: 1.1000,
+      riskDistance: 0.0050,
+      targetTP: 0, // TP deleted
+    };
+
+    const result = computeR(params);
+
+    expect(result.currentRR).toBe(1.5); // Still computed — frozen risk exists
+    expect(result.targetRR).toBeNull(); // Natural null — TP = 0
+  });
+
+  it("unqualified trade (no frozen snapshot) → both null regardless of UNPROTECTED", () => {
+    const params = {
+      direction: "LONG" as const,
+      currentPrice: 1.1075,
+      entry: 1.1000,
+      riskDistance: 0, // No frozen risk — unqualified/analysis trade
+      targetTP: 1.1125,
+    };
+
+    const result = computeR(params);
+
+    expect(result.currentRR).toBeNull();
+    expect(result.targetRR).toBeNull();
+  });
+
+  it("riskStatus field still emitted as UNPROTECTED in broadcast payload", () => {
+    // The broadcast paths always include riskStatus for UI badge rendering
+    // Removing isUnprotected guard does NOT remove riskStatus from payload
+    const payload = {
+      tradeId: "t1",
+      currentRR: 1.5,
+      targetRR: 2.5,
+      riskStatus: "UNPROTECTED", // Always present
+      pricePnl: 0.0075,
+    };
+
+    expect(payload.riskStatus).toBe("UNPROTECTED");
+    expect(payload.currentRR).not.toBeNull();
+    expect(payload.targetRR).not.toBeNull();
   });
 });

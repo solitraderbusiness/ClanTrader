@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { redis } from "@/lib/redis";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { getClanDigest } from "@/services/clan-digest.service";
 import { getClanDigestV2 } from "@/services/digest-v2.service";
 import { DIGEST_SNAPSHOT_PREFIX, DIGEST_SNAPSHOT_TTL } from "@/lib/digest-constants";
@@ -150,6 +151,51 @@ export async function GET(
       } catch {
         // Delta/trend/hint computation is best-effort — don't fail the digest
       }
+
+      // ─── Persist digest outputs for future AI training ───
+      const digestPersistKey = `digest-persist:${clanId}:${parsed.data.period}:${parsed.data.tz}`;
+      redis.get(digestPersistKey).then(async (existing) => {
+        if (existing) return; // Throttled: max 1 persist per 90s per (clan, period, tz)
+        await redis.set(digestPersistKey, "1", "EX", 90);
+
+        // Clan-scoped digest
+        db.digestOutput.create({
+          data: {
+            clanId,
+            requestedById: session.user.id,
+            scope: "CLAN",
+            period: parsed.data.period,
+            digestVersion: "v2",
+            tzOffset: parsed.data.tz,
+            outputJson: { ...data, deltas, hints } as unknown as Prisma.InputJsonValue,
+          },
+        }).catch((err) => {
+          console.warn("[DigestOutput] Failed to persist CLAN digest:", err);
+        });
+
+        // Trader-scoped digest (if viewer has their own stats in this digest)
+        if (traderDeltas) {
+          const myMember = data.members.find(m => m.userId === session.user.id);
+          if (myMember) {
+            db.digestOutput.create({
+              data: {
+                clanId,
+                requestedById: session.user.id,
+                subjectUserId: session.user.id,
+                scope: "TRADER",
+                period: parsed.data.period,
+                digestVersion: "v2",
+                tzOffset: parsed.data.tz,
+                outputJson: { member: myMember, traderDeltas, traderHints } as unknown as Prisma.InputJsonValue,
+              },
+            }).catch((err) => {
+              console.warn("[DigestOutput] Failed to persist TRADER digest:", err);
+            });
+          }
+        }
+      }).catch((err) => {
+        console.warn("[DigestOutput] Redis throttle check failed:", err);
+      });
 
       return NextResponse.json({
         ...data,
