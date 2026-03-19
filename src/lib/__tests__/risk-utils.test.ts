@@ -415,3 +415,91 @@ describe("formatPlannedRR", () => {
     expect(formatPlannedRR(trade, card)).toBe("1:2.5");
   });
 });
+
+/* ------------------------------------------------------------------ */
+/*  Two-layer R:R semantics consistency                                */
+/*  Layer 1 (frozen snapshot) = sole R denominator                     */
+/*  Layer 2 (management) = badges/journal, never affects R             */
+/* ------------------------------------------------------------------ */
+
+describe("UNPROTECTED trades — two-layer R semantics", () => {
+  // Reference trade: qualified, SL deleted post-window → UNPROTECTED
+  const qualifiedTrade = {
+    officialEntryPrice: 100,
+    officialInitialRiskAbs: 5,
+    officialInitialTargets: [112.5],
+  };
+  const card = { entry: 100, stopLoss: 0, targets: [0], direction: "LONG" as const };
+
+  it("UNPROTECTED + frozen snapshot → Live R computed (not suppressed)", () => {
+    const riskAbs = getFrozenRiskAbs(qualifiedTrade, card.entry, card.stopLoss);
+    expect(riskAbs).toBe(5); // From frozen snapshot, not card SL
+    const liveR = calculateLiveRR("LONG", 107.5, 100, riskAbs);
+    expect(liveR).toBe(1.5); // (107.5-100)/5 = 1.5R
+  });
+
+  it("UNPROTECTED + no frozen snapshot → Live R zero (natural fallback)", () => {
+    const noSnapshotTrade = {};
+    const riskAbs = getFrozenRiskAbs(noSnapshotTrade, 100, 0); // cardSL=0
+    expect(riskAbs).toBe(0);
+    const liveR = calculateLiveRR("LONG", 107.5, 100, riskAbs);
+    expect(liveR).toBe(0); // No risk denominator → natural zero
+  });
+
+  it("SL deleted after deadline → stays SIGNAL, Live R continues from frozen risk", () => {
+    // officialSignalQualified unchanged (not tested here — qualification service tests cover that)
+    // But frozen riskAbs still returns the original value
+    const riskAbs = getFrozenRiskAbs(qualifiedTrade, card.entry, card.stopLoss);
+    expect(riskAbs).toBe(5);
+    expect(calculateLiveRR("LONG", 110, 100, riskAbs)).toBe(2.0);
+  });
+
+  it("TP deleted after deadline → planned RR frozen, targetRR naturally null", () => {
+    // Planned RR uses frozen TP, not card TP
+    const cardWithDeletedTP = { entry: 100, stopLoss: 0, targets: [0], direction: "LONG" };
+    const rr = getPlannedRRRatio(qualifiedTrade, cardWithDeletedTP);
+    expect(rr).toBeCloseTo(2.5, 1); // (112.5-100)/5 = 2.5 — from frozen snapshot
+
+    // targetRR: calculateTargetRR with TP=0 returns null naturally
+    expect(calculateTargetRR(0, 100, 5)).toBeNull();
+
+    // currentRR still computed — frozen risk exists
+    const riskAbs = getFrozenRiskAbs(qualifiedTrade, 100, 0);
+    expect(riskAbs).toBe(5);
+    expect(calculateLiveRR("LONG", 105, 100, riskAbs)).toBe(1.0);
+  });
+
+  it("Both SL+TP deleted → currentRR continues, targetRR null, plannedRR frozen", () => {
+    const riskAbs = getFrozenRiskAbs(qualifiedTrade, card.entry, card.stopLoss);
+    expect(riskAbs).toBe(5);
+    expect(calculateLiveRR("LONG", 102.5, 100, riskAbs)).toBe(0.5);
+    expect(calculateTargetRR(0, 100, riskAbs)).toBeNull();
+    expect(getPlannedRRRatio(qualifiedTrade, card)).toBeCloseTo(2.5, 1);
+  });
+
+  it("SL restored at different price → frozen denominator unchanged", () => {
+    // Card SL changed to 97 (new SL after restoration), but frozen snapshot keeps original
+    const restoredCard = { entry: 100, stopLoss: 97, targets: [112.5], direction: "LONG" };
+    const riskAbs = getFrozenRiskAbs(qualifiedTrade, restoredCard.entry, restoredCard.stopLoss);
+    expect(riskAbs).toBe(5); // Official snapshot wins, not |100-97|=3
+  });
+
+  it("TP changed post-window to larger value → planned/original RR unchanged", () => {
+    const movedTPCard = { entry: 100, stopLoss: 95, targets: [120], direction: "LONG" };
+    // Planned RR uses frozen TP (112.5), not card TP (120)
+    const rr = getPlannedRRRatio(qualifiedTrade, movedTPCard);
+    expect(rr).toBeCloseTo(2.5, 1); // (112.5-100)/5 = 2.5
+
+    // But calculateTargetRR with new TP reflects management state
+    const targetRR = calculateTargetRR(120, 100, 5);
+    expect(targetRR).toBe(4.0); // (120-100)/5 = 4.0 — current target, not planned
+  });
+
+  it("Close while UNPROTECTED → finalRR correct from frozen risk", () => {
+    // Final R uses same frozen snapshot denominator
+    const closePrice = 112.5;
+    const riskAbs = getFrozenRiskAbs(qualifiedTrade, 100, 0);
+    const finalR = calculateLiveRR("LONG", closePrice, 100, riskAbs);
+    expect(finalR).toBe(2.5); // Hit original TP → exactly planned RR
+  });
+});

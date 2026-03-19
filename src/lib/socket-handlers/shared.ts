@@ -172,12 +172,11 @@ export async function sendInitialPnl(socket: Socket, clanId: string, topicId: st
 
       const dir = trade.tradeCard.direction === "LONG" ? 1 : -1;
       const pricePnl = dir * (currentPrice - entry);
-      const isUnprotected = trade.riskStatus === "UNPROTECTED";
-      const currentRR = (!isUnprotected && riskAbs > 0)
+      const currentRR = (riskAbs > 0)
         ? Math.round(((dir * (currentPrice - entry)) / riskAbs) * 100) / 100
         : null;
 
-      const targetRR = (!isUnprotected && riskAbs > 0)
+      const targetRR = (riskAbs > 0)
         ? calculateTargetRR(trade.tradeCard.targets[0], entry, riskAbs)
         : null;
 

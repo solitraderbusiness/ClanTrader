@@ -336,8 +336,7 @@ async function broadcastEstimatedPnl(
 
     const dir = card.direction === "LONG" ? 1 : -1;
     const pricePnl = dir * (currentPrice - entry);
-    const isUnprotected = trade.riskStatus === "UNPROTECTED";
-    const currentRR = (!isUnprotected && riskDistance > 0)
+    const currentRR = (riskDistance > 0)
       ? Math.round(((dir * (currentPrice - entry)) / riskDistance) * 100) / 100
       : null;
 
@@ -348,7 +347,7 @@ async function broadcastEstimatedPnl(
       messageId: card.message.id,
       currentRR,
       currentPrice,
-      targetRR: (!isUnprotected && riskDistance > 0) ? calculateTargetRR(card.targets[0], entry, riskDistance) : null,
+      targetRR: (riskDistance > 0) ? calculateTargetRR(card.targets[0], entry, riskDistance) : null,
       riskStatus: trade.riskStatus,
       pricePnl,
       mtProfit: mtProfit != null ? mtProfit : undefined,
