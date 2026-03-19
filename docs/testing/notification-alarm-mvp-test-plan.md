@@ -1,6 +1,6 @@
 # Test Plan — Notification + Alarm MVP
 
-> Last updated: 2026-03-13 (hardened)
+> Last updated: 2026-03-19 (UX polish pass)
 
 ## Scope
 
@@ -128,14 +128,61 @@ Covers the full Notification + Price Alert MVP: notification center UI, preferen
 - Mark single notification as read
 - Auth guard (unauthenticated returns 401)
 
+## UX Polish Pass Scenarios (2026-03-19)
+
+### Notification State / Count Trust
+55. **Unread badge ↔ dropdown ↔ page consistency**: Create notification → badge increments, dropdown shows blue dot, /notifications shows unread marker — all match
+56. **Mark one read**: Click notification in dropdown → blue dot gone, badge decrements, /notifications page reflects change
+57. **Mark all read**: Click "mark all read" → badge = 0, all dots gone, persists after page refresh
+58. **Polling fallback sync**: Disconnect socket, create notification via API, wait 30s → badge updates from polling
+
+### Severity / Icon Mapping
+59. **Connection lost = IMPORTANT (amber)**: Not same visual as CRITICAL (red)
+60. **Price alert triggered = market event (green/blue)**: Not danger-red
+61. **Risk warnings = danger (red)**: RISK_NO_SL, RISK_DRAWDOWN show as critical/danger
+
+### Connection-Lost Noise
+62. **Repeated tracking lost**: Stop/start EA 3x in 30 min → only 1 notification visible (cooldown working)
+63. **Important items not buried**: After tracking spam, trade close notification still visible near top
+
+### Alert Icon / Mental Model
+64. **Bell ≠ price alerts**: Navbar has distinct bell icon (notifications) and target/crosshair icon (price alerts)
+65. **Badge semantics clear**: Price alert badge shows active alert count OR unseen triggered count (not mixed)
+
+### Alert Active vs History
+66. **Active list feels operational**: Active alerts show symbol, condition, target, status clearly
+67. **Triggered items show outcome**: Triggered alerts show triggered price + timestamp
+68. **Cancelled items distinct**: Cancelled alerts visually different from triggered (label/chip)
+
+### Cancel / Delete / Retention
+69. **Cancel active alert**: X button on active alert → status = CANCELLED, moves to history
+70. **History not hard-deleted**: Removing from visible history does NOT delete DB row
+71. **Analytics data preserved**: PriceAlert rows with TRIGGERED/CANCELLED status still queryable
+
+### Price Alert Modal
+72. **Live price shown**: Select symbol → modal shows current price
+73. **Distance to target**: Shows absolute distance + percentage
+74. **ABOVE > current price validation**: Creating ABOVE alert at price below current → error
+75. **BELOW < current price validation**: Creating BELOW alert at price above current → error
+76. **No symbol selected**: Target validation disabled until symbol chosen
+
+### Settings Page
+77. **Clear channel separation**: History (always on) / Live popups / Push (if real) / Sound — visually distinct sections
+78. **Push hidden if not real**: If VAPID keys not set, push section not visible
+79. **Push status shown if real**: Permission granted/denied, subscribed/not subscribed
+80. **Audio toggle**: Sound on/off control visible
+81. **Test sound button**: Click → plays double-beep
+82. **Test popup button**: Click → shows sample notification toast
+83. **Dark mode toggles visible**: All toggles readable in dark theme
+
 ## Not yet tested
 
 - Telegram delivery (not in MVP)
-- Web push notifications (not in MVP)
 - Email notifications (not in MVP)
+- SMS notifications (not in MVP)
 - Badge/streak notifications (not in MVP)
 - Advanced automation rules (not in MVP)
 - Load testing with many concurrent users
-- Cross-browser push notification support
 - Socket.io real-time delivery (tested manually, not in automated E2E)
 - Toast behavior per severity level (requires browser-level E2E)
+- Heatmap analytics queries on alert history (future Layer 5+)

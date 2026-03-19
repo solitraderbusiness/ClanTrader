@@ -1153,6 +1153,7 @@
     "management.unknown": "Unknown",
     "official": "Official",
     "cockpit.rightNow": "Right Now",
+    "cockpit.today": "Today",
     "cockpit.periodResults": "Period Results",
     "cockpit.openPnl": "Open P/L",
     "cockpit.openR": "Open R",
@@ -1352,7 +1353,46 @@
 
     "estimated": "Estimated",
     "estimatedTooltip": "Some data is estimated from market prices — MT terminal is offline",
-    "equity.estimatedSegment": "Dashed segments are estimated"
+    "equity.estimatedSegment": "Dashed segments are estimated",
+
+    "cockpit.rightNowPanel": "Right Now",
+    "cockpit.todayPanel": "Today",
+    "cockpit.floatingPL": "Floating P/L",
+    "cockpit.floatingR": "Floating R",
+    "cockpit.openRisk": "Open Risk",
+    "cockpit.confidence": "Confidence",
+    "cockpit.confidence.high": "High",
+    "cockpit.confidence.partial": "Partial",
+    "cockpit.confidence.low": "Low",
+    "cockpit.realizedPL": "Realized P/L",
+    "cockpit.realizedR": "Realized R",
+    "cockpit.closedToday": "Closed",
+    "cockpit.winRate": "Win Rate",
+    "cockpit.officialSplit": "Official/Analysis",
+
+    "scenario.atThisPrice": "At this price",
+    "scenario.projectedPL": "Projected P/L",
+    "scenario.changeFromNow": "Change from now",
+    "scenario.balanceImpact": "Balance impact",
+    "scenario.equityImpact": "Equity impact",
+    "scenario.priceMove": "Price move",
+    "scenario.touchHint": "Tap or drag the ladder to explore scenarios",
+    "scenario.defineRisk": "Define SL at",
+    "scenario.suggestedSL": "Suggested SL",
+
+    "scenario.jump.current": "Current",
+    "scenario.jump.breakeven": "Breakeven",
+    "scenario.jump.tp1": "TP1",
+    "scenario.jump.sl": "SL",
+    "scenario.jump.clear": "Clear",
+
+    "scenario.noSL": "no stop loss",
+    "scenario.sentence.breakeven": "This is your breakeven — no profit, no loss",
+    "scenario.sentence.atTP": "This is your take profit target",
+    "scenario.sentence.gain": "You would gain {amount} more from here ({pct}% of balance)",
+    "scenario.sentence.loss": "You would lose {amount} more from here ({pct}% of balance)",
+    "scenario.sentence.gainNoBalance": "You would gain {amount} more from here",
+    "scenario.sentence.lossNoBalance": "You would lose {amount} more from here"
   },
   "landing": {
     "brandName": "ClanTrader",
@@ -1523,7 +1563,17 @@
     "catIntegrity": "Integrity",
     "catIntegrityDesc": "Trade qualification and integrity issues",
     "catClan": "Clan",
-    "catClanDesc": "Rank changes, join requests, membership"
+    "catClanDesc": "Rank changes, join requests, membership",
+    "historyTitle": "Notification history",
+    "historyDesc": "All your notifications are saved and always accessible from the bell icon and notifications page.",
+    "soundEnabled": "Alert sounds",
+    "soundEnabledDesc": "Play a double-beep sound for critical alerts like risk warnings and price alert triggers.",
+    "testTitle": "Test",
+    "testDesc": "Verify your notification settings are working correctly.",
+    "testPopup": "Test Popup",
+    "testSound": "Test Sound",
+    "testPopupTitle": "Test notification",
+    "testPopupBody": "This is a test popup to verify your notification settings."
   },
   "priceAlerts": {
     "title": "Price Alerts",
@@ -1558,6 +1608,8 @@
     "expired": "Expired",
     "cancelledStatus": "Cancelled",
     "expiresIn": "Expires in",
-    "currentPrice": "Current:"
+    "currentPrice": "Current:",
+    "aboveMustBeHigher": "Must be above current price",
+    "belowMustBeLower": "Must be below current price"
   }
 }

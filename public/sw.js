@@ -47,9 +47,11 @@ self.addEventListener("fetch", (event) => {
   // Skip all other API routes
   if (url.pathname.startsWith("/api/")) return;
 
-  // Next.js JS/CSS chunks: network-first (new builds produce new hashes, stale cache causes errors)
+  // Next.js JS/CSS chunks: network-first with stale-build recovery
+  // After a new build, old HTML may reference chunk hashes that no longer exist.
+  // If network returns 404 and cache has nothing, return a response that triggers client reload.
   if (url.pathname.startsWith("/_next/static/chunks/") || url.pathname.startsWith("/_next/static/css/")) {
-    event.respondWith(networkFirst(request, STATIC_CACHE));
+    event.respondWith(networkFirstChunk(request, STATIC_CACHE));
     return;
   }
 
@@ -152,6 +154,30 @@ async function networkFirst(request, cacheName) {
   } catch {
     const cached = await caches.match(request);
     return cached || new Response("Network error", { status: 503 });
+  }
+}
+
+// --- STRATEGY: Network-first for chunks (with stale-build recovery) ---
+async function networkFirstChunk(request, cacheName) {
+  try {
+    const response = await fetchWithTimeout(request, 5000);
+    if (response.ok) {
+      const cache = await caches.open(cacheName);
+      cache.put(request, response.clone());
+      return response;
+    }
+    // Network returned non-ok (e.g. 404 after rebuild) — try cache
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    // Neither network nor cache has this chunk — stale build detected.
+    // Clear the static cache so next load gets fresh resources.
+    await caches.delete(cacheName);
+    // Return the 404 response — client-side ChunkLoadError handler will reload.
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    return new Response("Network error", { status: 503 });
   }
 }
 

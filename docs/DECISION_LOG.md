@@ -5,6 +5,26 @@ Newest entries first.
 
 ---
 
+## 2026-03-19 — Notification + Alarm MVP: UX Audit + Polish Pass (COMPLETED)
+
+- **Task:** notification-alarm-mvp (reopened for hardening → now TESTING)
+- **Decision:** Targeted audit + UX hardening pass completed. Changes made:
+  - (B) PRICE_ALERT_TRIGGERED severity: CRITICAL → IMPORTANT (market info, not danger)
+  - (D) Price alert icon: BellRing → Crosshair (distinct from notification bell)
+  - (G) Soft-delete: `hiddenFromUser` field on PriceAlert — preserves rows for future heatmap analytics
+  - (H) Price alert modal: direction validation (ABOVE > current, BELOW < current), distance display (abs + %)
+  - (I) Settings restructured: History (always on), Live Popups, Sound, Push (conditional), Delivery Mode, Test section
+  - (J) Audio settings: `soundEnabled` field on NotificationPreference, toggle on settings page
+  - (K) Test buttons: "Test Popup" + "Test Sound" on settings page
+  - Web push contradiction resolved: it IS fully built (VAPID, per-category, subscription cleanup)
+- **Why:** UX review revealed severity mismatches, hard-delete losing analytics data, no audio controls, no direction validation, settings confusion, and stale docs claiming push wasn't built.
+- **Affected files:** schema.prisma, notification-types.ts, price-alert.service.ts, NotificationBell.tsx, PriceAlertModal.tsx, PriceAlertList.tsx, AlertPanel.tsx, TopBar.tsx, settings/notifications/page.tsx, notification-preferences API, en.json, fa.json, SOURCE_OF_TRUTH.md, FEATURES.md
+- **Tests:** 69 new notification-types tests + updated price-alert soft-delete tests (1088 total passing)
+- **Needs SOURCE_OF_TRUTH update now?:** done — push contradiction resolved, severity/soft-delete/validation documented
+- **Needs manual testing?:** yes — 10-point manual QA checklist in test plan
+
+---
+
 ## 2026-03-15 — Equity Chart Hardening: Stop fake flat history from stale fallback prices
 
 - **Task:** heartbeat-fallback (hardening)

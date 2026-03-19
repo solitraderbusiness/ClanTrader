@@ -123,7 +123,7 @@ export function AlertPanel({ open, onOpenChange }: AlertPanelProps) {
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleHide(id: string) {
     const res = await fetch(`/api/price-alerts/${id}`, { method: "DELETE" });
     if (res.ok) {
       setAlerts((prev) => prev.filter((a) => a.id !== id));
@@ -223,7 +223,7 @@ export function AlertPanel({ open, onOpenChange }: AlertPanelProps) {
                     key={alert.id}
                     alert={alert}
                     onCancel={handleCancel}
-                    onDelete={handleDelete}
+                    onDelete={handleHide}
                     t={t}
                   />
                 ))}

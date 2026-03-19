@@ -118,6 +118,7 @@ All 7 conditions must pass for `statementEligible = true`:
 | Heartbeat Fallback | `heartbeat-fallback.service.ts` (freshness-gated cross-user price estimation) |
 | Notifications | `notification.service.ts`, `notification-triggers.ts`, `notification-types.ts` |
 | Price Alerts | `price-alert.service.ts` (candle-style eval using M1 high/low, broker symbol list, source-group aware) |
+| AI Data Capture | `DigestOutput` (persisted digest outputs), `TraderStatementSnapshot` (statement history), `LiveRiskSnapshot` (heartbeat-driven risk snapshots via `live-risk.service.ts`) |
 
 ## Vocabulary
 
@@ -138,7 +139,7 @@ Use these terms consistently — do not invent synonyms:
 | cash-flow-neutral performance | TWR/NAV-based metrics immune to deposits/withdrawals |
 | equity snapshot | Balance + equity recorded every 5min by EA heartbeat, annotated with external flows and quality metadata (source, freshness, chart eligibility) |
 | M1 candle | Server-side 1-minute OHLC candle per symbol in Redis, built from EA heartbeat prices, used for candle-style price alert evaluation |
-| broker symbol list | All tradeable symbols from a broker, sent by EA on login, stored in Redis with 48h TTL |
+| broker symbol list | All tradeable symbols from a broker, sent by EA on login, stored in Redis with 30-day TTL |
 
 ## Infrastructure
 

@@ -17,7 +17,7 @@ import {
 
 // ---- Broker symbol list (from EA) ----
 
-const BROKER_SYMBOLS_TTL = 48 * 60 * 60; // 48 hours
+const BROKER_SYMBOLS_TTL = 30 * 24 * 60 * 60; // 30 days — broker symbols rarely change, EA re-sends on every login
 
 export async function storeBrokerSymbols(broker: string, symbols: string[]): Promise<number> {
   const key = `broker-symbols:${broker}`;
@@ -151,8 +151,10 @@ export async function cancelPriceAlert(alertId: string, userId: string) {
 // ---- Delete ----
 
 export async function deletePriceAlert(alertId: string, userId: string) {
-  const result = await db.priceAlert.deleteMany({
-    where: { id: alertId, userId },
+  // Soft-hide: preserve row for analytics (future heatmap), just hide from user
+  const result = await db.priceAlert.updateMany({
+    where: { id: alertId, userId, status: { not: "ACTIVE" } },
+    data: { hiddenFromUser: true },
   });
   return result.count > 0;
 }
@@ -161,7 +163,7 @@ export async function deletePriceAlert(alertId: string, userId: string) {
 
 export async function listPriceAlerts(userId: string) {
   return db.priceAlert.findMany({
-    where: { userId },
+    where: { userId, hiddenFromUser: false },
     orderBy: { createdAt: "desc" },
   });
 }

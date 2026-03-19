@@ -372,35 +372,48 @@ describe("cancelPriceAlert", () => {
 describe("deletePriceAlert", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("returns true when alert is successfully deleted", async () => {
-    mockPriceAlertDeleteMany.mockResolvedValue({ count: 1 });
+  it("soft-hides alert (sets hiddenFromUser=true) instead of hard-deleting", async () => {
+    mockPriceAlertUpdateMany.mockResolvedValue({ count: 1 });
 
     const result = await deletePriceAlert("alert-1", "user-1");
 
     expect(result).toBe(true);
-    expect(mockPriceAlertDeleteMany).toHaveBeenCalledWith(
+    expect(mockPriceAlertUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "alert-1", userId: "user-1" },
+        where: expect.objectContaining({ id: "alert-1", userId: "user-1" }),
+        data: { hiddenFromUser: true },
       })
     );
   });
 
   it("returns false when alert not found", async () => {
-    mockPriceAlertDeleteMany.mockResolvedValue({ count: 0 });
+    mockPriceAlertUpdateMany.mockResolvedValue({ count: 0 });
 
     const result = await deletePriceAlert("nonexistent", "user-1");
 
     expect(result).toBe(false);
   });
 
-  it("scopes delete to the owning userId", async () => {
-    mockPriceAlertDeleteMany.mockResolvedValue({ count: 0 });
+  it("scopes soft-hide to the owning userId", async () => {
+    mockPriceAlertUpdateMany.mockResolvedValue({ count: 0 });
 
     await deletePriceAlert("alert-1", "wrong-user");
 
-    expect(mockPriceAlertDeleteMany).toHaveBeenCalledWith(
+    expect(mockPriceAlertUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ userId: "wrong-user" }),
+      })
+    );
+  });
+
+  it("only allows hiding non-ACTIVE alerts", async () => {
+    mockPriceAlertUpdateMany.mockResolvedValue({ count: 1 });
+
+    await deletePriceAlert("alert-1", "user-1");
+
+    expect(mockPriceAlertUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: { not: "ACTIVE" } }),
       })
     );
   });
@@ -423,7 +436,7 @@ describe("listPriceAlerts", () => {
     expect(result).toHaveLength(2);
     expect(mockPriceAlertFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: "user-1" },
+        where: { userId: "user-1", hiddenFromUser: false },
         orderBy: { createdAt: "desc" },
       })
     );

@@ -129,6 +129,7 @@ model Clan {
   watchlists        Watchlist[]
   traderStatements  TraderStatement[]
   joinRequests      ClanJoinRequest[]
+  digestOutputs     DigestOutput[]
 
   @@index([name])
 }
@@ -1148,6 +1149,7 @@ model NotificationPreference {
   userId         String   @unique
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   inAppEnabled   Boolean  @default(true)
+  soundEnabled   Boolean  @default(true)
   pushEnabled    Boolean  @default(false)
   deliveryMode   String   @default("all") // "all" | "critical_only"
   pushCategories Json     @default("{}") // Per-category push toggles; empty = all enabled
@@ -1193,6 +1195,7 @@ model PriceAlert {
   lastSeenPrice   Float?
   priceAtCreation Float?
   expiresAt       DateTime?
+  hiddenFromUser  Boolean             @default(false)
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
@@ -1341,4 +1344,73 @@ model AlphaIssue {
 
   @@index([status])
   @@index([severity])
+}
+
+// --- AI Data Capture: Digest Outputs ---
+
+enum DigestScope {
+  CLAN
+  TRADER
+}
+
+model DigestOutput {
+  id             String      @id @default(cuid())
+  clanId         String
+  clan           Clan        @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  requestedById  String?
+  subjectUserId  String?     // non-null when scope=TRADER (whose trader-scoped digest)
+  scope          DigestScope @default(CLAN)
+  period         String      // "today" | "week" | "month"
+  digestVersion  String      @default("v2")
+  tzOffset       Int         @default(0)
+  outputJson     Json
+  computedAt     DateTime    @default(now())
+
+  @@index([clanId, scope, period, computedAt])
+  @@index([subjectUserId, computedAt])
+  @@index([computedAt])
+}
+
+// --- AI Data Capture: Statement History ---
+
+model TraderStatementSnapshot {
+  id               String          @id @default(cuid())
+  traderStatementId String         // FK by value (not Prisma relation) for lightweight append-only log
+  userId           String
+  clanId           String
+  periodType       StatementPeriod
+  periodKey        String
+  seasonId         String?
+  metrics          Json
+  tradeCount       Int
+  effectiveRankR   Float?
+  openRiskPenalty  Float?
+  rankingStatus    String?
+  snapshotAt       DateTime        @default(now())
+
+  @@index([traderStatementId])
+  @@index([userId, clanId, snapshotAt])
+  @@index([clanId, periodType, snapshotAt])
+  @@index([snapshotAt])
+}
+
+// --- AI Data Capture: Live Risk Snapshots ---
+
+model LiveRiskSnapshot {
+  id                    String   @id @default(cuid())
+  userId                String
+  clanId                String
+  openOfficialCount     Int
+  totalFloatingPnl      Float
+  totalFloatingR        Float
+  biggestLoserR         Float
+  unprotectedCount      Int
+  currentDrawdownPct    Float
+  maxDrawdownPct        Float
+  isEstimated           Boolean  @default(false)
+  staleWarning          Boolean  @default(false)
+  snapshotAt            DateTime @default(now())
+
+  @@index([userId, clanId, snapshotAt])
+  @@index([snapshotAt])
 }

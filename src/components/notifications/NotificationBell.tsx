@@ -93,8 +93,8 @@ const SOUND_TYPES = new Set([
   "trade_action_failed",
 ]);
 
-function showNotificationToast(data: NotificationItem) {
-  const withSound = SOUND_TYPES.has(data.type);
+function showNotificationToast(data: NotificationItem, soundEnabled: boolean) {
+  const withSound = soundEnabled && SOUND_TYPES.has(data.type);
   if (withSound) playAlertSound();
 
   if (data.severity === "CRITICAL") {
@@ -116,8 +116,9 @@ export function NotificationBell() {
   const fetchedRef = useRef(false);
   const lastKnownCount = useRef(0);
   const seenIds = useRef(new Set<string>());
+  const soundEnabledRef = useRef(true);
 
-  // Fetch unread count on mount
+  // Fetch unread count + sound preference on mount
   useEffect(() => {
     if (!session?.user?.id) return;
     fetch("/api/notifications/unread-count")
@@ -126,6 +127,12 @@ export function NotificationBell() {
         const count = data.count ?? 0;
         setUnreadCount(count);
         lastKnownCount.current = count;
+      })
+      .catch(() => {});
+    fetch("/api/users/me/notification-preferences")
+      .then((r) => r.json())
+      .then((data) => {
+        soundEnabledRef.current = data.soundEnabled ?? true;
       })
       .catch(() => {});
   }, [session?.user?.id]);
@@ -138,7 +145,7 @@ export function NotificationBell() {
       seenIds.current.add(data.id);
       setNotifications((prev) => [data, ...prev].slice(0, DROPDOWN_NOTIFICATION_COUNT));
       fetchedRef.current = false;
-      showNotificationToast(data);
+      showNotificationToast(data, soundEnabledRef.current);
     };
 
     const handleCountUpdate = (data: { count: number }) => {
@@ -177,7 +184,7 @@ export function NotificationBell() {
               seenIds.current.add(latest.id);
               setNotifications((prev) => [latest, ...prev].slice(0, DROPDOWN_NOTIFICATION_COUNT));
               fetchedRef.current = false;
-              showNotificationToast(latest);
+              showNotificationToast(latest, soundEnabledRef.current);
             }
           }
         }

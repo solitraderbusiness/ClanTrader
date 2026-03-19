@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +37,46 @@ function formatLivePrice(price: number): string {
   const decimals = str.length - dotIndex - 1;
   const clamped = Math.max(2, Math.min(decimals, 8));
   return price.toFixed(clamped);
+}
+
+function DistanceHint({
+  livePrice,
+  targetPrice,
+  condition,
+  t,
+}: {
+  livePrice: number | null;
+  targetPrice: string;
+  condition: "ABOVE" | "BELOW";
+  t: (key: string) => string;
+}) {
+  const parsed = parseFloat(targetPrice);
+  if (livePrice == null || isNaN(parsed) || parsed <= 0) return null;
+
+  const diff = parsed - livePrice;
+  const absDiff = Math.abs(diff);
+  const pct = ((absDiff / livePrice) * 100).toFixed(2);
+  const isWrongDirection =
+    (condition === "ABOVE" && parsed <= livePrice) ||
+    (condition === "BELOW" && parsed >= livePrice);
+
+  return (
+    <div className={`flex items-center gap-1.5 text-xs ${isWrongDirection ? "text-red-500" : "text-muted-foreground"}`}>
+      {diff > 0 ? (
+        <ArrowUp className="h-3 w-3" />
+      ) : (
+        <ArrowDown className="h-3 w-3" />
+      )}
+      <span>
+        {formatLivePrice(absDiff)} ({pct}%)
+        {isWrongDirection && (
+          <span className="ms-1 font-medium">
+            {condition === "ABOVE" ? t("priceAlerts.aboveMustBeHigher") : t("priceAlerts.belowMustBeLower")}
+          </span>
+        )}
+      </span>
+    </div>
+  );
 }
 
 export function PriceAlertModal({
@@ -157,6 +198,18 @@ export function PriceAlertModal({
       return;
     }
 
+    // Validate direction against current price
+    if (livePrice != null) {
+      if (condition === "ABOVE" && price <= livePrice) {
+        toast.error(t("priceAlerts.aboveMustBeHigher"));
+        return;
+      }
+      if (condition === "BELOW" && price >= livePrice) {
+        toast.error(t("priceAlerts.belowMustBeLower"));
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch("/api/price-alerts", {
@@ -262,6 +315,7 @@ export function PriceAlertModal({
                 onChange={(e) => setTargetPrice(e.target.value)}
                 placeholder="2000.00"
               />
+              <DistanceHint livePrice={livePrice} targetPrice={targetPrice} condition={condition} t={t} />
             </div>
 
             {/* Submit */}

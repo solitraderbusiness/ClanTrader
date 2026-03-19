@@ -27,6 +27,8 @@ export async function GET() {
       status: a.status,
       triggeredAt: a.triggeredAt?.toISOString() ?? null,
       lastSeenPrice: a.lastSeenPrice,
+      priceAtCreation: a.priceAtCreation,
+      expiresAt: a.expiresAt?.toISOString() ?? null,
       createdAt: a.createdAt.toISOString(),
     })),
   });

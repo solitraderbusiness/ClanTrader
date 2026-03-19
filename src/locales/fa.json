@@ -1153,6 +1153,7 @@
     "management.unknown": "نامشخص",
     "official": "رسمی",
     "cockpit.rightNow": "همین الان",
+    "cockpit.today": "امروز",
     "cockpit.periodResults": "نتایج دوره",
     "cockpit.openPnl": "سود/زیان باز",
     "cockpit.openR": "R باز",
@@ -1352,7 +1353,46 @@
 
     "estimated": "تخمینی",
     "estimatedTooltip": "بخشی از داده‌ها از قیمت‌های بازار تخمین زده شده — ترمینال MT آفلاین است",
-    "equity.estimatedSegment": "بخش‌های خط‌چین تخمینی هستند"
+    "equity.estimatedSegment": "بخش‌های خط‌چین تخمینی هستند",
+
+    "cockpit.rightNowPanel": "الان",
+    "cockpit.todayPanel": "امروز",
+    "cockpit.floatingPL": "سود/زیان شناور",
+    "cockpit.floatingR": "R شناور",
+    "cockpit.openRisk": "ریسک باز",
+    "cockpit.confidence": "اطمینان",
+    "cockpit.confidence.high": "بالا",
+    "cockpit.confidence.partial": "نسبی",
+    "cockpit.confidence.low": "پایین",
+    "cockpit.realizedPL": "سود/زیان تحقق‌یافته",
+    "cockpit.realizedR": "R تحقق‌یافته",
+    "cockpit.closedToday": "بسته‌شده",
+    "cockpit.winRate": "نرخ برد",
+    "cockpit.officialSplit": "رسمی/تحلیل",
+
+    "scenario.atThisPrice": "در این قیمت",
+    "scenario.projectedPL": "سود/زیان پیش‌بینی",
+    "scenario.changeFromNow": "تغییر از الان",
+    "scenario.balanceImpact": "تأثیر بر موجودی",
+    "scenario.equityImpact": "تأثیر بر اکوئیتی",
+    "scenario.priceMove": "حرکت قیمت",
+    "scenario.touchHint": "روی نردبان بکشید تا سناریوها را بررسی کنید",
+    "scenario.defineRisk": "حد ضرر در",
+    "scenario.suggestedSL": "حد ضرر پیشنهادی",
+
+    "scenario.jump.current": "فعلی",
+    "scenario.jump.breakeven": "سربه‌سر",
+    "scenario.jump.tp1": "هدف ۱",
+    "scenario.jump.sl": "حد ضرر",
+    "scenario.jump.clear": "پاک کردن",
+
+    "scenario.noSL": "بدون حد ضرر",
+    "scenario.sentence.breakeven": "اینجا نقطه سربه‌سر شماست — نه سود، نه زیان",
+    "scenario.sentence.atTP": "اینجا هدف سود شماست",
+    "scenario.sentence.gain": "از اینجا {amount} بیشتر سود می‌کنید ({pct}% موجودی)",
+    "scenario.sentence.loss": "از اینجا {amount} بیشتر ضرر می‌کنید ({pct}% موجودی)",
+    "scenario.sentence.gainNoBalance": "از اینجا {amount} بیشتر سود می‌کنید",
+    "scenario.sentence.lossNoBalance": "از اینجا {amount} بیشتر ضرر می‌کنید"
   },
   "landing": {
     "brandName": "ClanTrader",
@@ -1523,7 +1563,17 @@
     "catIntegrity": "یکپارچگی",
     "catIntegrityDesc": "مشکلات صلاحیت و یکپارچگی معامله",
     "catClan": "کلن",
-    "catClanDesc": "تغییر رتبه، درخواست عضویت، اعضا"
+    "catClanDesc": "تغییر رتبه، درخواست عضویت، اعضا",
+    "historyTitle": "تاریخچه اعلان‌ها",
+    "historyDesc": "همه اعلان‌های شما ذخیره شده و همیشه از آیکون زنگ و صفحه اعلان‌ها قابل دسترسی است.",
+    "soundEnabled": "صداهای هشدار",
+    "soundEnabledDesc": "پخش صدای بوق دوگانه برای هشدارهای بحرانی مثل هشدار ریسک و هشدار قیمت.",
+    "testTitle": "آزمایش",
+    "testDesc": "تنظیمات اعلان خود را بررسی کنید.",
+    "testPopup": "تست پاپ‌آپ",
+    "testSound": "تست صدا",
+    "testPopupTitle": "اعلان آزمایشی",
+    "testPopupBody": "این یک پاپ‌آپ آزمایشی برای بررسی تنظیمات اعلان شماست."
   },
   "priceAlerts": {
     "title": "هشدار قیمت",
@@ -1558,6 +1608,8 @@
     "expired": "منقضی شده",
     "cancelledStatus": "لغو شده",
     "expiresIn": "انقضا در",
-    "currentPrice": "فعلی:"
+    "currentPrice": "فعلی:",
+    "aboveMustBeHigher": "باید بالاتر از قیمت فعلی باشد",
+    "belowMustBeLower": "باید پایین‌تر از قیمت فعلی باشد"
   }
 }

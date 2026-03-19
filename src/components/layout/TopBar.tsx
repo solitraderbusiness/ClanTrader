@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { Menu, UserPlus, Wifi, WifiOff, BellRing } from "lucide-react";
+import { Menu, UserPlus, Wifi, WifiOff, Crosshair } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { UserMenu } from "./UserMenu";
@@ -153,7 +153,7 @@ function AlertBellButton() {
         onClick={() => setAlertPanelOpen(true)}
         title={t("priceAlerts.title")}
       >
-        <BellRing className="h-4 w-4" />
+        <Crosshair className="h-4 w-4" />
         {activeCount > 0 && (
           <span className="absolute -end-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">
             {activeCount > 99 ? "99+" : activeCount}

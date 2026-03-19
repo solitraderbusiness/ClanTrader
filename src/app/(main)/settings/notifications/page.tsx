@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/i18n";
 import { toast } from "sonner";
-import { Bell, BellRing, Smartphone } from "lucide-react";
+import { Bell, BellRing, Smartphone, Volume2 } from "lucide-react";
 import {
   type PushCategory,
   PUSH_CATEGORY_ORDER,
@@ -52,9 +52,39 @@ function resolveCategories(
   return result;
 }
 
+/** Play double-beep sound using Web Audio API */
+function playTestSound() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    osc.type = "sine";
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.5);
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.frequency.value = 1100;
+    osc2.type = "sine";
+    gain2.gain.setValueAtTime(0.3, ctx.currentTime + 0.15);
+    gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+    osc2.start(ctx.currentTime + 0.15);
+    osc2.stop(ctx.currentTime + 0.6);
+  } catch {
+    // Audio not available
+  }
+}
+
 export default function NotificationSettingsPage() {
   const { t } = useTranslation();
   const [inAppEnabled, setInAppEnabled] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(true);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [deliveryMode, setDeliveryMode] = useState<"all" | "critical_only">("all");
   const [pushCategories, setPushCategories] = useState<Record<PushCategory, boolean>>(
@@ -78,6 +108,7 @@ export default function NotificationSettingsPage() {
       .then((r) => r.json())
       .then((data) => {
         setInAppEnabled(data.inAppEnabled ?? true);
+        setSoundEnabled(data.soundEnabled ?? true);
         setPushEnabled(data.pushEnabled ?? false);
         setDeliveryMode(data.deliveryMode ?? "all");
         setPushCategories(resolveCategories(data.pushCategories));
@@ -88,6 +119,7 @@ export default function NotificationSettingsPage() {
 
   const updatePref = useCallback(async (updates: {
     inAppEnabled?: boolean;
+    soundEnabled?: boolean;
     pushEnabled?: boolean;
     deliveryMode?: string;
     pushCategories?: Record<string, boolean>;
@@ -102,9 +134,14 @@ export default function NotificationSettingsPage() {
     }
   }, [t]);
 
-  const handleToggle = useCallback((checked: boolean) => {
+  const handleInAppToggle = useCallback((checked: boolean) => {
     setInAppEnabled(checked);
     updatePref({ inAppEnabled: checked });
+  }, [updatePref]);
+
+  const handleSoundToggle = useCallback((checked: boolean) => {
+    setSoundEnabled(checked);
+    updatePref({ soundEnabled: checked });
   }, [updatePref]);
 
   const handleModeChange = useCallback((mode: "all" | "critical_only") => {
@@ -199,6 +236,17 @@ export default function NotificationSettingsPage() {
     }
   }, [t, updatePref]);
 
+  const handleTestPopup = useCallback(() => {
+    toast.info(t("notifications.testPopupTitle"), {
+      description: t("notifications.testPopupBody"),
+      duration: 5000,
+    });
+  }, [t]);
+
+  const handleTestSound = useCallback(() => {
+    playTestSound();
+  }, []);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
@@ -216,10 +264,23 @@ export default function NotificationSettingsPage() {
         </p>
       </div>
 
-      {/* In-app toggle */}
-      <div className="flex items-center justify-between rounded-lg border p-4">
+      {/* Section 1: Notification History — always on */}
+      <div className="rounded-lg border p-4">
         <div className="flex items-center gap-3">
           <Bell className="h-5 w-5 text-muted-foreground" />
+          <div>
+            <p className="text-sm font-medium">{t("notifications.historyTitle")}</p>
+            <p className="text-xs text-muted-foreground">
+              {t("notifications.historyDesc")}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Section 2: Live popups toggle */}
+      <div className="flex items-center justify-between rounded-lg border p-4">
+        <div className="flex items-center gap-3">
+          <BellRing className="h-5 w-5 text-muted-foreground" />
           <div>
             <Label htmlFor="inapp-toggle" className="text-sm font-medium">
               {t("notifications.inAppEnabled")}
@@ -232,11 +293,31 @@ export default function NotificationSettingsPage() {
         <Switch
           id="inapp-toggle"
           checked={inAppEnabled}
-          onCheckedChange={handleToggle}
+          onCheckedChange={handleInAppToggle}
         />
       </div>
 
-      {/* Push notifications */}
+      {/* Section 3: Sound toggle */}
+      <div className="flex items-center justify-between rounded-lg border p-4">
+        <div className="flex items-center gap-3">
+          <Volume2 className="h-5 w-5 text-muted-foreground" />
+          <div>
+            <Label htmlFor="sound-toggle" className="text-sm font-medium">
+              {t("notifications.soundEnabled")}
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              {t("notifications.soundEnabledDesc")}
+            </p>
+          </div>
+        </div>
+        <Switch
+          id="sound-toggle"
+          checked={soundEnabled}
+          onCheckedChange={handleSoundToggle}
+        />
+      </div>
+
+      {/* Section 4: Push notifications — only show if VAPID configured */}
       {pushSupported && (
         <div className="flex items-center justify-between rounded-lg border p-4">
           <div className="flex items-center gap-3">
@@ -306,7 +387,7 @@ export default function NotificationSettingsPage() {
         </div>
       )}
 
-      {/* Delivery mode */}
+      {/* Section 5: Delivery mode */}
       <div className="space-y-3">
         <Label className="text-sm font-medium">{t("notifications.deliveryMode")}</Label>
         <div className="space-y-2">
@@ -361,6 +442,21 @@ export default function NotificationSettingsPage() {
               </p>
             </div>
           </button>
+        </div>
+      </div>
+
+      {/* Section 6: Test actions */}
+      <div className="space-y-3">
+        <Label className="text-sm font-medium">{t("notifications.testTitle")}</Label>
+        <p className="text-xs text-muted-foreground">{t("notifications.testDesc")}</p>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleTestPopup}>
+            {t("notifications.testPopup")}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleTestSound}>
+            <Volume2 className="me-1.5 h-3.5 w-3.5" />
+            {t("notifications.testSound")}
+          </Button>
         </div>
       </div>
     </div>

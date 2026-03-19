@@ -1,7 +1,7 @@
 # Task Brief — Notification + Alarm MVP
 
 > Started: 2026-03-13
-> Status: DONE (2026-03-13, hardened 2026-03-13)
+> Status: TESTING (2026-03-19: UX audit + polish pass complete)
 
 ## 1. Goal
 
@@ -22,7 +22,7 @@ Design principle: "ClanTrader only interrupts me when something actually matters
 
 ## 3. Current decisions
 
-- **Channel: in-app only** — no Telegram, push, email, SMS in this MVP
+- **Channel: in-app + web push** — Telegram, email, SMS deferred. Web push via VAPID (full implementation exists, shown only when configured).
 - **3 severity levels**: Critical, Important, Updates — consistent in UI and backend
 - **Toast behavior**: Critical = toast + persist, Important = persist + optional subtle toast, Updates = persist only
 - **Preferences**: minimal — in-app on/off + critical-only/all. No per-category matrix.
@@ -83,6 +83,11 @@ Design principle: "ClanTrader only interrupts me when something actually matters
 6. **User preferences OFF**: Still create notifications in DB but don't deliver via socket/toast
 7. **Unread count overflow**: Cap display at 99+
 8. **Concurrent price alert evaluation**: Use Redis lock or status check to prevent double-trigger
+9. **Alert ABOVE must be > current price, BELOW must be < current price** — validate at creation with live price
+10. **Alert cancel vs delete**: Cancel = stop monitoring (CANCELLED status). Delete from history = soft-delete (hide from UI, preserve in DB for future analytics/heatmap)
+11. **Push controls visible but push not real**: If VAPID keys not configured or push not end-to-end tested, hide push UI section entirely
+12. **Unread count race**: Socket delivery and polling fallback can race — single source of truth must prevail
+13. **Audio on muted browser**: Gracefully handle autoplay policy — no error, just silent
 
 ## 7. Manual test scenarios
 
@@ -131,3 +136,4 @@ All of these must be true:
 | 2026-03-13 | Initial task brief created from comprehensive product spec |
 | 2026-03-13 | Hardening pass: proper Prisma migration, E2E test, toggle wording clarified, SOURCE_OF_TRUTH updated |
 | 2026-03-13 | User feedback: "all notifications are Connection lost — too sensitive to connection." TRACKING_LOST threshold (120s) too aggressive for Iranian internet. Cooldown (600s) not enough. Fix: raise threshold to 5min, raise cooldown to 1hr, demote TRACKING_LOST from CRITICAL to IMPORTANT. |
+| 2026-03-19 | **UX audit + polish pass started.** Task reopened for targeted hardening. Scope: (A) notification state/count trust fixes, (B) severity/icon UX mapping, (C) connection-lost dedupe/collapse, (D) alert icon distinct from bell, (E) alert badge semantics, (F) active vs history separation, (G) cancel/delete → soft-delete for analytics, (H) price alert modal improvements (live price, validation), (I) settings page clarity, (J) audio settings, (K) test actions. Also: future heatmap data preservation for alert history. |

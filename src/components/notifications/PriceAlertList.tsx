@@ -14,7 +14,7 @@ interface PriceAlertItem {
   condition: "ABOVE" | "BELOW";
   targetPrice: number;
   sourceGroup: string | null;
-  status: "ACTIVE" | "TRIGGERED" | "CANCELLED";
+  status: "ACTIVE" | "TRIGGERED" | "CANCELLED" | "EXPIRED";
   triggeredAt: string | null;
   lastSeenPrice: number | null;
   createdAt: string;
@@ -54,7 +54,7 @@ export function PriceAlertList() {
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleHide(id: string) {
     const res = await fetch(`/api/price-alerts/${id}`, { method: "DELETE" });
     if (res.ok) {
       setAlerts((prev) => prev.filter((a) => a.id !== id));
@@ -63,7 +63,7 @@ export function PriceAlertList() {
   }
 
   const active = alerts.filter((a) => a.status === "ACTIVE");
-  const triggered = alerts.filter((a) => a.status === "TRIGGERED");
+  const history = alerts.filter((a) => a.status !== "ACTIVE");
 
   return (
     <div className="space-y-4">
@@ -137,14 +137,14 @@ export function PriceAlertList() {
             </div>
           )}
 
-          {/* Triggered alerts */}
-          {triggered.length > 0 && (
+          {/* History (triggered + cancelled + expired) */}
+          {history.length > 0 && (
             <div className="space-y-2">
               <h3 className="text-xs font-medium uppercase text-muted-foreground">
-                {t("priceAlerts.triggered")} ({triggered.length})
+                {t("priceAlerts.history")} ({history.length})
               </h3>
               <div className="divide-y rounded-lg border opacity-75">
-                {triggered.map((a) => (
+                {history.map((a) => (
                   <div key={a.id} className="flex items-center justify-between px-4 py-3">
                     <div className="flex items-center gap-3">
                       {a.condition === "ABOVE" ? (
@@ -159,18 +159,27 @@ export function PriceAlertList() {
                             {a.condition === "ABOVE" ? ">" : "<"} {a.targetPrice}
                           </span>
                         </p>
-                        {a.triggeredAt && (
-                          <p className="text-xs text-muted-foreground">
-                            {t("priceAlerts.triggeredAt")}: {new Date(a.triggeredAt).toLocaleString()}
-                          </p>
-                        )}
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          {a.status === "TRIGGERED" && (
+                            <span className="text-green-600 dark:text-green-400">
+                              {t("priceAlerts.triggered")}
+                              {a.triggeredAt && ` ${new Date(a.triggeredAt).toLocaleString()}`}
+                            </span>
+                          )}
+                          {a.status === "CANCELLED" && (
+                            <span>{t("priceAlerts.cancelledStatus")}</span>
+                          )}
+                          {a.status === "EXPIRED" && (
+                            <span className="text-amber-600 dark:text-amber-400">{t("priceAlerts.expired")}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      onClick={() => handleDelete(a.id)}
+                      onClick={() => handleHide(a.id)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

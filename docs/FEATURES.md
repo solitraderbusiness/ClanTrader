@@ -554,7 +554,51 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 
 ---
 
-## 17. PWA & Offline
+## 17. Notifications & Price Alerts
+
+### 17.1 Notification Bell
+- [ ] Bell icon visible in TopBar with unread count badge
+- [ ] Badge updates in real-time via Socket.io
+- [ ] Dropdown shows recent notifications with severity icons (red=critical, amber=important, muted=update)
+- [ ] Mark all as read clears badge + dots, persists after refresh
+- [ ] Clicking notification marks it read and navigates to CTA link
+- [ ] "See all" link opens /notifications page
+
+### 17.2 Notifications Page
+- [ ] Filter tabs: All, Critical, Important, Updates, Unread
+- [ ] Mark all read from page clears bell badge too
+- [ ] Load more pagination works
+- [ ] Severity colors consistent with bell dropdown
+
+### 17.3 Notification Settings
+- [ ] "Notification history" section shown (always on, no toggle)
+- [ ] "Live popups" toggle enables/disables toast notifications
+- [ ] "Alert sounds" toggle enables/disables audio beep
+- [ ] "Test Popup" button shows sample toast
+- [ ] "Test Sound" button plays double-beep
+- [ ] Push section hidden when VAPID not configured
+- [ ] Delivery mode: All vs Critical Only works correctly
+
+### 17.4 Price Alerts
+- [ ] Crosshair icon in TopBar (distinct from bell), badge shows active count
+- [ ] Create alert: symbol autocomplete from broker + traded symbols
+- [ ] Create alert: live price shown, distance to target (abs + %)
+- [ ] Create alert: ABOVE must be > current price, BELOW must be < current
+- [ ] Active alerts list with cancel button
+- [ ] History tab: triggered (green), cancelled (muted), expired (amber) — visually distinct
+- [ ] Delete from history soft-hides (row preserved in DB)
+- [ ] Triggered alert shows trigger price + timestamp
+
+### 17.5 System Notifications
+- [ ] Tracking lost → amber important notification (1hr cooldown)
+- [ ] Trade closed → muted update notification
+- [ ] Risk: no SL → red critical notification (1hr cooldown)
+- [ ] Drawdown alert → red critical notification (30min cooldown)
+- [ ] Rank change → amber important notification (only ±3 positions or top-3 entry/exit)
+
+---
+
+## 18. PWA & Offline
 
 - [ ] "Add to Home Screen" prompt appears on mobile
 - [ ] Install as PWA -> opens in standalone mode (no browser chrome)
@@ -565,7 +609,7 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 
 ---
 
-## 18. Invite Friend
+## 19. Invite Friend
 
 - [ ] Invite dialog opens from top bar button (mobile) or settings
 - [ ] Generates invite/referral link
@@ -574,7 +618,7 @@ Test on **desktop (Chrome)** and **mobile (iOS Safari or Chrome Android)**.
 
 ---
 
-## 19. Cross-Cutting Concerns
+## 20. Cross-Cutting Concerns
 
 ### 19.1 Theme (Test EVERY section above in both)
 - [ ] Light mode: all text readable, no invisible elements

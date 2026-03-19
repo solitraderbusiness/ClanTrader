@@ -18,6 +18,7 @@ const pushCategoriesSchema = z.record(
 
 const updateSchema = z.object({
   inAppEnabled: z.boolean().optional(),
+  soundEnabled: z.boolean().optional(),
   pushEnabled: z.boolean().optional(),
   deliveryMode: z.enum(["all", "critical_only"]).optional(),
   pushCategories: pushCategoriesSchema.optional(),
@@ -35,6 +36,7 @@ export async function GET() {
 
   return NextResponse.json({
     inAppEnabled: pref?.inAppEnabled ?? true,
+    soundEnabled: pref?.soundEnabled ?? true,
     pushEnabled: pref?.pushEnabled ?? false,
     deliveryMode: pref?.deliveryMode ?? "all",
     pushCategories: (pref?.pushCategories as Record<string, boolean>) ?? {},
@@ -61,6 +63,7 @@ export async function PATCH(request: Request) {
     create: {
       userId: session.user.id,
       inAppEnabled: parsed.data.inAppEnabled ?? true,
+      soundEnabled: parsed.data.soundEnabled ?? true,
       pushEnabled: parsed.data.pushEnabled ?? false,
       deliveryMode: parsed.data.deliveryMode ?? "all",
       pushCategories: parsed.data.pushCategories ?? {},
@@ -70,6 +73,7 @@ export async function PATCH(request: Request) {
 
   return NextResponse.json({
     inAppEnabled: pref.inAppEnabled,
+    soundEnabled: pref.soundEnabled,
     pushEnabled: pref.pushEnabled,
     deliveryMode: pref.deliveryMode,
     pushCategories: (pref.pushCategories as Record<string, boolean>) ?? {},
