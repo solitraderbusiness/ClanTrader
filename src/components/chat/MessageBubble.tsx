@@ -114,10 +114,27 @@ export function MessageBubble({
   const isSummary = message.type === "SYSTEM_SUMMARY";
   const isTradeAction = message.type === "TRADE_ACTION";
 
-  // TRADE_ACTION messages render as standalone system lines — no avatar/header wrapper
+  // TRADE_ACTION messages render as compact system lines — no avatar/header wrapper
   if (isTradeAction) {
     return (
       <div data-testid="message-bubble" className="mt-0.5">
+        {message.replyTo && (
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById(`msg-${message.replyTo!.id}`);
+              if (el) {
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                el.classList.add("animate-highlight");
+                setTimeout(() => el.classList.remove("animate-highlight"), 2000);
+              }
+            }}
+            className="mb-0.5 flex items-center gap-1 truncate text-[10px] text-muted-foreground/70 hover:text-muted-foreground"
+          >
+            <Reply className="h-2.5 w-2.5 shrink-0" />
+            <span className="truncate">{message.replyTo.user.name}</span>
+          </button>
+        )}
         <TradeEventLine content={message.content} createdAt={message.createdAt} />
       </div>
     );
