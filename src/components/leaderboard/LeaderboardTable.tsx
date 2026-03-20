@@ -12,7 +12,7 @@ interface LeaderboardEntry {
   entityId: string;
   rank: number | null;
   lens: string;
-  metrics: TraderStatementMetrics & { score: number; effectiveRankR?: number };
+  metrics: TraderStatementMetrics & { score: number; effectiveRankR?: number; rankingStatus?: string };
   user: { id: string; name: string | null; avatar: string | null } | null;
 }
 
@@ -79,6 +79,14 @@ export function LeaderboardTable({ entries }: LeaderboardTableProps) {
                   <span className="font-medium">
                     {entry.user?.name || "Unknown"}
                   </span>
+                  {entry.metrics.rankingStatus === "PROVISIONAL" && (
+                    <Badge
+                      variant="outline"
+                      className="text-[9px] border-yellow-500 text-yellow-600 dark:text-yellow-400"
+                    >
+                      {t("statement.provisional")}
+                    </Badge>
+                  )}
                 </div>
               </td>
               <td className="px-3 py-2 text-end font-mono">

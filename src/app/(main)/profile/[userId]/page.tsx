@@ -35,15 +35,6 @@ const userSelect = {
       },
     },
   },
-  statements: {
-    where: { verificationStatus: "VERIFIED" as const },
-    orderBy: { uploadedAt: "desc" as const },
-    take: 1,
-    select: {
-      extractedMetrics: true,
-      verificationMethod: true,
-    },
-  },
   mtAccounts: {
     where: { isActive: true },
     select: {
@@ -89,10 +80,6 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
   const serialized = {
     ...user,
     createdAt: user.createdAt.toISOString(),
-    statements: user.statements.map((s) => ({
-      extractedMetrics: s.extractedMetrics as Record<string, unknown> | null,
-      verificationMethod: s.verificationMethod,
-    })),
     mtAccounts: user.mtAccounts.map((a) => ({
       ...a,
       lastHeartbeat: a.lastHeartbeat?.toISOString() ?? null,
@@ -112,7 +99,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
           <TraderStatementView userId={user.id} clanId={firstClan.id} />
         </div>
       )}
-      {serialized.mtAccounts.length > 0 && (
+      {isOwnProfile && serialized.mtAccounts.length > 0 && (
         <MtAccountsSection
           accounts={serialized.mtAccounts}
           isOwnProfile={isOwnProfile}

@@ -53,7 +53,7 @@ If any condition fails, the trade is excluded from statements with a specific re
 | **Frozen official risk snapshot** | At qualification, `officialEntryPrice`, `officialInitialStopLoss`, `officialInitialTargets`, `officialInitialRiskAbs`, and `officialInitialRiskMoney` are locked. These NEVER change after qualification, even if you move SL/TP later. |
 | **Effective Rank R** | `effectiveRankR = closedOfficialR + sum(min(0, liveFloatingR))`. Open gains contribute 0. Open losses penalize your rank immediately. |
 | **Live Open Risk overlay** | Shows floating R, floating PnL, NAV-based drawdown (cash-flow-neutral), biggest loser, unprotected count, stale warning — auto-refreshes every 30 seconds on profile. |
-| **Tracking status** | Per MT account: ACTIVE (<60s since heartbeat), STALE (60-120s), TRACKING_LOST (>120s). Affects ranking eligibility. |
+| **Tracking status** | Per MT account: ACTIVE (<180s since heartbeat), STALE (180-300s), TRACKING_LOST (>=300s). Affects ranking eligibility. |
 | **Ranking eligibility** | RANKED (all accounts healthy), PROVISIONAL (stale account with open trades), UNRANKED (tracking lost with open trades). |
 | **Profit factor** | `sum(positive R) / |sum(negative R)|` — displayed in closed performance block. |
 
@@ -688,17 +688,17 @@ Run them in this order so you don't waste time:
 ### Do:
 1. With EA running, check your MT account's `trackingStatus` — should be ACTIVE
 2. Disable the EA (close the chart or kill MT)
-3. Wait 60-90 seconds
+3. Wait 3 minutes (180 seconds)
 4. Check `trackingStatus` — should be STALE
-5. Wait another 60 seconds (total ~120+ seconds offline)
+5. Wait another 2 minutes (total ~5 minutes / 300 seconds offline)
 6. Check `trackingStatus` — should be TRACKING_LOST
 7. Re-enable EA and wait for one heartbeat
 8. Check `trackingStatus` — should return to ACTIVE
 
 ### Expect:
-- [ ] ACTIVE when heartbeat is <60 seconds old
-- [ ] STALE when heartbeat is 60-120 seconds old
-- [ ] TRACKING_LOST when heartbeat is >120 seconds old
+- [ ] ACTIVE when heartbeat is <180 seconds old
+- [ ] STALE when heartbeat is 180-300 seconds old
+- [ ] TRACKING_LOST when heartbeat is >=300 seconds old
 - [ ] Recovers to ACTIVE immediately on next heartbeat
 - [ ] Live Open Risk block shows stale warning when account is STALE or TRACKING_LOST
 
@@ -711,7 +711,7 @@ Run them in this order so you don't waste time:
 ### Do:
 1. Have a qualified open trade running
 2. Disable the EA
-3. Wait until `trackingStatus` becomes TRACKING_LOST (>120 seconds)
+3. Wait until `trackingStatus` becomes TRACKING_LOST (>=300 seconds)
 4. Trigger the stale-check endpoint: `POST /api/admin/stale-check` (as admin)
 5. Check your `TraderStatement.rankingStatus`
 
@@ -720,6 +720,9 @@ Run them in this order so you don't waste time:
 - [ ] With STALE + open official trades → `rankingStatus` = "PROVISIONAL"
 - [ ] With all accounts ACTIVE → `rankingStatus` = "RANKED"
 - [ ] Re-enable EA, wait for ACTIVE, re-run stale-check → should return to RANKED
+- [ ] UNRANKED traders are excluded from leaderboard results (no leaderboard entry)
+- [ ] PROVISIONAL traders appear on leaderboard with a visible "Provisional" badge
+- [ ] Ranking status is visible on the trader's statement page (Block C badge)
 
 ---
 

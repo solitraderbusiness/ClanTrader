@@ -35,10 +35,18 @@ vi.mock("@/services/price-pool.service", () => ({
   getDisplayPrice: (...args: unknown[]) => mockGetDisplayPrice(...args),
 }));
 
+vi.mock("@/services/notification-triggers", () => ({
+  notifyTrackingLost: vi.fn(() => Promise.resolve()),
+  notifyTrackingRestored: vi.fn(() => Promise.resolve()),
+  notifyRiskDrawdown: vi.fn(() => Promise.resolve()),
+}));
+
 import {
   getLiveOpenRisk,
   computeEffectiveRank,
   updateEquityDrawdown,
+  checkRankingEligibility,
+  updateTrackingStatus,
 } from "@/services/live-risk.service";
 
 // ---------------------------------------------------------------------------
@@ -711,5 +719,189 @@ describe("getLiveOpenRisk — NAV-based drawdown", () => {
 
     expect(result.currentNavDrawdownPct).toBe(0);
     expect(result.maxNavDrawdownPct).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateTrackingStatus — threshold regression tests (Gap 2: 180s/300s)
+// ---------------------------------------------------------------------------
+
+describe("updateTrackingStatus", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns ACTIVE when heartbeat is under 180s old", async () => {
+    mockMtAccountFindUnique.mockResolvedValue({
+      lastHeartbeat: new Date(Date.now() - 60_000), // 60s ago
+      isActive: true,
+      trackingStatus: "ACTIVE",
+      userId: "user-1",
+      accountNumber: "123",
+      broker: "TestBroker",
+    });
+    mockMtAccountUpdate.mockResolvedValue({});
+
+    const status = await updateTrackingStatus("acc-1");
+    expect(status).toBe("ACTIVE");
+  });
+
+  it("returns STALE when heartbeat is 180-300s old", async () => {
+    mockMtAccountFindUnique.mockResolvedValue({
+      lastHeartbeat: new Date(Date.now() - 200_000), // 200s ago
+      isActive: true,
+      trackingStatus: "ACTIVE",
+      userId: "user-1",
+      accountNumber: "123",
+      broker: "TestBroker",
+    });
+    mockMtAccountUpdate.mockResolvedValue({});
+
+    const status = await updateTrackingStatus("acc-1");
+    expect(status).toBe("STALE");
+  });
+
+  it("returns TRACKING_LOST when heartbeat is >=300s old", async () => {
+    mockMtAccountFindUnique.mockResolvedValue({
+      lastHeartbeat: new Date(Date.now() - 350_000), // 350s ago
+      isActive: true,
+      trackingStatus: "ACTIVE",
+      userId: "user-1",
+      accountNumber: "123",
+      broker: "TestBroker",
+    });
+    mockMtAccountUpdate.mockResolvedValue({});
+
+    const status = await updateTrackingStatus("acc-1");
+    expect(status).toBe("TRACKING_LOST");
+  });
+
+  it("boundary: 179s is ACTIVE, 180s is STALE", async () => {
+    // 179s — ACTIVE
+    mockMtAccountFindUnique.mockResolvedValue({
+      lastHeartbeat: new Date(Date.now() - 179_000),
+      isActive: true,
+      trackingStatus: "ACTIVE",
+      userId: "user-1",
+      accountNumber: "123",
+      broker: "TestBroker",
+    });
+    mockMtAccountUpdate.mockResolvedValue({});
+
+    const active = await updateTrackingStatus("acc-1");
+    expect(active).toBe("ACTIVE");
+
+    // 180s — STALE
+    mockMtAccountFindUnique.mockResolvedValue({
+      lastHeartbeat: new Date(Date.now() - 180_000),
+      isActive: true,
+      trackingStatus: "ACTIVE",
+      userId: "user-1",
+      accountNumber: "123",
+      broker: "TestBroker",
+    });
+
+    const stale = await updateTrackingStatus("acc-1");
+    expect(stale).toBe("STALE");
+  });
+
+  it("boundary: 299s is STALE, 300s is TRACKING_LOST", async () => {
+    // 299s — STALE
+    mockMtAccountFindUnique.mockResolvedValue({
+      lastHeartbeat: new Date(Date.now() - 299_000),
+      isActive: true,
+      trackingStatus: "ACTIVE",
+      userId: "user-1",
+      accountNumber: "123",
+      broker: "TestBroker",
+    });
+    mockMtAccountUpdate.mockResolvedValue({});
+
+    const stale = await updateTrackingStatus("acc-1");
+    expect(stale).toBe("STALE");
+
+    // 300s — TRACKING_LOST
+    mockMtAccountFindUnique.mockResolvedValue({
+      lastHeartbeat: new Date(Date.now() - 300_000),
+      isActive: true,
+      trackingStatus: "ACTIVE",
+      userId: "user-1",
+      accountNumber: "123",
+      broker: "TestBroker",
+    });
+
+    const lost = await updateTrackingStatus("acc-1");
+    expect(lost).toBe("TRACKING_LOST");
+  });
+
+  it("returns TRACKING_LOST when no heartbeat exists", async () => {
+    mockMtAccountFindUnique.mockResolvedValue({
+      lastHeartbeat: null,
+      isActive: true,
+      trackingStatus: "ACTIVE",
+      userId: "user-1",
+      accountNumber: "123",
+      broker: "TestBroker",
+    });
+    mockMtAccountUpdate.mockResolvedValue({});
+
+    const status = await updateTrackingStatus("acc-1");
+    expect(status).toBe("TRACKING_LOST");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkRankingEligibility — ranking status enforcement regression tests (Gap 3)
+// ---------------------------------------------------------------------------
+
+describe("checkRankingEligibility", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns RANKED when all accounts are ACTIVE", async () => {
+    mockMtAccountFindMany.mockResolvedValue([
+      { id: "acc-1", trackingStatus: "ACTIVE", lastHeartbeat: new Date() },
+    ]);
+
+    const status = await checkRankingEligibility("user-1");
+    expect(status).toBe("RANKED");
+  });
+
+  it("returns UNRANKED when TRACKING_LOST account has open official trades", async () => {
+    mockMtAccountFindMany.mockResolvedValue([
+      { id: "acc-1", trackingStatus: "TRACKING_LOST", lastHeartbeat: new Date(Date.now() - 600_000) },
+    ]);
+    mockTradeCount.mockResolvedValue(2); // has open official trades
+
+    const status = await checkRankingEligibility("user-1");
+    expect(status).toBe("UNRANKED");
+  });
+
+  it("returns PROVISIONAL when STALE account (>120s) has open official trades", async () => {
+    mockMtAccountFindMany.mockResolvedValue([
+      { id: "acc-1", trackingStatus: "STALE", lastHeartbeat: new Date(Date.now() - 200_000) },
+    ]);
+    mockTradeCount.mockResolvedValue(1); // has open official trades
+
+    const status = await checkRankingEligibility("user-1");
+    expect(status).toBe("PROVISIONAL");
+  });
+
+  it("returns RANKED when TRACKING_LOST account has no open official trades", async () => {
+    mockMtAccountFindMany.mockResolvedValue([
+      { id: "acc-1", trackingStatus: "TRACKING_LOST", lastHeartbeat: null },
+    ]);
+    mockTradeCount.mockResolvedValue(0); // no open trades
+
+    const status = await checkRankingEligibility("user-1");
+    expect(status).toBe("RANKED");
+  });
+
+  it("returns RANKED when no accounts exist", async () => {
+    mockMtAccountFindMany.mockResolvedValue([]);
+
+    const status = await checkRankingEligibility("user-1");
+    expect(status).toBe("RANKED");
   });
 });

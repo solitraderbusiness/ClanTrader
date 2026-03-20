@@ -41,11 +41,18 @@ export interface EffectiveRankView {
   effectiveRankR: number;
 }
 
+/** Public-safe live open risk — strips internal equity drawdown fields */
+export type PublicLiveOpenRisk = Omit<LiveOpenRisk, "currentEquityDrawdownPct" | "maxEquityDrawdownPct">;
+
+/** Ranking status for a trader statement */
+export type RankingStatus = "RANKED" | "PROVISIONAL" | "UNRANKED";
+
 /** Full 3-block statement page response */
 export interface StatementPageData {
   closedPerformance: TraderStatementMetrics;
-  liveOpenRisk: LiveOpenRisk;
+  liveOpenRisk: PublicLiveOpenRisk;
   effectiveRank: EffectiveRankView;
+  rankingStatus: RankingStatus;
 }
 
 export function emptyMetrics(): TraderStatementMetrics {

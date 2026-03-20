@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { DEFAULT_WEIGHTS, DEFAULT_LENSES } from "@/lib/ranking-constants";
 import { evaluateTrophyBadges } from "@/services/badge-engine.service";
-import { computeEffectiveRank } from "@/services/live-risk.service";
+import { computeEffectiveRank, checkRankingEligibility } from "@/services/live-risk.service";
 import type { Prisma } from "@prisma/client";
 import type { TraderStatementMetrics } from "@/types/trader-statement";
 import type { LeaderboardLens, RankingWeights } from "@/types/ranking";
@@ -58,18 +58,21 @@ export async function calculateRankings(seasonId: string) {
   if (eligible.length === 0) return [];
 
   // Extract metrics and compute effective rank R for each trader
-  const metricsMap: { userId: string; userName: string | null; metrics: TraderStatementMetrics; effectiveRankR: number }[] = [];
+  const metricsMap: { userId: string; userName: string | null; metrics: TraderStatementMetrics; effectiveRankR: number; rankingStatus: string }[] = [];
   for (const s of eligible) {
     const m = s.metrics as unknown as TraderStatementMetrics;
     const effectiveRank = await computeEffectiveRank(s.userId, s.clanId, m.totalRMultiple);
 
-    // Update effective rank on the statement
+    // Get current ranking eligibility based on live tracking status
+    const rankingStatus = await checkRankingEligibility(s.userId);
+
+    // Update effective rank and ranking status on the statement
     await db.traderStatement.update({
       where: { id: s.id },
       data: {
         effectiveRankR: effectiveRank.effectiveRankR,
         openRiskPenalty: effectiveRank.openRiskPenalty,
-        rankingStatus: s.rankingStatus ?? "RANKED",
+        rankingStatus,
       },
     });
 
@@ -85,7 +88,7 @@ export async function calculateRankings(seasonId: string) {
           data: {
             effectiveRankR: effectiveRank.effectiveRankR,
             openRiskPenalty: effectiveRank.openRiskPenalty,
-            rankingStatus: s.rankingStatus ?? "RANKED",
+            rankingStatus,
           },
         });
       }
@@ -98,35 +101,39 @@ export async function calculateRankings(seasonId: string) {
       userName: s.user.name,
       metrics: m,
       effectiveRankR: effectiveRank.effectiveRankR,
+      rankingStatus,
     });
   }
 
-  // Calculate per-lens scores
+  // UNRANKED traders must not appear in normal leaderboard rankings
+  const rankedMetrics = metricsMap.filter((m) => m.rankingStatus !== "UNRANKED");
+
+  // Calculate per-lens scores (only RANKED + PROVISIONAL traders get leaderboard entries)
   const lensScores: Record<string, { userId: string; score: number }[]> = {};
 
   // Profit: effectiveRankR DESC (penalizes open losses, ignores open gains)
-  const profitValues = metricsMap.map((m) => m.effectiveRankR);
+  const profitValues = rankedMetrics.map((m) => m.effectiveRankR);
   const normProfit = normalizeValues(profitValues);
 
   // Low Risk: worstRMultiple DESC (higher is better)
-  const lowRiskValues = metricsMap.map((m) => m.metrics.worstRMultiple);
+  const lowRiskValues = rankedMetrics.map((m) => m.metrics.worstRMultiple);
   const normLowRisk = normalizeValues(lowRiskValues);
 
   // Consistency: winRate DESC
-  const consistencyValues = metricsMap.map((m) => m.metrics.winRate);
+  const consistencyValues = rankedMetrics.map((m) => m.metrics.winRate);
   const normConsistency = normalizeValues(consistencyValues);
 
   // Risk Adjusted: avgRMultiple DESC
-  const riskAdjValues = metricsMap.map((m) => m.metrics.avgRMultiple);
+  const riskAdjValues = rankedMetrics.map((m) => m.metrics.avgRMultiple);
   const normRiskAdj = normalizeValues(riskAdjValues);
 
   // Activity: signalCount DESC
-  const activityValues = metricsMap.map((m) => m.metrics.signalCount);
+  const activityValues = rankedMetrics.map((m) => m.metrics.signalCount);
   const normActivity = normalizeValues(activityValues);
 
   // Build per-lens rankings
   for (const lens of config.lenses) {
-    const scored = metricsMap.map((m, i) => {
+    const scored = rankedMetrics.map((m, i) => {
       let score: number;
       switch (lens) {
         case "profit":
@@ -162,6 +169,20 @@ export async function calculateRankings(seasonId: string) {
     lensScores[lens] = scored;
   }
 
+  // Remove stale leaderboard entries for UNRANKED traders
+  const unrankedUserIds = metricsMap
+    .filter((m) => m.rankingStatus === "UNRANKED")
+    .map((m) => m.userId);
+  if (unrankedUserIds.length > 0) {
+    await db.leaderboardEntry.deleteMany({
+      where: {
+        seasonId,
+        entityType: "TRADER",
+        entityId: { in: unrankedUserIds },
+      },
+    });
+  }
+
   // Get old ranks for change detection (composite lens only to avoid spam)
   const oldRanks = new Map<string, number>();
   const oldCompositeEntries = await db.leaderboardEntry.findMany({
@@ -178,7 +199,7 @@ export async function calculateRankings(seasonId: string) {
     const scored = lensScores[lens];
     for (let i = 0; i < scored.length; i++) {
       const entry = scored[i];
-      const trader = metricsMap.find((m) => m.userId === entry.userId)!;
+      const trader = rankedMetrics.find((m) => m.userId === entry.userId)!;
 
       const result = await db.leaderboardEntry.upsert({
         where: {
@@ -198,6 +219,7 @@ export async function calculateRankings(seasonId: string) {
           metrics: {
             score: entry.score,
             effectiveRankR: trader.effectiveRankR,
+            rankingStatus: trader.rankingStatus,
             ...trader.metrics,
           } as unknown as Prisma.InputJsonValue,
         },
@@ -206,6 +228,7 @@ export async function calculateRankings(seasonId: string) {
           metrics: {
             score: entry.score,
             effectiveRankR: trader.effectiveRankR,
+            rankingStatus: trader.rankingStatus,
             ...trader.metrics,
           } as unknown as Prisma.InputJsonValue,
         },

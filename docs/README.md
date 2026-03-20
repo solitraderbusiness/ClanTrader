@@ -50,6 +50,12 @@ Every doc has a status banner at the top:
 | `testing/*-test-plan.md` | Per-task test plans with scenarios and expected results | QA |
 | `testing/*-qa-checklist.md` | Per-task manual QA verification checklists with SQL checks and decision matrix | QA |
 
+### Strategy & Status
+| Doc | Purpose | Owner |
+|-----|---------|-------|
+| [STRATEGIC_ROADMAP.md](STRATEGIC_ROADMAP.md) | 7-phase product strategy (MVP → Full Vibe Trading) | PM |
+| [PM-STATUS-REPORT-2026-03-18.md](PM-STATUS-REPORT-2026-03-18.md) | Current project status snapshot (103 tasks, 4 blockers, launch strategy) | PM |
+
 ### Ops & Deployment
 | Doc | Purpose | Owner |
 |-----|---------|-------|

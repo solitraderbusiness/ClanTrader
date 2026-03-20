@@ -17,22 +17,24 @@ Competitive social trading platform — clans, seasons, leaderboards, real-time 
 
 ## Product Architecture — Single Statement Page
 
-ClanTrader uses a **single public statement page** per trader with three conceptual layers:
+ClanTrader uses a **single statement page** per trader with three conceptual layers. The statement API (`/api/users/[userId]/trader-statement`) is **public** (no auth required) — it returns public-safe data only (NAV drawdown, no raw equity internals). MT account details, broker info, and operational data remain auth-gated.
 
-### 1. Official Closed Performance (public statement)
+### 1. Official Closed Performance (public)
 - Based on **closed, verified, signal-qualified, statement-eligible** trades only
 - Metrics: win rate, avg R, total R, profit factor, best/worst R, instrument/direction distribution
 - Analysis-origin trades NEVER affect official performance
 
-### 2. Live Open Risk (overlay on same page)
+### 2. Live Open Risk (public overlay on same page)
 - Real-time floating PnL, floating R, NAV-based drawdown (cash-flow-neutral), biggest open loser, unprotected trade count
 - Prevents hiding floating losses behind a clean closed record
 - Computed on-demand from MT heartbeat data (`live-risk.service.ts`)
+- **Public response strips internal equity drawdown** — only NAV-based (cash-flow-neutral) drawdown is exposed
 
 ### 3. Effective Rank (conservative ranking)
 - Formula: `effectiveRankR = closedOfficialR + openLossPenaltyR`
 - Open profits do NOT improve rank; open losses DO penalize
 - Ranking status: RANKED / PROVISIONAL (stale heartbeat) / UNRANKED (lost tracking)
+- **UNRANKED traders excluded from leaderboard**; PROVISIONAL traders shown with visible badge
 
 ### Signal Qualification
 - **20-second window**: Trade must have valid SL+TP at open OR within ~20s of MT open time
@@ -56,13 +58,13 @@ All 7 conditions must pass for `statementEligible = true`:
 - All eligible trades from all accounts feed ONE public trader statement per clan
 - No separate public per-account statements (private journal can filter by account)
 - Each account has independent heartbeat/tracking status
+- Tracking thresholds: ACTIVE (<180s), STALE (180-300s), TRACKING_LOST (>=300s)
 
 ### What Is NOT in MVP
 - No broker history import
-- No manual statement file upload (route stub exists, not implemented)
 - No public per-account statements
 - No analysis card effect on public performance
-- Statement upload API (`/api/statements/upload`) is empty — statements auto-generate from MT data
+- Statements auto-generate from MT data (no manual upload)
 
 ## Rules That Cause Bugs If Ignored
 

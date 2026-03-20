@@ -95,7 +95,7 @@ export function TraderStatementView({ userId, clanId }: TraderStatementViewProps
     );
   }
 
-  const { closedPerformance: cp, liveOpenRisk: lr, effectiveRank: er } = data;
+  const { closedPerformance: cp, liveOpenRisk: lr, effectiveRank: er, rankingStatus } = data;
   const hasClosedTrades = cp.signalCount > 0;
 
   return (
@@ -248,6 +248,17 @@ export function TraderStatementView({ userId, clanId }: TraderStatementViewProps
             <CardTitle className="text-sm font-medium">
               {t("statement.effectiveRank")}
             </CardTitle>
+            {rankingStatus && rankingStatus !== "RANKED" && (
+              <Badge
+                variant={rankingStatus === "UNRANKED" ? "destructive" : "outline"}
+                className={cn(
+                  "text-[10px]",
+                  rankingStatus === "PROVISIONAL" && "border-yellow-500 text-yellow-600 dark:text-yellow-400"
+                )}
+              >
+                {t(`statement.${rankingStatus.toLowerCase()}`)}
+              </Badge>
+            )}
           </div>
           <p className="text-[10px] text-muted-foreground">
             {t("statement.effectiveRankDesc")}

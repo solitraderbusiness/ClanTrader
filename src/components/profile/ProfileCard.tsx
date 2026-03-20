@@ -2,11 +2,8 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { MetricsDisplay } from "@/components/statements/MetricsDisplay";
 import { ProfileBadgeSection } from "@/components/profile/ProfileBadgeSection";
-import type { StatementMetrics } from "@/types/statement";
 import Link from "next/link";
-import { BarChart3 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { getInitials } from "@/lib/utils";
 
@@ -27,10 +24,6 @@ interface ProfileCardProps {
       role: string;
       clan: { id: string; name: string; avatar: string | null };
     }[];
-    statements?: {
-      extractedMetrics: Record<string, unknown> | null;
-      verificationMethod: string;
-    }[];
   };
   isOwnProfile?: boolean;
 }
@@ -39,7 +32,6 @@ export function ProfileCard({ user, isOwnProfile }: ProfileCardProps) {
   const { t } = useTranslation();
   const initials = user.name ? getInitials(user.name) : "U";
 
-  const isVerified = (user.statements?.length ?? 0) > 0;
   const clan = user.clanMemberships?.[0];
   const hasTradeDetails =
     user.tradingStyle || user.sessionPreference || user.preferredPairs.length > 0;
@@ -55,11 +47,6 @@ export function ProfileCard({ user, isOwnProfile }: ProfileCardProps) {
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-bold">{user.name || "Anonymous"}</h1>
-            {isVerified && (
-              <Badge variant="default" className="text-xs">
-                {t("profile.verified")}
-              </Badge>
-            )}
             {user.isPro && (
               <Badge variant="secondary" className="text-xs">
                 {t("profile.pro")}
@@ -74,34 +61,6 @@ export function ProfileCard({ user, isOwnProfile }: ProfileCardProps) {
           )}
         </div>
       </div>
-
-      {/* Verified Trading Stats (lead with credibility) */}
-      {isVerified && user.statements?.[0]?.extractedMetrics ? (
-        <div className="rounded-lg border p-4">
-          <h3 className="mb-3 font-medium">{t("profile.verifiedStats")}</h3>
-          <MetricsDisplay
-            metrics={user.statements[0].extractedMetrics as unknown as StatementMetrics}
-            compact
-            verificationMethod={user.statements[0].verificationMethod}
-          />
-        </div>
-      ) : isOwnProfile ? (
-        <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
-          <BarChart3 className="h-5 w-5 shrink-0 text-primary" />
-          <div className="flex-1">
-            <p className="text-sm font-medium">{t("profile.becomeVerified")}</p>
-            <p className="text-xs text-muted-foreground">
-              {t("profile.becomeVerifiedDesc")}
-            </p>
-          </div>
-          <Link
-            href="/settings/mt-accounts"
-            className="shrink-0 text-sm font-medium text-primary hover:underline"
-          >
-            {t("profile.connect")}
-          </Link>
-        </div>
-      ) : null}
 
       {/* Badges */}
       <ProfileBadgeSection userId={user.id} />

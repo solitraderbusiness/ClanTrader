@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getLiveOpenRisk, computeEffectiveRank } from "@/services/live-risk.service";
 import { emptyMetrics } from "@/types/trader-statement";
 import type { TraderStatementMetrics, StatementPageData } from "@/types/trader-statement";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
  * GET /api/users/[userId]/trader-statement
  *
- * Returns the 3-block statement page data:
+ * Returns the 3-block statement page data (PUBLIC — no auth required):
  *   Block A: Official Closed Performance
- *   Block B: Live Open Risk
- *   Block C: Effective Rank View
+ *   Block B: Live Open Risk (public-safe: NAV drawdown only, no equity internals)
+ *   Block C: Effective Rank View + ranking status
  *
  * Query params:
  *   clanId (required) — which clan's statement
@@ -23,10 +23,8 @@ export async function GET(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const limited = await rateLimit(`pub:statement:${getClientIp(request)}`, "PUBLIC_READ");
+    if (limited) return limited;
 
     const { userId } = await params;
     const { searchParams } = new URL(request.url);
@@ -58,8 +56,20 @@ export async function GET(
       ? (statement.metrics as unknown as TraderStatementMetrics)
       : emptyMetrics();
 
-    // Block B: Live Open Risk
-    const liveOpenRisk = await getLiveOpenRisk(userId, clanId);
+    // Block B: Live Open Risk (public-safe — strip internal equity fields)
+    const fullRisk = await getLiveOpenRisk(userId, clanId);
+    const liveOpenRisk = {
+      openOfficialCount: fullRisk.openOfficialCount,
+      liveFloatingPnl: fullRisk.liveFloatingPnl,
+      liveFloatingR: fullRisk.liveFloatingR,
+      currentNavDrawdownPct: fullRisk.currentNavDrawdownPct,
+      maxNavDrawdownPct: fullRisk.maxNavDrawdownPct,
+      biggestOpenLoserR: fullRisk.biggestOpenLoserR,
+      unprotectedCount: fullRisk.unprotectedCount,
+      staleWarning: fullRisk.staleWarning,
+      lastUpdate: fullRisk.lastUpdate,
+      isEstimated: fullRisk.isEstimated,
+    };
 
     // Block C: Effective Rank View
     const effectiveRank = await computeEffectiveRank(
@@ -72,6 +82,7 @@ export async function GET(
       closedPerformance,
       liveOpenRisk,
       effectiveRank,
+      rankingStatus: (statement?.rankingStatus as "RANKED" | "PROVISIONAL" | "UNRANKED") ?? "RANKED",
     };
 
     return NextResponse.json(data);
