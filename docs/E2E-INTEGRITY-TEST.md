@@ -52,7 +52,7 @@ If any condition fails, the trade is excluded from statements with a specific re
 | **20-second qualification window** | From the moment MT opens the trade, you have exactly 20 seconds to have both SL and TP set. If met, the trade becomes `officialSignalQualified` and a frozen risk snapshot is taken. If missed, the trade becomes ANALYSIS permanently. |
 | **Frozen official risk snapshot** | At qualification, `officialEntryPrice`, `officialInitialStopLoss`, `officialInitialTargets`, `officialInitialRiskAbs`, and `officialInitialRiskMoney` are locked. These NEVER change after qualification, even if you move SL/TP later. |
 | **Effective Rank R** | `effectiveRankR = closedOfficialR + sum(min(0, liveFloatingR))`. Open gains contribute 0. Open losses penalize your rank immediately. |
-| **Live Open Risk overlay** | Shows floating R, floating PnL, equity drawdown, biggest loser, unprotected count, stale warning — auto-refreshes every 30 seconds on profile. |
+| **Live Open Risk overlay** | Shows floating R, floating PnL, NAV-based drawdown (cash-flow-neutral), biggest loser, unprotected count, stale warning — auto-refreshes every 30 seconds on profile. |
 | **Tracking status** | Per MT account: ACTIVE (<60s since heartbeat), STALE (60-120s), TRACKING_LOST (>120s). Affects ranking eligibility. |
 | **Ranking eligibility** | RANKED (all accounts healthy), PROVISIONAL (stale account with open trades), UNRANKED (tracking lost with open trades). |
 | **Profit factor** | `sum(positive R) / |sum(negative R)|` — displayed in closed performance block. |
@@ -641,7 +641,7 @@ Run them in this order so you don't waste time:
 
 ### Expect:
 - [ ] **Block A: Official Closed Performance** shows: trade count, win rate, avg R, total R, profit factor, best R, worst R, W/L/BE breakdown
-- [ ] **Block B: Live Open Risk** shows: open trade count, floating R, floating PnL, equity drawdown %, max drawdown %, biggest loser R, unprotected count
+- [ ] **Block B: Live Open Risk** shows: open trade count, floating R, floating PnL, NAV-based drawdown %, max NAV drawdown %, biggest loser R, unprotected count
 - [ ] **Block C: Effective Rank** shows: closed R + open penalty = effective R
 - [ ] Only `officialSignalQualified` trades appear in Block A metrics
 - [ ] Analysis trades and unqualified trades are excluded
@@ -738,7 +738,8 @@ Run them in this order so you don't waste time:
 - [ ] `peakEquity` never decreases (it's a high-water mark)
 - [ ] `maxDrawdownPct` = `(peakEquity - lowestEquitySincePeak) / peakEquity * 100`
 - [ ] `maxDrawdownMoney` tracks the absolute money amount of worst drawdown
-- [ ] Live Open Risk block shows `currentEquityDrawdownPct` and `maxEquityDrawdownPct`
+- [ ] Live Open Risk block shows NAV-based `currentNavDrawdownPct` and `maxNavDrawdownPct` (cash-flow-neutral)
+- [ ] Raw equity drawdown (`currentEquityDrawdownPct`, `maxEquityDrawdownPct`) also returned for internal use
 
 ---
 
@@ -768,7 +769,7 @@ Run them in this order so you don't waste time:
 ### Expect:
 - [ ] Response has three blocks: `closedPerformance`, `liveOpenRisk`, `effectiveRank`
 - [ ] `closedPerformance` contains: `totalTrades`, `winRate`, `avgRMultiple`, `totalRMultiple`, `profitFactor`, `bestR`, `worstR`, `wins`, `losses`, `breakevens`, `signalCount`
-- [ ] `liveOpenRisk` contains: `openOfficialCount`, `liveFloatingPnl`, `liveFloatingR`, `currentEquityDrawdownPct`, `maxEquityDrawdownPct`, `biggestOpenLoserR`, `unprotectedCount`, `staleWarning`, `lastUpdate`
+- [ ] `liveOpenRisk` contains: `openOfficialCount`, `liveFloatingPnl`, `liveFloatingR`, `currentNavDrawdownPct`, `maxNavDrawdownPct`, `currentEquityDrawdownPct`, `maxEquityDrawdownPct`, `biggestOpenLoserR`, `unprotectedCount`, `staleWarning`, `lastUpdate`
 - [ ] `effectiveRank` contains: `closedOfficialR`, `openRiskPenalty`, `effectiveRankR`
 - [ ] `effectiveRankR` = `closedOfficialR` + `openRiskPenalty`
 - [ ] Only `officialSignalQualified` trades are included in closed performance metrics

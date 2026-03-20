@@ -1473,6 +1473,8 @@
     "floatingR": "R شناور",
     "equityDrawdown": "افت سرمایه",
     "maxDrawdown": "حداکثر افت",
+    "performanceDrawdown": "افت عملکرد",
+    "maxPerformanceDrawdown": "حداکثر افت عملکرد",
     "biggestLoser": "بزرگترین ضرر باز",
     "unprotected": "بدون حفاظت",
     "staleWarning": "ردیابی قطع شده — اطلاعات زنده ممکن است قدیمی باشد",

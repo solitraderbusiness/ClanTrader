@@ -90,6 +90,9 @@ function makeAccount(
     balance: 10000,
     peakEquity: 10000,
     maxDrawdownPct: 0,
+    navValue: 1.0,
+    peakNav: 1.0,
+    maxNavDrawdownPct: 0,
     trackingStatus: "ACTIVE",
     lastHeartbeat: new Date(),
     ...overrides,
@@ -564,5 +567,149 @@ describe("getLiveOpenRisk — freshness gating", () => {
 
     // No timestamp → treated as Infinity age → rejected
     expect(result.isEstimated).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getLiveOpenRisk — NAV-based (cash-flow-neutral) drawdown
+// ---------------------------------------------------------------------------
+
+describe("getLiveOpenRisk — NAV-based drawdown", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function setupAccountDrawdown(accountOverrides: Record<string, unknown>) {
+    mockTradeFindMany.mockResolvedValue([]); // no open trades
+    mockMtAccountFindMany
+      .mockResolvedValueOnce([])  // stale accounts query
+      .mockResolvedValueOnce([makeAccount(accountOverrides)]);
+  }
+
+  it("returns NAV-based drawdown from peakNav and navValue", async () => {
+    // NAV dropped from 1.2 to 1.0 = 16.67% NAV drawdown
+    // Raw equity from 12000 peak to 10000 = 16.67% equity drawdown (same, no cash flows)
+    setupAccountDrawdown({
+      navValue: 1.0,
+      peakNav: 1.2,
+      maxNavDrawdownPct: 16.67,
+      peakEquity: 12000,
+      equity: 10000,
+      maxDrawdownPct: 16.67,
+    });
+
+    const result = await getLiveOpenRisk("user-1", "clan-1");
+
+    expect(result.currentNavDrawdownPct).toBeCloseTo(16.67, 1);
+    expect(result.maxNavDrawdownPct).toBe(16.67);
+    expect(result.currentEquityDrawdownPct).toBeCloseTo(16.67, 1);
+  });
+
+  it("deposit does NOT worsen NAV-based public drawdown", async () => {
+    // Scenario: $10K account, trader deposits $9K.
+    // Raw: peakEquity jumped to $19K, equity=$19K → 0% current raw drawdown
+    //   BUT if equity later drops to $18K → raw shows 5.26% from $19K peak
+    // NAV: stays at 1.0 through deposit, peakNav stays 1.0 → 0% NAV drawdown
+    //   If equity drops by $1K from trading loss → NAV drops to ~0.95 → 5% drawdown
+    // The key: the deposit itself doesn't create phantom drawdown from inflated peak.
+    setupAccountDrawdown({
+      navValue: 1.0,
+      peakNav: 1.0,
+      maxNavDrawdownPct: 0,
+      // After $9K deposit: peak inflated to 19K, equity at 18K (lost $1K trading)
+      peakEquity: 19000,
+      equity: 18000,
+      maxDrawdownPct: 5.26,
+    });
+
+    const result = await getLiveOpenRisk("user-1", "clan-1");
+
+    // NAV drawdown shows 0% — deposit didn't inflate peak
+    expect(result.currentNavDrawdownPct).toBe(0);
+    expect(result.maxNavDrawdownPct).toBe(0);
+    // Raw equity shows 5.26% — inflated by deposit peak
+    expect(result.currentEquityDrawdownPct).toBeCloseTo(5.26, 1);
+  });
+
+  it("withdrawal does NOT worsen NAV-based public drawdown", async () => {
+    // Scenario: $10K account + $1K profit, trader withdraws $9K.
+    // Raw: equity drops from $11K to $2K → raw shows 81.82% drawdown (FAKE!)
+    // NAV: stays at 1.1 (reflecting the real 10% trading profit), peakNav=1.1 → 0% drawdown
+    setupAccountDrawdown({
+      navValue: 1.1,
+      peakNav: 1.1,
+      maxNavDrawdownPct: 0,
+      // After $9K withdrawal: raw equity plummets
+      peakEquity: 11000,
+      equity: 2000,
+      maxDrawdownPct: 81.82,
+    });
+
+    const result = await getLiveOpenRisk("user-1", "clan-1");
+
+    // NAV drawdown: 0% — withdrawal didn't affect performance truth
+    expect(result.currentNavDrawdownPct).toBe(0);
+    expect(result.maxNavDrawdownPct).toBe(0);
+    // Raw equity drawdown: 81.82% — massively distorted by withdrawal
+    expect(result.currentEquityDrawdownPct).toBeCloseTo(81.82, 1);
+  });
+
+  it("normal drawdown without cash flows behaves correctly for both", async () => {
+    // No deposits/withdrawals — both systems should agree
+    // Started with $10K, grew to $12K (NAV 1.2), now at $10.8K (NAV 1.08)
+    setupAccountDrawdown({
+      navValue: 1.08,
+      peakNav: 1.2,
+      maxNavDrawdownPct: 10,
+      peakEquity: 12000,
+      equity: 10800,
+      maxDrawdownPct: 10,
+    });
+
+    const result = await getLiveOpenRisk("user-1", "clan-1");
+
+    // Both should show 10% current drawdown
+    expect(result.currentNavDrawdownPct).toBe(10);
+    expect(result.currentEquityDrawdownPct).toBe(10);
+    // Max drawdown also agrees
+    expect(result.maxNavDrawdownPct).toBe(10);
+    expect(result.maxEquityDrawdownPct).toBe(10);
+  });
+
+  it("aggregates NAV drawdown across multiple accounts (takes worst)", async () => {
+    mockTradeFindMany.mockResolvedValue([]);
+    mockMtAccountFindMany
+      .mockResolvedValueOnce([])  // stale accounts query
+      .mockResolvedValueOnce([
+        makeAccount({
+          id: "acc-1",
+          navValue: 0.95, peakNav: 1.0, maxNavDrawdownPct: 5,
+          peakEquity: 10000, equity: 9500, maxDrawdownPct: 5,
+        }),
+        makeAccount({
+          id: "acc-2",
+          navValue: 0.85, peakNav: 1.0, maxNavDrawdownPct: 15,
+          peakEquity: 20000, equity: 17000, maxDrawdownPct: 15,
+        }),
+      ]);
+
+    const result = await getLiveOpenRisk("user-1", "clan-1");
+
+    // Should take worst: acc-2 has 15% NAV drawdown
+    expect(result.currentNavDrawdownPct).toBe(15);
+    expect(result.maxNavDrawdownPct).toBe(15);
+  });
+
+  it("handles fresh account with default NAV values (1.0/1.0)", async () => {
+    setupAccountDrawdown({
+      navValue: 1.0,
+      peakNav: 1.0,
+      maxNavDrawdownPct: 0,
+    });
+
+    const result = await getLiveOpenRisk("user-1", "clan-1");
+
+    expect(result.currentNavDrawdownPct).toBe(0);
+    expect(result.maxNavDrawdownPct).toBe(0);
   });
 });

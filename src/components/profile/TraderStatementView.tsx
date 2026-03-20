@@ -212,14 +212,14 @@ export function TraderStatementView({ userId, clanId }: TraderStatementViewProps
                   positive={lr.liveFloatingPnl > 0}
                 />
                 <StatCard
-                  label={t("statement.equityDrawdown")}
-                  value={`${lr.currentEquityDrawdownPct.toFixed(1)}%`}
-                  positive={lr.currentEquityDrawdownPct < 5}
+                  label={t("statement.performanceDrawdown")}
+                  value={`${lr.currentNavDrawdownPct.toFixed(1)}%`}
+                  positive={lr.currentNavDrawdownPct < 5}
                 />
                 <StatCard
-                  label={t("statement.maxDrawdown")}
-                  value={`${lr.maxEquityDrawdownPct.toFixed(1)}%`}
-                  positive={lr.maxEquityDrawdownPct < 10}
+                  label={t("statement.maxPerformanceDrawdown")}
+                  value={`${lr.maxNavDrawdownPct.toFixed(1)}%`}
+                  positive={lr.maxNavDrawdownPct < 10}
                 />
                 {lr.biggestOpenLoserR < 0 && (
                   <StatCard

@@ -25,7 +25,7 @@ ClanTrader uses a **single public statement page** per trader with three concept
 - Analysis-origin trades NEVER affect official performance
 
 ### 2. Live Open Risk (overlay on same page)
-- Real-time floating PnL, floating R, equity drawdown, biggest open loser, unprotected trade count
+- Real-time floating PnL, floating R, NAV-based drawdown (cash-flow-neutral), biggest open loser, unprotected trade count
 - Prevents hiding floating losses behind a clean closed record
 - Computed on-demand from MT heartbeat data (`live-risk.service.ts`)
 
@@ -107,7 +107,7 @@ All 7 conditions must pass for `statementEligible = true`:
 | Statement Calc | `statement-calc.service.ts` (closed official metrics) |
 | MT Statements | `mt-statement.service.ts` (auto-generate from MT data) |
 | Ranking | `ranking.service.ts` (6 lenses + composite) |
-| Live Risk | `live-risk.service.ts` (floating PnL, drawdown, effective rank) |
+| Live Risk | `live-risk.service.ts` (floating PnL, NAV + equity drawdown, effective rank) |
 | Journal | `journal.service.ts` (equity curve, calendar, streaks, breakdowns) |
 | Digest | `digest-v2.service.ts` (v2 default), `clan-digest.service.ts` (v1 fallback), `open-trade-health.ts` |
 | Balance Events | `balance-event.service.ts` (deposit/withdrawal detection, TWR/NAV, adjusted series) |
@@ -170,6 +170,7 @@ Canonical docs live in `docs/`. Stale/historical docs are in `docs/archive/` wit
 | `docs/STRATEGIC_ROADMAP.md` | 7-phase product strategy (MVP → Full Vibe Trading) |
 | `docs/tasks/*.md` | Per-task briefs (activity-digest, deposit-withdrawal-fix, heartbeat-fallback, notification-alarm-mvp, ghost-trade-resolution, digest-cockpit-scenario-ladder, qa-ea-metatrader-auth) |
 | `docs/testing/*-test-plan.md` | Per-task test plans with scenarios and expected results |
+| `docs/testing/*-qa-checklist.md` | Per-task manual QA verification checklists |
 | `docs/archive/*` | 12 archived docs with deprecation banners |
 
 When docs conflict with code, **code wins** for implemented behavior. When planning future work, **latest PM decisions win** over older docs. When any doc conflicts with `SOURCE_OF_TRUTH.md`, the source of truth wins.

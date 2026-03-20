@@ -132,7 +132,7 @@ export async function getLiveOpenRisk(
     if (trade.riskStatus === "UNPROTECTED") unprotectedCount++;
   }
 
-  // Get account-level equity data for drawdown
+  // Get account-level equity + NAV data for drawdown
   const accounts = await db.mtAccount.findMany({
     where: { userId, isActive: true },
     select: {
@@ -141,23 +141,37 @@ export async function getLiveOpenRisk(
       lastHeartbeat: true,
       peakEquity: true,
       maxDrawdownPct: true,
+      navValue: true,
+      peakNav: true,
+      maxNavDrawdownPct: true,
       trackingStatus: true,
     },
   });
 
-  // Aggregate equity drawdown across accounts
-  let currentDrawdownPct = 0;
-  let maxDrawdownPct = 0;
+  // Aggregate drawdown across accounts (both NAV-based and raw equity)
+  let currentEquityDd = 0;
+  let maxEquityDd = 0;
+  let currentNavDd = 0;
+  let maxNavDd = 0;
   let staleWarning = false;
   let lastUpdate: string | null = null;
 
   for (const acct of accounts) {
+    // Raw equity drawdown (internal account health)
     if (acct.peakEquity && acct.peakEquity > 0 && acct.equity > 0) {
       const dd = ((acct.peakEquity - acct.equity) / acct.peakEquity) * 100;
-      if (dd > currentDrawdownPct) currentDrawdownPct = dd;
+      if (dd > currentEquityDd) currentEquityDd = dd;
     }
-    if (acct.maxDrawdownPct != null && acct.maxDrawdownPct > maxDrawdownPct) {
-      maxDrawdownPct = acct.maxDrawdownPct;
+    if (acct.maxDrawdownPct != null && acct.maxDrawdownPct > maxEquityDd) {
+      maxEquityDd = acct.maxDrawdownPct;
+    }
+    // NAV-based drawdown (cash-flow-neutral performance)
+    if (acct.peakNav > 0 && acct.navValue > 0) {
+      const navDd = ((acct.peakNav - acct.navValue) / acct.peakNav) * 100;
+      if (navDd > currentNavDd) currentNavDd = navDd;
+    }
+    if (acct.maxNavDrawdownPct > maxNavDd) {
+      maxNavDd = acct.maxNavDrawdownPct;
     }
     if (acct.trackingStatus === "STALE" || acct.trackingStatus === "TRACKING_LOST") {
       staleWarning = true;
@@ -172,8 +186,10 @@ export async function getLiveOpenRisk(
     openOfficialCount: openTrades.length,
     liveFloatingPnl: Math.round(totalFloatingPnl * 100) / 100,
     liveFloatingR: Math.round(totalFloatingR * 100) / 100,
-    currentEquityDrawdownPct: Math.round(currentDrawdownPct * 100) / 100,
-    maxEquityDrawdownPct: Math.round(maxDrawdownPct * 100) / 100,
+    currentNavDrawdownPct: Math.round(currentNavDd * 100) / 100,
+    maxNavDrawdownPct: Math.round(maxNavDd * 100) / 100,
+    currentEquityDrawdownPct: Math.round(currentEquityDd * 100) / 100,
+    maxEquityDrawdownPct: Math.round(maxEquityDd * 100) / 100,
     biggestOpenLoserR: Math.round(biggestLoserR * 100) / 100,
     unprotectedCount,
     staleWarning,
@@ -445,8 +461,8 @@ export async function persistLiveRiskSnapshots(userId: string): Promise<void> {
           totalFloatingR: risk.liveFloatingR,
           biggestLoserR: risk.biggestOpenLoserR,
           unprotectedCount: risk.unprotectedCount,
-          currentDrawdownPct: risk.currentEquityDrawdownPct,
-          maxDrawdownPct: risk.maxEquityDrawdownPct,
+          currentDrawdownPct: risk.currentNavDrawdownPct,
+          maxDrawdownPct: risk.maxNavDrawdownPct,
           isEstimated: risk.isEstimated,
           staleWarning: risk.staleWarning,
         },

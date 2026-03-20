@@ -165,7 +165,7 @@ See Section 6.
 - Trade sync: up to 5000 closed trades per batch (every 5 min)
 - EquitySnapshot recording: balance + equity every 5 min per account (Redis-throttled), annotated with external flow data. Each snapshot tagged with `snapshotSource` (EA/FALLBACK), `estimateQuality` (REAL/FALLBACK_FRESH/FALLBACK_STALE/NO_PRICE), and `chartEligible` flag.
 - **Deposit/withdrawal detection**: On each heartbeat, `externalFlow = balanceDelta - closedTradesPnL`. If exceeds dynamic threshold → `BalanceEvent` recorded with full audit metadata. Balance update in `processHeartbeat()` runs AFTER trade close detection to preserve previous balance for comparison.
-- **Cash-flow-neutral performance**: NAV-based drawdown tracking (`navValue`, `peakNav`, `maxNavDrawdownPct` on MtAccount) immune to deposits/withdrawals. Equity chart uses adjusted series (raw - cumulative external flows) for trading-only visualization.
+- **Cash-flow-neutral performance**: NAV-based drawdown tracking (`navValue`, `peakNav`, `maxNavDrawdownPct` on MtAccount) immune to deposits/withdrawals. Equity chart uses adjusted series (raw - cumulative external flows) for trading-only visualization. **Public-facing drawdown** (statement page live-risk overlay) uses NAV-based values (`currentNavDrawdownPct`, `maxNavDrawdownPct`). Raw equity drawdown (`currentEquityDrawdownPct`, `maxEquityDrawdownPct`) is retained in the API for internal/admin account-health use only.
 - **Heartbeat fallback** (LIVE): When EA stops, background estimation uses cross-user price pool to continue computing equity/PnL. Freshness-gated: only prices within 90s create chart-eligible snapshots, update MtAccount.equity, or broadcast socket PnL. Stale/no-price estimates are silently skipped to prevent fake flat lines on equity charts. Equity chart queries filter `chartEligible: true` and use anchor baseline (pre-period snapshot) for normalization. Time gaps >10min produce visual breaks in chart segments.
 - **Cross-user price pool for fallback**: EAs with no open trades send `marketPrices` for symbols other users need. Server sends `watchSymbols` in heartbeat response. Ensures fresh prices even when the only connected EAs have zero open trades.
 
@@ -218,7 +218,8 @@ See Section 6.
 ### Live Open Risk
 **Status: LIVE**
 - **In plain English**: Live risk = what is happening RIGHT NOW with a trader's open positions. It answers: "How much money is at risk? How are open trades performing? Is the data fresh or stale?" Live risk is NOT the digest — it is the real-time open-trade exposure layer that the digest, statement page, and rankings all consume.
-- Overlay on statement page showing floating PnL, floating R, equity drawdown, biggest open loser, unprotected count
+- Overlay on statement page showing floating PnL, floating R, **NAV-based performance drawdown** (cash-flow-neutral), biggest open loser, unprotected count
+- Dual drawdown: public display uses NAV-based drawdown; raw equity drawdown available in API for internal account-health monitoring
 - 15-second Redis cache
 - `staleWarning` flag when any MT account is STALE or TRACKING_LOST
 - UI shows yellow triangle + warning banner when stale

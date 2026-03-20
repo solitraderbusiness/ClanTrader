@@ -48,6 +48,7 @@ Every doc has a status banner at the top:
 | [DECISION_LOG.md](DECISION_LOG.md) | Running log of in-progress decisions captured during task work | PM |
 | `tasks/*.md` | Per-task briefs (goal, decisions, edge cases, done definition) | PM |
 | `testing/*-test-plan.md` | Per-task test plans with scenarios and expected results | QA |
+| `testing/*-qa-checklist.md` | Per-task manual QA verification checklists with SQL checks and decision matrix | QA |
 
 ### Ops & Deployment
 | Doc | Purpose | Owner |

@@ -21,6 +21,10 @@ export interface LiveOpenRisk {
   openOfficialCount: number;
   liveFloatingPnl: number;
   liveFloatingR: number;
+  /** NAV-based (cash-flow-neutral) — public performance display */
+  currentNavDrawdownPct: number;
+  maxNavDrawdownPct: number;
+  /** Raw equity-based — internal account health */
   currentEquityDrawdownPct: number;
   maxEquityDrawdownPct: number;
   biggestOpenLoserR: number;
