@@ -355,7 +355,7 @@ See Section 6.
   - Heartbeat fallback + stale check: 30s (flag: `heartbeat_fallback`)
   - Price alert evaluation: 15s
   - Notification service IO binding on startup
-- Cron-intended endpoint: `/api/admin/stale-check` (every 60s) — **must be configured externally** (NEEDS VERIFICATION: check `crontab -l`)
+- Legacy endpoint: `/api/admin/stale-check` — **redundant when `heartbeat_fallback` flag is enabled** (in-process 30s interval handles stale detection). Retained as manual fallback if flag is disabled.
 - Manual scripts with cron suggestions: `scripts/daily-digest.ts` (8 AM Iran), `scripts/evening-digest.ts` (10 PM Iran) — **not auto-scheduled in repo** (NEEDS VERIFICATION: check `crontab -l`)
 
 ### Testing

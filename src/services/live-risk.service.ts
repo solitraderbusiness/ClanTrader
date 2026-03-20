@@ -92,10 +92,12 @@ export async function getLiveOpenRisk(
       let pnl = (mt.profit ?? 0) + (mt.commission ?? 0) + (mt.swap ?? 0);
 
       // Price pool fallback: if this trade's account is stale, try to estimate P/L
+      // Freshness gating: only accept prices < 90s old (same policy as heartbeat-fallback.service)
       if (mt.mtAccountId && staleAccountIds.has(mt.mtAccountId) && mt.openPrice > 0 && mt.lots > 0) {
         try {
           const resolved = await getDisplayPrice(mt.symbol);
-          if (resolved.price !== null && resolved.status !== "no_price" && resolved.status !== "market_closed") {
+          const priceAgeMs = resolved.ts ? Date.now() - resolved.ts : Infinity;
+          if (resolved.price !== null && resolved.status !== "no_price" && resolved.status !== "market_closed" && priceAgeMs <= 90_000) {
             const dir = direction === "LONG" ? 1 : direction === "SHORT" ? -1 : 0;
             if (dir !== 0) {
               const pv = estimatePointValue(mt.symbol, mt.openPrice, mt.lots, mt.profit, resolved.price);

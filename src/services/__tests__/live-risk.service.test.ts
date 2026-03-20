@@ -30,7 +30,13 @@ vi.mock("@/lib/redis", () => ({
   },
 }));
 
+const mockGetDisplayPrice = vi.fn();
+vi.mock("@/services/price-pool.service", () => ({
+  getDisplayPrice: (...args: unknown[]) => mockGetDisplayPrice(...args),
+}));
+
 import {
+  getLiveOpenRisk,
   computeEffectiveRank,
   updateEquityDrawdown,
 } from "@/services/live-risk.service";
@@ -415,5 +421,148 @@ describe("updateEquityDrawdown", () => {
         }),
       })
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getLiveOpenRisk — freshness gating regression tests
+// ---------------------------------------------------------------------------
+
+describe("getLiveOpenRisk — freshness gating", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Default: no accounts stale, no open trades
+    mockMtAccountFindMany.mockResolvedValue([]);
+  });
+
+  function setupStaleAccountWithTrade(priceAge: number, priceStatus = "pool") {
+    // One open trade on a stale account
+    mockTradeFindMany.mockResolvedValue([
+      {
+        id: "trade-1",
+        officialSignalQualified: true,
+        officialInitialRiskMoney: 100,
+        officialInitialRiskAbs: 0.01,
+        officialEntryPrice: 1.1,
+        officialInitialStopLoss: 1.09,
+        riskStatus: "PROTECTED",
+        tradeCard: { direction: "LONG", instrument: "EURUSD", entry: 1.1 },
+        mtTradeMatches: [{
+          profit: 50,
+          commission: -2,
+          swap: -1,
+          openPrice: 1.1,
+          lots: 1,
+          symbol: "EURUSD",
+          mtAccountId: "stale-acc",
+          isOpen: true,
+        }],
+      },
+    ]);
+
+    // Mark the account as stale
+    mockMtAccountFindMany
+      .mockResolvedValueOnce([{ id: "stale-acc" }])  // stale accounts query
+      .mockResolvedValueOnce([makeAccount({           // equity accounts query
+        id: "stale-acc",
+        trackingStatus: "STALE",
+        lastHeartbeat: new Date(Date.now() - 200_000),
+      })]);
+
+    // Price pool returns a price with specific age
+    // Use 1.12 (moved further from 1.1 entry) so estimated P/L differs from MT's 50
+    const priceTs = Date.now() - priceAge;
+    mockGetDisplayPrice.mockResolvedValue({
+      price: 1.12,
+      ts: priceTs,
+      status: priceStatus,
+      source: "cross-user",
+    });
+  }
+
+  it("accepts fresh prices (< 90s old) for P/L estimation", async () => {
+    setupStaleAccountWithTrade(30_000); // 30s old — fresh
+
+    const result = await getLiveOpenRisk("user-1", "clan-1");
+
+    expect(mockGetDisplayPrice).toHaveBeenCalledWith("EURUSD");
+    expect(result.isEstimated).toBe(true);
+    // PnL is computed from price pool (may coincide with MT value due to PV derivation)
+    expect(typeof result.liveFloatingPnl).toBe("number");
+  });
+
+  it("rejects stale prices (> 90s old) — falls back to last MT value", async () => {
+    setupStaleAccountWithTrade(120_000); // 120s old — stale
+
+    const result = await getLiveOpenRisk("user-1", "clan-1");
+
+    expect(mockGetDisplayPrice).toHaveBeenCalledWith("EURUSD");
+    // Should NOT be estimated — stale price rejected
+    expect(result.isEstimated).toBe(false);
+    // Falls back to last MT value: profit + commission + swap = 50 + (-2) + (-1) = 47
+    expect(result.liveFloatingPnl).toBe(47);
+  });
+
+  it("rejects prices well over 90s — no timing ambiguity", async () => {
+    setupStaleAccountWithTrade(100_000); // 100s old — clearly stale
+
+    const result = await getLiveOpenRisk("user-1", "clan-1");
+
+    expect(result.isEstimated).toBe(false);
+    expect(result.liveFloatingPnl).toBe(47);
+  });
+
+  it("rejects no_price status regardless of age", async () => {
+    setupStaleAccountWithTrade(10_000, "no_price"); // fresh age but no_price
+
+    const result = await getLiveOpenRisk("user-1", "clan-1");
+
+    expect(result.isEstimated).toBe(false);
+  });
+
+  it("rejects market_closed status regardless of age", async () => {
+    setupStaleAccountWithTrade(10_000, "market_closed");
+
+    const result = await getLiveOpenRisk("user-1", "clan-1");
+
+    expect(result.isEstimated).toBe(false);
+  });
+
+  it("treats missing timestamp as infinitely old (rejected)", async () => {
+    // One open trade on stale account
+    mockTradeFindMany.mockResolvedValue([
+      {
+        id: "trade-1",
+        officialSignalQualified: true,
+        officialInitialRiskMoney: 100,
+        officialInitialRiskAbs: 0.01,
+        officialEntryPrice: 1.1,
+        officialInitialStopLoss: 1.09,
+        riskStatus: "PROTECTED",
+        tradeCard: { direction: "LONG", instrument: "EURUSD", entry: 1.1 },
+        mtTradeMatches: [{
+          profit: 50, commission: -2, swap: -1,
+          openPrice: 1.1, lots: 1, symbol: "EURUSD",
+          mtAccountId: "stale-acc", isOpen: true,
+        }],
+      },
+    ]);
+
+    mockMtAccountFindMany
+      .mockResolvedValueOnce([{ id: "stale-acc" }])
+      .mockResolvedValueOnce([makeAccount({ id: "stale-acc", trackingStatus: "STALE" })]);
+
+    // Price with no timestamp
+    mockGetDisplayPrice.mockResolvedValue({
+      price: 1.105,
+      ts: null,
+      status: "pool",
+      source: "cross-user",
+    });
+
+    const result = await getLiveOpenRisk("user-1", "clan-1");
+
+    // No timestamp → treated as Infinity age → rejected
+    expect(result.isEstimated).toBe(false);
   });
 });
