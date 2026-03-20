@@ -420,7 +420,7 @@ Any task that touches: verification rules, stale-data guards, source-aware logic
 | Notifications + price alerts | ✅ DONE |
 | Heartbeat fallback + cross-user price pool | ✅ DONE |
 | Deposit/withdrawal detection (TWR/NAV) | ✅ DONE |
-| Admin panel (9 routes) | ✅ DONE |
+| Admin panel (16 pages, 40+ API routes) | ✅ DONE |
 | i18n (EN + FA, 1200+ keys, RTL) | ✅ DONE |
 | Mobile responsive | ✅ DONE |
 | Referral tracking (signup events) | ✅ DONE |

@@ -1,7 +1,8 @@
 # Task Brief — Notification + Alarm MVP
 
 > Started: 2026-03-13
-> Status: TESTING (2026-03-19: UX audit + polish pass complete)
+> Status: DONE
+> Completed: 2026-03-20
 
 ## 1. Goal
 
@@ -124,10 +125,11 @@ All of these must be true:
 
 ## 9. Open questions
 
-1. Should price alert evaluation run on heartbeat cycle (30s) or its own interval? → Decision: own interval, 15s, to be responsive
-2. Where to surface "Set Alert" button? → Decision: price-related UI where symbols appear (digest, journal)
-3. Max active price alerts per user? → Decision: 20 (hardcoded constant, not exposed)
-4. Should rank notifications require minimum trade count? → Decision: yes, use existing min trade count from ranking service
+All resolved:
+1. ~~Should price alert evaluation run on heartbeat cycle (30s) or its own interval?~~ → own interval, 15s
+2. ~~Where to surface "Set Alert" button?~~ → Crosshair icon in TopBar, plus digest/journal contexts
+3. ~~Max active price alerts per user?~~ → 20 (hardcoded constant)
+4. ~~Should rank notifications require minimum trade count?~~ → yes, uses existing min trade count from ranking service
 
 ## 10. Change notes
 
@@ -137,3 +139,4 @@ All of these must be true:
 | 2026-03-13 | Hardening pass: proper Prisma migration, E2E test, toggle wording clarified, SOURCE_OF_TRUTH updated |
 | 2026-03-13 | User feedback: "all notifications are Connection lost — too sensitive to connection." TRACKING_LOST threshold (120s) too aggressive for Iranian internet. Cooldown (600s) not enough. Fix: raise threshold to 5min, raise cooldown to 1hr, demote TRACKING_LOST from CRITICAL to IMPORTANT. |
 | 2026-03-19 | **UX audit + polish pass started.** Task reopened for targeted hardening. Scope: (A) notification state/count trust fixes, (B) severity/icon UX mapping, (C) connection-lost dedupe/collapse, (D) alert icon distinct from bell, (E) alert badge semantics, (F) active vs history separation, (G) cancel/delete → soft-delete for analytics, (H) price alert modal improvements (live price, validation), (I) settings page clarity, (J) audio settings, (K) test actions. Also: future heatmap data preservation for alert history. |
+| 2026-03-20 | **Task finalized — DONE.** All done-definition items verified: bell with unread count, DB persistence, mark-read flows, preferences UI, 5+ notification types wired from real events (tracking, trade actions, risk, integrity, rank), ABOVE/BELOW price alerts with candle-style M1 evaluation, dedupe/cooldown for noisy events, broker symbol autocomplete, audio alerts, i18n in both locales, 65+ unit tests passing, lint + build clean. UX polish pass (2026-03-19) completed all 11 items. No feature creep (no Telegram/push/email/SMS). |

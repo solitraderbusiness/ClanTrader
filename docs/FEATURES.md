@@ -1,5 +1,5 @@
 > **Status:** ACTIVE
-> **Last reviewed:** 2026-03-10
+> **Last reviewed:** 2026-03-20
 > **Authority:** SOURCE_OF_TRUTH.md
 > **Notes:** QA feature test checklist. Not product truth — describes what to test, not what exists.
 

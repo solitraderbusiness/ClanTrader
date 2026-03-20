@@ -168,7 +168,7 @@ Canonical docs live in `docs/`. Stale/historical docs are in `docs/archive/` wit
 | `docs/price-system-review-response.md` | Price system review + improvements |
 | `docs/DECISION_LOG.md` | Running decision log for in-progress tasks |
 | `docs/STRATEGIC_ROADMAP.md` | 7-phase product strategy (MVP → Full Vibe Trading) |
-| `docs/tasks/*.md` | Per-task briefs (activity-digest, deposit-withdrawal-fix, heartbeat-fallback, notification-alarm-mvp, ghost-trade-resolution) |
+| `docs/tasks/*.md` | Per-task briefs (activity-digest, deposit-withdrawal-fix, heartbeat-fallback, notification-alarm-mvp, ghost-trade-resolution, digest-cockpit-scenario-ladder, qa-ea-metatrader-auth) |
 | `docs/testing/*-test-plan.md` | Per-task test plans with scenarios and expected results |
 | `docs/archive/*` | 12 archived docs with deprecation banners |
 

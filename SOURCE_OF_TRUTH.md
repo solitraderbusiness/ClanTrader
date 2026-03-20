@@ -21,14 +21,14 @@
 
 | Field | Value |
 |-------|-------|
-| **Phase** | MVP Hardening (Phase B: Mar 14–20, 2026) |
+| **Phase** | MVP Hardening (Phase B complete Mar 20; Phase C: Infra Mar 21–25) |
 | **MVP timeline** | Mar 9 – Apr 8, 2026 (5 phases: QA → Harden → Infra → Beta → Launch) |
 | **Target users** | Farsi-speaking forex/gold traders (diaspora-first launch, Iran-optimized product) |
 | **Product identity** | Trust-first trader tool platform evolving toward Trading Command Center and Vibe Trading |
 | **Stack** | Next.js 16.1, React 19, Prisma 7, PostgreSQL 16, Socket.io 4.8, Redis 7, TypeScript strict |
 | **Dev server** | 31.97.211.86 (clantrader.com), root user |
 | **Prod/Stage** | Germany VPS — TBD, staging port 3001, prod port 3000 |
-| **Board status** | Approximate PM-board snapshot (2026-03-10): ~88 DONE, ~61 TODO, ~11 BACKLOG |
+| **Board status** | PM-board snapshot (2026-03-20): 94 DONE, 76 TODO, 15 BACKLOG, 2 IN_PROGRESS, 3 TESTING |
 
 ### What Is Built (verified in code, running on dev)
 
@@ -45,7 +45,7 @@
 - Effective rank with open-loss penalty
 - Leaderboards (6 lenses + composite)
 - Badges (rank/performance/trophy)
-- Admin panel (15 pages: dashboard, feature-flags, paywall, plans, impersonate, badges, badges/recompute, referrals, statements, testing, kanban, audit-logs, alpha-issues, demo-data, clans, ranking, digests)
+- Admin panel (16 pages: dashboard, feature-flags, paywall, plans, impersonate, badges, badges/recompute, referrals, statements, testing, kanban, audit-logs, alpha-issues, demo-data, clans, ranking, digests, dev-login)
 - i18n (English + Persian, 1200+ keys, RTL support)
 - Mobile responsive (Tailwind breakpoints + logical CSS)
 - Rate limiting (6 tiers, Redis-backed)
@@ -62,7 +62,10 @@
 - Health endpoint (`/api/health` — DB/Redis/Socket.io checks, public + admin views)
 - Service worker (network-first for JS/CSS chunks, cache-first for static assets, offline fallback)
 - Onboarding (minimal modal)
-- AI data capture foundation: DigestOutput (persisted digest v2 outputs with CLAN/TRADER scope), TraderStatementSnapshot (append-only statement history), LiveRiskSnapshot (heartbeat-driven 5-min portfolio risk snapshots)
+- AI data capture foundation: DigestOutput (persisted digest v2 outputs with CLAN/TRADER scope), TraderStatementSnapshot (append-only statement history with ranking data), LiveRiskSnapshot (heartbeat-driven 5-min portfolio risk snapshots)
+- IP-gated dev login (admin-managed whitelist replaces env var gate)
+- Digest cockpit scenario ladder (interactive drag/click price exploration, pain levels, suggested SL)
+- Locale flash prevention (blocking script + synchronous Zustand init)
 
 ### What Is Blocking Launch
 
@@ -94,6 +97,13 @@ See Section 6.
 - Phone OTP: routes exist (`send-otp`, `verify-otp`, `phone-signup`), Kavenegar SDK integrated, falls back to console.log in dev when API key missing
 - Phone OTP is **not required for MVP launch** — it works but is an optional auth path
 - Password hashing: bcryptjs
+
+### Dev Login
+**Status: LIVE** (added 2026-03-20)
+- IP-gated dev login: admin manages whitelist of allowed IPs via `/admin/dev-login`
+- `DevLoginIp` model: IP + optional label, unique constraint
+- Login page checks `/api/auth/dev-login-check` on mount to show/hide dev login button
+- Replaces `NEXT_PUBLIC_DEV_LOGIN` env var approach with DB-managed IP whitelist
 
 ### Onboarding
 **Status: PARTIAL**
@@ -221,7 +231,7 @@ See Section 6.
 
 ### Admin Panel
 **Status: LIVE**
-- 15 page routes: dashboard, feature-flags, paywall, plans, impersonate, badges (+ recompute), referrals, statements, testing, kanban, audit-logs, alpha-issues, demo-data, clans, ranking, digests
+- 16 page routes: dashboard, feature-flags, paywall, plans, impersonate, badges (+ recompute), referrals, statements, testing, kanban, audit-logs, alpha-issues, demo-data, clans, ranking, digests, dev-login
 - 40+ API routes under `/api/admin/` (including badge dry-run, ranking config, stale-check, daily/evening digest triggers)
 - Session-based auth, admin role required
 - Kanban board at `/admin/kanban` with smart rebalancer
@@ -565,6 +575,7 @@ Enforced rules verified from code. For full evidence, see `SITE_RULES_AUDIT_REPO
   - **Equity & Balance Curve**: SVG chart with normalized Y-axis ($ change from period start, not absolute). Interactive hover (desktop crosshair + tooltip) and touch scrub (mobile fixed info bar). Data from `EquitySnapshot` model recorded by EA heartbeat (5-min Redis throttle). **Cash-flow adjusted**: deposits/withdrawals subtracted so they don't appear as spikes/cliffs. **Hardened against stale data**: only `chartEligible` snapshots queried; anchor baseline from pre-period snapshot for normalization; time gaps >10min produce visual breaks (no fake flat lines from stale fallback prices). Raw values preserved in tooltip.
   - **Price Ladder** (v2.4): SVG thermometer with asset tabs (single ladder + horizontal tab pills instead of stacked), SHORT-aware gradient (inverted colors for short positions), 7 level types (current, half profit, breakeven, worst entry, SL, TP, account loss), collision resolver (3% threshold priority-based merging), unrealistic level filter (hides levels beyond 0.2x–2x current price), position context line (direction · trades · lots · P/L). Point value derived from real trade data.
   - **Risk Insight** (v2.5): Auto-generated plain-language risk context below each price ladder. 4 tiers (Low/Moderate/Significant/High) based on account impact per 1% price move and distance to -10% loss level. Flags gap risk when no stop loss. Notes hidden loss levels count.
+  - **Scenario Ladder** (v2.6): Interactive drag/click price exploration. 7 pure-function scenario engines: scenario P/L calculation, pain levels (-1%/-2%/-5% from current, -10%/-20%/-50% from entry), suggested SL levels for unprotected trades, snap points. Cockpit-style member rows (P/L + R + SL risk). Today strip + attention queue with severity sort. 111 unit tests.
   - Per-trade: floating P/L, floating R, `riskToSLR`, health dimensions, actions needed
   - Per-member aggregates: floating P/L, floating R, total risk-to-SL, action count, impact score
   - Scope-aware deltas: separate Redis snapshots for trader vs clan (`:trader` suffix key)
@@ -574,7 +585,7 @@ Enforced rules verified from code. For full evidence, see `SITE_RULES_AUDIT_REPO
 - API: `GET /api/clans/[clanId]/digest?period=today|week|month&tz=N&v=2`
 - Redis cached: 90s TTL per clan/period/timezone; 24h TTL per-user delta snapshots
 - UI: DigestSheetV2 in chat toolbar (backward-compatible with v1 responses)
-- 43 unit tests for engine functions, 644 total tests passing
+- 43 unit tests for engine functions, 1100 total tests passing
 
 ### Notifications
 **Status: LIVE**
@@ -596,7 +607,7 @@ Enforced rules verified from code. For full evidence, see `SITE_RULES_AUDIT_REPO
   - **Server-side M1 candles**: Redis-stored OHLC per symbol per minute, atomic Lua updates, 1-hour TTL auto-expiry. Built from EA heartbeat prices (both bid and M1 high/low from EA). Lookback: current + last 2 minutes for evaluation.
   - Source-group aware (uses same `getDisplayPrice()` as charts)
   - Weekend stale-price guard (skips non-crypto during market close)
-  - One-time trigger, max 20 active per user
+  - One-time trigger, max 50 active per user
   - Management UI: create modal with symbol autocomplete (broker symbols + traded symbols), live price display + distance-to-target, direction validation (ABOVE > current, BELOW < current), active/history tabs (triggered/cancelled/expired), cancel active / soft-hide history, distinct crosshair icon in navbar
   - **Broker symbol list**: EA sends all broker symbols on login (`/api/ea/broker-symbols`), stored in Redis with 30-day TTL per broker. Merged with DB-traded symbols for autocomplete. MQL5 sends ALL broker symbols; MQL4 sends Market Watch only.
 - Toast behavior: CRITICAL → error toast 8s, IMPORTANT → info toast 6s (with body text), UPDATE → no toast
@@ -647,7 +658,7 @@ Most decision-sensitive rules in one place. All verified in code (2026-03-10).
 1. **Germany VPS provisioning** — staging + prod environments not yet set up
 2. **Deploy script path updates** — scripts reference `/home/ubuntu/` (Iran VPS), need Germany paths
 3. **Stale-check cron configuration** — must be running every 60s in production or converted to in-process interval
-4. **QA pass on EA auth flow** — currently in testing (user verification pending)
+4. ~~QA pass on EA auth flow~~ — **RESOLVED** (2026-03-20): MT5 EA auth fully verified (register, login, token, heartbeat). MT4 deferred (code near-identical).
 
 ### Important But Not Blocking
 1. **Automated database backups** — critical for production but can be set up during infra phase (Mar 17-21)
@@ -688,7 +699,7 @@ Most decision-sensitive rules in one place. All verified in code (2026-03-10).
 | Admin impersonation assumed to be audited | **Impersonation does NOT log to audit trail** | `impersonate/route.ts` has no audit call |
 | PaywallRule assumed to gate features | **PaywallRule model exists but is NOT enforced** in any route or middleware | Rules can be created in admin but have zero runtime effect |
 | SOT: Health endpoint "NOT IMPLEMENTED" | **`/api/health` IS implemented** with DB/Redis/Socket.io checks | `src/app/api/health/route.ts` exists: public ok/degraded + admin full diagnostics. Verified 2026-03-16. |
-| SOT: Admin panel "9 routes" | **15 admin pages + 40+ API routes** | Glob found 15 page.tsx under admin/. API exploration found 40+ admin route handlers. |
+| SOT: Admin panel "9 routes" | **16 admin pages + 40+ API routes** | Glob found 16 page.tsx under admin/ (latest: dev-login added 2026-03-20). API exploration found 40+ admin route handlers. |
 | SOT: Chat message types "TEXT, TRADE_CARD, IMAGE" | **No IMAGE type in MessageType enum** — types are TEXT, TRADE_CARD, SYSTEM_SUMMARY, TRADE_ACTION | `prisma/schema.prisma` enum MessageType. Images are TEXT messages with imageUrls field. |
 
 ---
@@ -713,8 +724,8 @@ Most decision-sensitive rules in one place. All verified in code (2026-03-10).
 | `docs/README.md` | **ACTIVE** | Docs index and navigation | Medium | Accurate index |
 | `SITE_RULES_AUDIT_REPORT.md` | **ACTIVE** | Detailed code-verified rules audit | High | Evidence source for Core Platform Rules section |
 | `docs/STRATEGIC_ROADMAP.md` | **ACTIVE** | 7-phase product strategy roadmap | High | Long-term vision from Phase 0 (MVP) to Phase 7 (Full Vibe Trading) |
-| `docs/tasks/*.md` | **ACTIVE** | Per-task briefs | Medium | Activity-digest, deposit-withdrawal-fix, heartbeat-fallback, notification-alarm-mvp, ghost-trade-resolution |
-| `docs/testing/*-test-plan.md` | **ACTIVE** | Per-task test plans | Medium | Heartbeat-fallback, notification-alarm-mvp |
+| `docs/tasks/*.md` | **ACTIVE** | Per-task briefs | Medium | Activity-digest, deposit-withdrawal-fix, heartbeat-fallback, notification-alarm-mvp, ghost-trade-resolution, digest-cockpit-scenario-ladder, qa-ea-metatrader-auth |
+| `docs/testing/*-test-plan.md` | **ACTIVE** | Per-task test plans | Medium | Activity-digest, heartbeat-fallback, deposit-withdrawal-fix, notification-alarm-mvp, digest-cockpit-scenario-ladder |
 | `docs/archive/*` | **ARCHIVED** | 12 archived docs with deprecation banners | None | Historical reference only |
 
 ---
@@ -769,6 +780,7 @@ Newest first. Append-only.
 
 | Date | Change | Reason | Affected Files |
 |------|--------|--------|----------------|
+| 2026-03-20 | Project update: IP-gated dev login, mobile UI fixes, locale flash prevention, scenario ladder, QA accounts ready, EA auth QA verified | Phase B completion reconciliation. New features: DevLoginIp model + admin page (16 pages now), locale flash prevention (blocking script + synchronous Zustand init), digest scenario ladder (v2.6 with 7 scenario engines, 111 tests). Board: "Prepare QA test accounts" and "QA: EA/MetaTrader auth" moved to DONE (94 total). EA auth blocker resolved. 1100 unit tests passing. | schema.prisma, login page, admin/dev-login, admin API, LocaleApplier, locale-store, DigestSheetV2, digest-engines, scenario-engines, SOURCE_OF_TRUTH.md |
 | 2026-03-19 | Remove UNPROTECTED R:R suppression — enforce two-layer model | Product rule change: UNPROTECTED status no longer suppresses Live R or Target R. Frozen official snapshot denominator remains valid regardless of current SL state. `riskDistance > 0` guard sufficient. All 4 broadcast paths updated. Layer 1 (original plan) immutably drives R normalization; Layer 2 (management behavior) drives protection badges and journal events. | ea.service.ts, heartbeat-fallback.service.ts, socket-handlers/shared.ts, SOURCE_OF_TRUTH.md |
 | 2026-03-19 | Notification + Alarm MVP: UX polish pass | Severity fix: PRICE_ALERT_TRIGGERED CRITICAL→IMPORTANT. Soft-delete: `hiddenFromUser` on PriceAlert (preserves rows for heatmap analytics). Audio: `soundEnabled` preference + settings toggle + test buttons. Price alert modal: direction validation (ABOVE>current, BELOW<current) + distance display. Settings restructured: 6 clear sections (history/popups/sound/push/delivery/test). Price alert icon: BellRing→Crosshair. Web push contradiction resolved (IS built). 69 new notification-types tests, 1088 total passing. FEATURES.md §17 added. | schema.prisma, notification-types.ts, price-alert.service.ts, NotificationBell.tsx, PriceAlertModal.tsx, PriceAlertList.tsx, AlertPanel.tsx, TopBar.tsx, settings/notifications/page.tsx, notification-preferences API, en.json, fa.json, FEATURES.md, SOURCE_OF_TRUTH.md |
 | 2026-03-18 | Strategy/scope clarification pass: refined launch market (diaspora-first invite waves), sharpened product identity (trust-first trader tool platform → Trading Command Center → Vibe Trading), reframed priority lens (competition → credibility/discovery), added 7-layer product direction roadmap, added plain-English definitions for live risk and integrity contract, added AI/SLM data preparation strategy note, added future chart/canonical market data direction, added bug reporting to known gaps. No implementation-truth changes. | Founder strategy alignment session — clarify what ClanTrader IS (trust-first tools) vs what it is NOT (signal app, rankings app, social feed app) | SOURCE_OF_TRUTH.md |

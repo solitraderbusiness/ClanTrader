@@ -38,17 +38,30 @@ Goal:
 - keep `SOURCE_OF_TRUTH.md` current
 
 ### 2) Task finalization mode
-Triggered when the arguments contain a task name that matches an existing file at `docs/tasks/<task-name>.md`.
+Triggered when the arguments reference a task name — either by matching an existing file at `docs/tasks/<task-name>.md`, or by containing a task title/name that can be slugified to create one.
 
 Examples:
 - `/project-update mobile-ui-polish` (matches `docs/tasks/mobile-ui-polish.md`)
 - `/project-update digest-cockpit-scenario-ladder` (matches `docs/tasks/digest-cockpit-scenario-ladder.md`)
+- `/project-update task "QA: EA/MetaTrader auth"` (no file exists → create `docs/tasks/qa-ea-metatrader-auth.md`)
 
 This mode does everything Normal mode does, **plus** finalizes the task brief:
+
+#### MANDATORY RULE: Every task moved to DONE must have a task brief
+
+**Every completed task MUST have a `docs/tasks/<task-name>.md` file.** If no task brief exists when finalizing a task, create one retroactively using the standard template structure (see `/task-start` skill for template). Populate it from:
+- Board task title, description, and result
+- Conversation context and decisions made during the task
+- Code changes and files involved
+- Set status to DONE with completion date
+
+This ensures a complete history of all work — not just code, but decisions, edge cases, and outcomes.
 
 #### Extra steps (in addition to normal mode):
 
 **A. Finalize the task brief (`docs/tasks/<task-name>.md`)**
+- If the file exists: update it in place
+- If the file does NOT exist: create it retroactively (see mandatory rule above)
 - Set the status banner to `> Status: DONE`
 - Add a completion date: `> Completed: YYYY-MM-DD`
 - Review all sections and update them to reflect the final state:
@@ -69,10 +82,11 @@ This mode does everything Normal mode does, **plus** finalizes the task brief:
 
 #### How to detect task name from arguments
 
-1. Check if any argument word matches a file at `docs/tasks/<word>.md`
-2. If multiple matches, use the longest match
-3. If no match is found, fall back to Normal mode (do NOT create a new task brief)
-4. Audit keywords (`full-audit`, `deep-audit`, etc.) take priority — if present, run Deep audit mode instead, not task finalization
+1. Check if any argument word or quoted phrase matches a file at `docs/tasks/<slug>.md`
+2. If the argument contains `task "Some Title"` or `task 'Some Title'`, slugify the title (lowercase, replace spaces/special chars with hyphens) and use that as the task name
+3. If multiple matches, use the longest match
+4. **If no file exists but a task name/title is clearly provided: CREATE the task brief** (do not silently skip it)
+5. Audit keywords (`full-audit`, `deep-audit`, etc.) take priority — if present, run Deep audit mode instead, not task finalization
 
 ### 3) Deep audit mode
 If my arguments include any of these terms:

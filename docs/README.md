@@ -1,6 +1,6 @@
 # ClanTrader Documentation
 
-> Last Updated: 2026-03-10
+> Last Updated: 2026-03-20
 
 ## How This Docs System Works
 
