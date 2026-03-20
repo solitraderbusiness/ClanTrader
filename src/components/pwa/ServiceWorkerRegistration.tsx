@@ -36,6 +36,14 @@ export function ServiceWorkerRegistration() {
 
     window.addEventListener("error", handleChunkError);
 
+    // --- Orientation lock (works in PWA / Chrome Android, no-op elsewhere) ---
+    try {
+      const so = screen.orientation as { lock?: (o: string) => Promise<void> };
+      so.lock?.("portrait")?.catch(() => {});
+    } catch {
+      // Safari throws synchronously — ignore
+    }
+
     // --- Service Worker registration ---
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
       navigator.serviceWorker

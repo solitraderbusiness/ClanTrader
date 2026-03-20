@@ -1,6 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Users, Heart, Shield } from "lucide-react";
+import { Shield } from "lucide-react";
 import { getInitials } from "@/lib/utils";
 
 interface ClanProfileHeaderProps {
@@ -25,48 +25,32 @@ export function ClanProfileHeader({
   children,
 }: ClanProfileHeaderProps) {
   return (
-    <div className="space-y-4">
-      <div className="flex items-start gap-4">
-        <Avatar className="h-20 w-20 shrink-0">
-          <AvatarImage src={clan.avatar || undefined} alt={clan.name} />
-          <AvatarFallback className="text-xl">
-            {getInitials(clan.name)}
-          </AvatarFallback>
-        </Avatar>
+    <div className="flex flex-wrap items-center gap-2">
+      <Avatar className="h-10 w-10 shrink-0">
+        <AvatarImage src={clan.avatar || undefined} alt={clan.name} />
+        <AvatarFallback className="text-sm">
+          {getInitials(clan.name)}
+        </AvatarFallback>
+      </Avatar>
 
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold">{clan.name}</h1>
-            {clan.tradingFocus && (
-              <Badge variant="secondary">{clan.tradingFocus}</Badge>
-            )}
-            <Badge variant="outline">{clan.tier}</Badge>
-            {!clan.isPublic && (
-              <Badge variant="outline">
-                <Shield className="me-1 h-3 w-3" />
-                Private
-              </Badge>
-            )}
-          </div>
-
-          {clan.description && (
-            <p className="mt-1 text-sm text-muted-foreground">{clan.description}</p>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <h1 className="text-base font-bold leading-tight truncate">{clan.name}</h1>
+          {clan.tradingFocus && (
+            <Badge variant="secondary" className="shrink-0 text-[10px] px-1.5 py-0">{clan.tradingFocus}</Badge>
           )}
-
-          <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <Users className="h-4 w-4" />
-              {memberCount} members
-            </span>
-            <span className="flex items-center gap-1">
-              <Heart className="h-4 w-4" />
-              {followerCount} followers
-            </span>
-          </div>
+          {!clan.isPublic && (
+            <Shield className="h-3 w-3 shrink-0 text-muted-foreground" />
+          )}
         </div>
+        <p className="text-[11px] text-muted-foreground">
+          {memberCount} members &middot; {followerCount} followers
+        </p>
       </div>
 
-      {children && <div className="flex flex-wrap gap-2">{children}</div>}
+      <div className="flex items-center gap-1.5">
+        {children}
+      </div>
     </div>
   );
 }

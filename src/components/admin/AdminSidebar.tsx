@@ -18,6 +18,7 @@ import {
   Kanban,
   Bug,
   Bell,
+  KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -111,6 +112,12 @@ const NAV_ITEMS = [
     label: "Switch User",
     desc: "Dev: impersonate users",
     icon: UserCheck,
+  },
+  {
+    href: "/admin/dev-login",
+    label: "Dev Login IPs",
+    desc: "Quick-login IP whitelist",
+    icon: KeyRound,
   },
 ];
 

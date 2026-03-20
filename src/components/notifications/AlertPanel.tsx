@@ -141,7 +141,7 @@ export function AlertPanel({ open, onOpenChange }: AlertPanelProps) {
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent side="right" className="flex w-full flex-col sm:max-w-md">
           <SheetHeader className="border-b pb-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between pe-10">
               <SheetTitle className="flex items-center gap-2">
                 <BellRing className="h-5 w-5" />
                 {t("priceAlerts.title")}

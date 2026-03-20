@@ -47,43 +47,36 @@ export function ClanPerfBanner({ clanId }: Props) {
   return (
     <Link
       href={`/clans/${clanId}/performance`}
-      className="group flex items-center gap-3 rounded-lg border bg-card px-4 py-2.5 transition-colors hover:bg-accent"
+      className="group inline-flex flex-wrap items-center gap-1.5 tabular-nums"
     >
-      <div className="flex flex-1 flex-wrap items-center gap-x-4 gap-y-1 text-sm tabular-nums">
-        <Stat label={t("clanPerf.totalSignals")} value={String(summary.totalSignals)} />
-        <Separator />
-        <Stat
-          label={t("clanPerf.winRate")}
-          value={`${summary.winRate}%`}
-          color={summary.winRate >= 50 ? "text-green-500" : "text-red-500"}
-        />
-        <Separator />
-        <Stat
-          label={t("clanPerf.totalR")}
-          value={`${summary.totalR >= 0 ? "+" : ""}${summary.totalR}R`}
-          color={summary.totalR >= 0 ? "text-green-500" : "text-red-500"}
-        />
-        <Separator />
+      <Stat label={t("clanPerf.totalSignals")} value={String(summary.totalSignals)} />
+      <Stat
+        label={t("clanPerf.winRate")}
+        value={`${summary.winRate}%`}
+        color={summary.winRate >= 50 ? "text-green-500" : "text-red-500"}
+      />
+      <Stat
+        label={t("clanPerf.totalR")}
+        value={`${summary.totalR >= 0 ? "+" : ""}${summary.totalR}R`}
+        color={summary.totalR >= 0 ? "text-green-500" : "text-red-500"}
+      />
+      <span className="inline-flex items-center gap-0.5">
         <Stat
           label="PF"
           value={pf}
           color={summary.profitFactor >= 1 ? "text-green-500" : "text-red-500"}
         />
-      </div>
-      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+        <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+      </span>
     </Link>
   );
 }
 
 function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className={cn("text-sm font-semibold", color)}>{value}</span>
-    </div>
+    <span className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 text-[11px]">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={cn("font-semibold", color)}>{value}</span>
+    </span>
   );
-}
-
-function Separator() {
-  return <div className="hidden h-4 w-px bg-border sm:block" />;
 }

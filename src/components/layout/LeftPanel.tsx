@@ -166,47 +166,7 @@ export function LeftPanel() {
         </div>
       </div>
 
-      {/* Icon nav row */}
-      <div className="flex flex-wrap items-center justify-around border-b px-2 py-1 gap-1">
-        <NavIcon
-          icon={Home}
-          label={t("nav.home")}
-          active={pathname === "/home"}
-          onClick={() => navigateTo("/home")}
-        />
-        <NavIcon
-          icon={BookOpen}
-          label={t("nav.journal")}
-          active={pathname.startsWith("/journal")}
-          onClick={() => navigateTo("/journal")}
-        />
-        <NavIcon
-          icon={Compass}
-          label={t("nav.explore")}
-          active={pathname.startsWith("/explore")}
-          onClick={() => navigateTo("/explore")}
-        />
-        <NavIcon
-          icon={Globe}
-          label={t("nav.geoNews")}
-          active={pathname.startsWith("/geo-news")}
-          onClick={() => navigateTo("/geo-news")}
-        />
-        <NavIcon
-          icon={Settings}
-          label={t("nav.settings")}
-          active={pathname.startsWith("/settings")}
-          onClick={() => navigateTo("/settings")}
-        />
-        {isAdmin && (
-          <NavIcon
-            icon={ShieldCheck}
-            label={t("nav.admin")}
-            active={pathname.startsWith("/admin")}
-            onClick={() => navigateTo("/admin")}
-          />
-        )}
-      </div>
+      {/* Icon nav row removed — moved to bottom of sidebar */}
 
       {/* Search */}
       <div className="px-3 py-2">
@@ -372,6 +332,48 @@ export function LeftPanel() {
               />
             ))}
           </div>
+        )}
+      </div>
+
+      {/* Bottom nav bar */}
+      <div className="flex items-center justify-around border-t px-2 py-1.5">
+        <NavIcon
+          icon={Home}
+          label={t("nav.home")}
+          active={pathname === "/home"}
+          onClick={() => navigateTo("/home")}
+        />
+        <NavIcon
+          icon={BookOpen}
+          label={t("nav.journal")}
+          active={pathname.startsWith("/journal")}
+          onClick={() => navigateTo("/journal")}
+        />
+        <NavIcon
+          icon={Compass}
+          label={t("nav.explore")}
+          active={pathname.startsWith("/explore")}
+          onClick={() => navigateTo("/explore")}
+        />
+        <NavIcon
+          icon={Globe}
+          label={t("nav.geoNews")}
+          active={pathname.startsWith("/geo-news")}
+          onClick={() => navigateTo("/geo-news")}
+        />
+        <NavIcon
+          icon={Settings}
+          label={t("nav.settings")}
+          active={pathname.startsWith("/settings")}
+          onClick={() => navigateTo("/settings")}
+        />
+        {isAdmin && (
+          <NavIcon
+            icon={ShieldCheck}
+            label={t("nav.admin")}
+            active={pathname.startsWith("/admin")}
+            onClick={() => navigateTo("/admin")}
+          />
         )}
       </div>
 

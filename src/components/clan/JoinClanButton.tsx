@@ -109,7 +109,7 @@ export function JoinClanButton({
   // Solo leader of this clan — can leave (dissolves)
   if (isLeader && isMember && currentClanInfo?.memberCount === 1) {
     return (
-      <Button variant="outline" onClick={handleLeave} disabled={loading}>
+      <Button size="sm" variant="outline" onClick={handleLeave} disabled={loading}>
         {loading ? t("clan.leaving") : t("clan.leaveClan")}
       </Button>
     );
@@ -118,7 +118,7 @@ export function JoinClanButton({
   // Leader with other members — can't leave directly
   if (isMember && isLeader) {
     return (
-      <Button variant="outline" disabled>
+      <Button size="sm" variant="outline" disabled>
         {t("clan.leader")}
       </Button>
     );
@@ -127,7 +127,7 @@ export function JoinClanButton({
   // Regular member — can leave
   if (isMember) {
     return (
-      <Button variant="outline" onClick={handleLeave} disabled={loading}>
+      <Button size="sm" variant="outline" onClick={handleLeave} disabled={loading}>
         {loading ? t("clan.leaving") : t("clan.leaveClan")}
       </Button>
     );
@@ -137,7 +137,7 @@ export function JoinClanButton({
   if (isInAnotherClan && currentClanInfo) {
     return (
       <>
-        <Button variant="outline" onClick={() => setSwitchModalOpen(true)}>
+        <Button size="sm" variant="outline" onClick={() => setSwitchModalOpen(true)}>
           {t("clan.switchClan")}
         </Button>
         <SwitchClanModal
@@ -154,7 +154,7 @@ export function JoinClanButton({
 
   if (isFull) {
     return (
-      <Button variant="outline" disabled>
+      <Button size="sm" variant="outline" disabled>
         {t("clan.clanFull")}
       </Button>
     );
@@ -162,7 +162,7 @@ export function JoinClanButton({
 
   if (existingRequestStatus === "PENDING") {
     return (
-      <Button variant="outline" disabled>
+      <Button size="sm" variant="outline" disabled>
         {t("clan.requestPending")}
       </Button>
     );
@@ -170,7 +170,7 @@ export function JoinClanButton({
 
   if (joinRequestsEnabled) {
     return (
-      <Button onClick={handleRequestJoin} disabled={loading}>
+      <Button size="sm" onClick={handleRequestJoin} disabled={loading}>
         {loading ? t("clan.sending") : t("clan.requestToJoin")}
       </Button>
     );
@@ -178,7 +178,7 @@ export function JoinClanButton({
 
   // Not public and no join requests — invite only
   return (
-    <Button variant="outline" disabled>
+    <Button size="sm" variant="outline" disabled>
       {t("clan.inviteOnly")}
     </Button>
   );

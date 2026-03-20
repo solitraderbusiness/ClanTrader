@@ -85,7 +85,7 @@ function MtStatusIndicator() {
         }`}
       >
         {isConnected
-          ? t("mt.connected")
+          ? "MT"
           : isIdle
             ? t("mt.idle")
             : t("mt.disconnected")}

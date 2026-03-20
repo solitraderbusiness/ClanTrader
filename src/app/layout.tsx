@@ -131,6 +131,12 @@ export default async function RootLayout({
       className={`${inter.variable} ${geist.variable} ${jakarta.variable} ${vazirmatn.variable} ${yekanbakh.variable} ${shabnam.variable} ${estedad.variable} ${samim.variable}`}
     >
       <body className="font-sans antialiased">
+        {/* Blocking script: set locale global + hide body until React hydrates to prevent language flash */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var l="${locale}";window.__CT_LOCALE__=l;var h=document.documentElement;h.lang=l;h.dir=l==="en"?"ltr":"rtl";if(l!=="fa")h.style.visibility="hidden"})()`,
+          }}
+        />
         <ServiceWorkerRegistration />
         <LocaleApplier />
         <FontApplier />

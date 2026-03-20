@@ -467,6 +467,8 @@
     "usernamePlaceholder": "alitrader"
   },
   "settings": {
+    "lightMode": "حالت روشن",
+    "darkMode": "حالت تاریک",
     "security": "امنیت",
     "mtAccounts": "حساب‌های متاتریدر",
     "mtAccountsTitle": "حساب‌های متاتریدر",

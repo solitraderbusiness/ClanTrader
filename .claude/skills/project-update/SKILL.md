@@ -20,7 +20,7 @@ If any other markdown file conflicts with `SOURCE_OF_TRUTH.md`, prefer `SOURCE_O
 COMMAND MODES
 ==================================================
 
-This skill supports 2 modes:
+This skill supports 3 modes:
 
 ### 1) Normal mode
 Default behavior when I run:
@@ -37,7 +37,44 @@ Goal:
 - update docs if needed
 - keep `SOURCE_OF_TRUTH.md` current
 
-### 2) Deep audit mode
+### 2) Task finalization mode
+Triggered when the arguments contain a task name that matches an existing file at `docs/tasks/<task-name>.md`.
+
+Examples:
+- `/project-update mobile-ui-polish` (matches `docs/tasks/mobile-ui-polish.md`)
+- `/project-update digest-cockpit-scenario-ladder` (matches `docs/tasks/digest-cockpit-scenario-ladder.md`)
+
+This mode does everything Normal mode does, **plus** finalizes the task brief:
+
+#### Extra steps (in addition to normal mode):
+
+**A. Finalize the task brief (`docs/tasks/<task-name>.md`)**
+- Set the status banner to `> Status: DONE`
+- Add a completion date: `> Completed: YYYY-MM-DD`
+- Review all sections and update them to reflect the final state:
+  - Section 3 (Current decisions): add any final decisions made
+  - Section 5 (Files / systems involved): update with all files actually changed
+  - Section 8 (Done definition): confirm which items were met
+  - Section 9 (Open questions): resolve or mark as deferred
+  - Section 10 (Change notes): add a final dated entry summarizing what was done and the outcome
+
+**B. Finalize the test plan (`docs/testing/<task-name>-test-plan.md`) if it exists**
+- Update "Not yet tested" section — move verified items out, note what was tested
+- Add any scenarios that were discovered during implementation
+
+**C. Move the board task to TESTING or DONE**
+- If the task needs manual user verification: move to TESTING with step-by-step testing instructions in the result field
+- If the task is purely internal (no user verification needed): move to DONE with a result summary
+- Use `/board update` pattern to update the board
+
+#### How to detect task name from arguments
+
+1. Check if any argument word matches a file at `docs/tasks/<word>.md`
+2. If multiple matches, use the longest match
+3. If no match is found, fall back to Normal mode (do NOT create a new task brief)
+4. Audit keywords (`full-audit`, `deep-audit`, etc.) take priority — if present, run Deep audit mode instead, not task finalization
+
+### 3) Deep audit mode
 If my arguments include any of these terms:
 - `full-audit`
 - `rules-audit`
@@ -282,7 +319,10 @@ OUTPUT FORMAT
 After finishing, respond with:
 
 ### Project update result
-- Mode: normal / deep audit
+- Mode: normal / task finalization / deep audit
+- Task brief finalized: yes/no (which file)
+- Test plan finalized: yes/no (which file)
+- Board task updated: yes/no (task ID + new column)
 - Source-of-truth updated: yes/no
 - Audit report updated: yes/no
 - Other docs updated: list

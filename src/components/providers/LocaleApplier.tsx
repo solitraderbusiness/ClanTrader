@@ -23,6 +23,9 @@ export function LocaleApplier() {
       html.classList.add("locale-ltr");
       html.classList.remove("locale-rtl");
     }
+
+    // Reveal page — blocking script hid it to prevent language flash
+    html.style.visibility = "";
   }, [locale]);
 
   return null;

@@ -8,6 +8,7 @@ export default function manifest(): MetadataRoute.Manifest {
       "Competitive social trading platform. Verify your trading, form clans, compete in seasons.",
     start_url: "/home",
     display: "standalone",
+    orientation: "portrait",
     background_color: "#0a0a0a",
     theme_color: "#0a0a0a",
     dir: "auto",

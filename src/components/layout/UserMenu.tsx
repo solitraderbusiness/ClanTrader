@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
-import { User, Settings, LogOut } from "lucide-react";
+import { User, Settings, LogOut, Sun, Moon, Languages } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -14,10 +14,15 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useTranslation } from "@/lib/i18n";
 import { getInitials } from "@/lib/utils";
+import { useTheme } from "next-themes";
+import { useLocaleStore } from "@/stores/locale-store";
 
 export function UserMenu() {
   const { t } = useTranslation();
   const { data: session } = useSession();
+  const { theme, setTheme } = useTheme();
+  const locale = useLocaleStore((s) => s.locale);
+  const setLocale = useLocaleStore((s) => s.setLocale);
 
   if (!session?.user) {
     return (
@@ -66,6 +71,31 @@ export function UserMenu() {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="sm:hidden"
+          onClick={(e) => {
+            e.preventDefault();
+            setLocale(locale === "fa" ? "en" : "fa");
+          }}
+        >
+          <Languages className="me-2 h-4 w-4" />
+          {locale === "fa" ? "English" : "فارسی"}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="sm:hidden"
+          onClick={(e) => {
+            e.preventDefault();
+            setTheme(theme === "dark" ? "light" : "dark");
+          }}
+        >
+          {theme === "dark" ? (
+            <Sun className="me-2 h-4 w-4" />
+          ) : (
+            <Moon className="me-2 h-4 w-4" />
+          )}
+          {theme === "dark" ? t("settings.lightMode") : t("settings.darkMode")}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator className="sm:hidden" />
         <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/" })}>
           <LogOut className="me-2 h-4 w-4" />
           {t("auth.signOut")}

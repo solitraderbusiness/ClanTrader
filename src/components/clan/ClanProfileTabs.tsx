@@ -52,19 +52,16 @@ export function ClanProfileTabs({
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="sticky top-0 z-20 w-full bg-background/95 backdrop-blur-sm">
-          <TabsTrigger value="channel" data-testid="tab-channel" className="flex flex-col items-center gap-0 py-1.5">
-            <span>{t("clan.tabChannel")}</span>
-            <span className="text-[10px] font-normal text-muted-foreground">{t("clan.tabSignals")}</span>
+          <TabsTrigger value="channel" data-testid="tab-channel">
+            {t("clan.tabChannel")}
           </TabsTrigger>
           {chatContent && (
-            <TabsTrigger value="chat" data-testid="tab-chat" className="flex flex-col items-center gap-0 py-1.5">
-              <span>{t("clan.tabChat")}</span>
-              <span className="text-[10px] font-normal text-muted-foreground">{t("clan.tabDiscussion")}</span>
+            <TabsTrigger value="chat" data-testid="tab-chat">
+              {t("clan.tabChat")}
             </TabsTrigger>
           )}
-          <TabsTrigger value="members" data-testid="tab-members" className="flex flex-col items-center gap-0 py-1.5">
-            <span>{t("clan.tabMembers")}</span>
-            <span className="text-[10px] font-normal text-muted-foreground">{t("clan.tabRoster")}</span>
+          <TabsTrigger value="members" data-testid="tab-members">
+            {t("clan.tabMembers")}
           </TabsTrigger>
         </TabsList>
 

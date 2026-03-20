@@ -278,7 +278,7 @@ export function WatchlistSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-md p-0">
         <SheetHeader className="border-b px-4 py-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pe-10">
             <SheetTitle className="text-base">Watchlist</SheetTitle>
             <Button
               variant="ghost"

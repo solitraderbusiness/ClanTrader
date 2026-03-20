@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -31,6 +31,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [devLoginAllowed, setDevLoginAllowed] = useState(false);
 
   // Login form state
   const [identifier, setIdentifier] = useState("");
@@ -39,6 +40,14 @@ export default function LoginPage() {
   // EA token state
   const [eaExpanded, setEaExpanded] = useState(false);
   const [token, setToken] = useState("");
+
+  // Check if this IP is allowed for dev quick-login
+  useEffect(() => {
+    fetch("/api/auth/dev-login-check")
+      .then((r) => r.json())
+      .then((d) => { if (d.allowed) setDevLoginAllowed(true); })
+      .catch(() => {});
+  }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -208,8 +217,8 @@ export default function LoginPage() {
         </p>
       </CardFooter>
 
-      {/* Dev-only quick login */}
-      {process.env.NEXT_PUBLIC_SHOW_DEV_LOGIN === "1" && (
+      {/* Dev-only quick login — IP-gated via DevLoginIp table */}
+      {devLoginAllowed && (
         <div className="border-t px-6 py-4">
           <p className="mb-2 text-center text-xs font-medium text-muted-foreground">
             {t("auth.quickLoginDev")}

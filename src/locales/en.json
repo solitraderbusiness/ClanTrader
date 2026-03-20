@@ -467,6 +467,8 @@
     "usernamePlaceholder": "alitrader"
   },
   "settings": {
+    "lightMode": "Light Mode",
+    "darkMode": "Dark Mode",
     "security": "Security",
     "mtAccounts": "MT Accounts",
     "mtAccountsTitle": "MetaTrader Accounts",

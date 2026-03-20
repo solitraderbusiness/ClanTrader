@@ -273,7 +273,7 @@ export default async function ClanPage({
   );
 
   const headerContent = (
-    <div className="space-y-6">
+    <div className="space-y-2">
       <ClanProfileHeader
         clan={clan}
         memberCount={clan._count.members}
@@ -294,9 +294,9 @@ export default async function ClanPage({
           targetClanName={clan.name}
         />
         {isLeaderOrCoLeader && (
-          <Button variant="outline" size="icon" asChild>
+          <Button variant="outline" size="icon" className="h-7 w-7" asChild>
             <Link href={`/clans/${clanId}/manage`}>
-              <Settings className="h-4 w-4" />
+              <Settings className="h-3.5 w-3.5" />
             </Link>
           </Button>
         )}

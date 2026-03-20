@@ -658,6 +658,13 @@ model TraderStatement {
 
 // --- Admin Config ---
 
+model DevLoginIp {
+  id        String   @id @default(cuid())
+  ip        String   @unique
+  label     String?
+  createdAt DateTime @default(now())
+}
+
 model FeatureFlag {
   id          String   @id @default(cuid())
   key         String   @unique
